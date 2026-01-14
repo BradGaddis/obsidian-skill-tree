@@ -1,0 +1,11 @@
+{
+	"id": "skill-tree",
+	"name": "Skill Tree",
+	"version": "0.5.0",
+	"minAppVersion": "0.15.0",
+	"description": "A skill tree for whatever you want in life. With Tasks.",
+	"author": "Brad Gaddis",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}
