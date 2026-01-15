@@ -1,25 +1,42 @@
-import { Plugin, ItemView, WorkspaceLeaf, PluginSettingTab, Setting, App, TFile } from 'obsidian';
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App,} from 'obsidian';
 import { SkillTreeSettings } from './interfaces';
 import { SkillTreeView } from './skilltree-view';
+import { VIEW_TYPE_SKILLTREE } from './constants';
 
-export const VIEW_TYPE_SKILLTREE = 'skill-tree-view';
+export type { SkillTreeSettings, SkillTreeData, SkillNode, SkillEdge } from './interfaces';
+export type { Coordinate } from './types';
+export { VIEW_TYPE_SKILLTREE }
+export { SkillTreeView };
+
+/**
+ * Unique view type identifier used when registering the Skill Tree view.
+ */
 
 
+/**
+ * Default plugin settings.
+ * @internal
+ */
 function defaultSettings(): SkillTreeSettings {
-  return { 
+  return {
     defaultLabel: 'New Skill', 
     nodeRadius: 36, 
-    showHandles: true, 
-    showBezier: true, 
-    defaultExp: 0, 
+    showHandles: false, 
+    showBezier: false, 
+    defaultExp: 10, 
     showExpAsFraction: false,
     currentTreeName: 'default',
-    trees: { 'default': { name: 'default', nodes: [], edges: [] } }
+    trees: { 'default': { name: 'default', nodes: [], edges: [] } } // TODO implement
   };
 }
 
 
+/**
+ * Main plugin class for the Skill Tree Obsidian plugin.
+ * Handles settings, view registration and activation.
+ */
 export default class SkillTreePlugin extends Plugin {
+  /** The settings. Will be default if nothing is saved or changed */
   settings: SkillTreeSettings = defaultSettings();
 
   async onload() {
@@ -67,6 +84,9 @@ export default class SkillTreePlugin extends Plugin {
   }
 }
 
+/**
+ * Settings tab displayed in Obsidian's settings dialog for the plugin.
+ */
 class SkillTreeSettingTab extends PluginSettingTab {
   plugin: SkillTreePlugin;
 

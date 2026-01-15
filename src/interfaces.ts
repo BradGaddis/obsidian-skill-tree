@@ -1,3 +1,9 @@
+/**
+ * Represents a node (skill) on the skill tree.
+ * @remarks
+ * Nodes may optionally reference an Obsidian note via `fileLink` and carry
+ * experience points in `exp`.
+ */
 export interface SkillNode {
   id: number;
   x: number;
@@ -8,6 +14,10 @@ export interface SkillNode {
   exp?: number; // Experience points for this node
 }
 
+/**
+ * Represents a directed connection (edge) between two `SkillNode`s.
+ * Either `from` or `to` may be `null` during editing operations.
+ */
 export interface SkillEdge {
   id: number;
   from: number | null;
@@ -25,12 +35,19 @@ export interface PersistData {
   edges?: SkillEdge[];
 }
 
+/**
+ * Persistable skill tree data structure.
+ * Contains the tree `name` and arrays of `nodes` and `edges`.
+ */
 export interface SkillTreeData {
   name: string;
   nodes: SkillNode[];
   edges: SkillEdge[];
 }
 
+/**
+ * Plugin settings persisted between Obsidian sessions.
+ */
 export interface SkillTreeSettings {
   defaultLabel: string;
   nodeRadius: number;

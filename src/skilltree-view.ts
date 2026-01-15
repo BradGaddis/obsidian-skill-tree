@@ -4,45 +4,114 @@ import { SkillNode, SkillEdge, SkillTreeSettings, SkillTreeData } from './interf
 import  {VIEW_TYPE_SKILLTREE}  from './main';
 import SkillTreePlugin from './main';
 import { chooseEdgeColor, computeBezierControls, drawBezierArrow, drawArrow, parseCSSColor, distanceSqToBezier } from './drawing';
+import { Coordinate } from './types';
+import { ModalStyleOptions } from './types';
+import { DEFAULT_MODAL_STYLES } from './constants';
 
+/**
+ * Create a small default set of nodes used when initializing a new tree.
+ * @internal
+ */
 function defaultNodes(): SkillNode[] {
   return [
-    { id: Date.now(), x: 200, y: 150, label: 'Right Click Me!', state: 'unavailable', exp: 0 },
-    { id: Date.now() + 1, x: 200, y: 150, label: 'Double Left Click Me', state: 'unavailable', exp: 0 },
+    { id: Date.now(), x: 200, y: 150, label: 'Right Click Me!', state: 'unavailable', exp: 10 },
+    { id: Date.now() + 1, x: 200, y: 150, label: 'Double Left Click Me', state: 'unavailable', exp: 10 },
   ];
 }
 
-
+/**
+ * View that renders and manages the interactive Skill Tree canvas.
+ *
+ * This class extends Obsidian's `ItemView` and handles node/edge
+ * rendering, input handling, and integrations with task/dataview plugins.
+ */
 export class SkillTreeView extends ItemView {
+  /** The canvas that this plugin will render to */
   canvas: HTMLCanvasElement | null = null;
+
+  /** The context in which is manipulated to draw our elements */
   context: CanvasRenderingContext2D | null = null;
+
+  /** TODO */
   canvasWrap: HTMLDivElement | null = null;
+
+  /** I am not entirely sure what this does yet. It appears to be rendered onLoad(), and used for what we ACTUALLY draw on */
   resizeObserver: ResizeObserver | null = null;
-  offset = { x: 0, y: 0 };
+  
+  /** Updated anytime the "camera" is moved */
+  offset: Coordinate = { x: 0, y: 0 };
+  
+  /** A measure of how "zoomed" we are on the canvas */
   scale = 1;
+
+  /** The node information that is rendered to a the canvas */
   nodes: SkillNode[] = [];
+
+  /** Information about the line that is drawn between two nodes */
   edges: SkillEdge[] = [];
+
+  /** Information about where a mouse drag starts from a node id and its coordinates */
   _dragStart: { nodeId: number; x: number; y: number } | null = null;
-  _dragStartScreen: { x: number; y: number } | null = null;
+  
+  /** TODO */
+  _dragStartScreen: Coordinate | null = null;
+  
+  /** TODO */
   _dragging = false;
+  
+  /** TODO */
   creatingEdgeFrom: SkillNode | null = null;
+  
+  /** TODO */
   creatingEdgeFromSide: 'top'|'right'|'bottom'|'left' | null = null;
+  
+  /** TODO */
   tempEdgeTarget: { x: number; y: number } | null = null;
+  
+  /** TODO */
   nodeRadii: Record<number, number> = {};
+  
+  /** TODO */
   selectedNodeId: number | null = null;
+  
+  /** TODO */
   selectedTask: { nodeId: number; taskIndex: number } | null = null;
+  
+  /** TODO */
   historyPast: any[] = [];
+  
+  /** TODO */
   historyFuture: any[] = [];
+  
+  /** TODO */
   _suppressHistory = false;
+  
+  /** Exists to detect when the mouse is clicked outside of a modal */
   modalOutsideListener: ((e: Event) => void) | null = null;
+  
+  /** TODO */
   draggingEdgeEndpoint: { edgeId: number; which: 'from' | 'to' } | null = null;
+  
+  /** TODO */
   _edgeDragActive = false;
-  _edgeDragStart: { x: number; y: number } | null = null;
+  
+  /** TODO */
+  _edgeDragStart: Coordinate | null = null;
+  
+  /** Referenced to the default plugin*/
   plugin: SkillTreePlugin;
+  
+  /** TODO */
   _keyHandler: ((e: KeyboardEvent) => void) | null = null;
+  
+  /** TODO */
   _animationTime = 0;
+  
+  /** TODO */
   _animationFrameId: number | null = null;
 
+  
+  
   constructor(leaf: WorkspaceLeaf, plugin: SkillTreePlugin) {
     super(leaf);
     this.plugin = plugin;
@@ -67,19 +136,27 @@ export class SkillTreeView extends ItemView {
       const tasksPlugin = (this.app as any).plugins?.plugins?.['obsidian-tasks-plugin'];
       if (tasksPlugin) return true;
       
-      // Also check enabled plugins list
-      const enabledPlugins = (this.app as any).plugins?.enabledPlugins;
-      if (enabledPlugins && enabledPlugins.has('obsidian-tasks-plugin')) return true;
-      
-      // Check for alternative plugin ID
-      const tasksPluginAlt = (this.app as any).plugins?.plugins?.['tasks'];
-      if (tasksPluginAlt) return true;
       
       return false;
     } catch (e) {
       return false;
     }
   }
+
+  // Check if Tasks plugin is installed
+  isDataviewPluginInstalled(): boolean {
+    try {
+      // Check if Tasks plugin is available
+      const dataviewPlugin = (this.app as any).plugins?.plugins?.['dataview'];
+      if (dataviewPlugin) return true;
+      
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+
 
   // Get Tasks plugin instance
   getTasksPlugin(): any {
@@ -92,20 +169,25 @@ export class SkillTreeView extends ItemView {
     }
   }
 
+  // TODO switch to dataview sTask 
   // Get tasks from a file using Tasks plugin or manual parsing
   async getTasksFromFile(filePath: string): Promise<any[]> {
     try {
+
       // Normalize file path - remove leading slash if present, ensure .md extension
       let normalizedPath = filePath.trim();
+      
       if (normalizedPath.startsWith('/')) {
         normalizedPath = normalizedPath.substring(1);
       }
+
       if (!normalizedPath.endsWith('.md')) {
         normalizedPath = normalizedPath + '.md';
       }
       
       // Try to get the file - also try without .md extension
       let file = this.app.vault.getAbstractFileByPath(normalizedPath);
+      
       if (!file && !filePath.endsWith('.md')) {
         // Try the original path as-is
         file = this.app.vault.getAbstractFileByPath(filePath.trim());
@@ -128,6 +210,7 @@ export class SkillTreeView extends ItemView {
       
       // Try Tasks plugin API first if available, but we still need to parse hierarchy manually
       let tasksFromAPI: any[] = [];
+      
       if (this.isTasksPluginInstalled()) {
         const tasksPlugin = this.getTasksPlugin();
         if (tasksPlugin && tasksPlugin.api && typeof tasksPlugin.api.parseTasks === 'function') {
@@ -148,6 +231,7 @@ export class SkillTreeView extends ItemView {
             // Fallback to manual parsing
           }
         }
+        
       }
       
       // If we got tasks from API, we still need to parse hierarchy from the file
@@ -196,7 +280,7 @@ export class SkillTreeView extends ItemView {
             id: index++,
             text: taskText,
             completed: isCompleted,
-            line: i,
+            line:  i,
             originalLine: line,
             indent: indent,
             parentIndex: null as number | null,
@@ -248,18 +332,32 @@ export class SkillTreeView extends ItemView {
           task.exp = 10;
         }
       }
-      
       return tasks;
     } catch (e) {
       return [];
     }
   }
 
+
+
+
+
+
+  
+
   // Cache for tasks per node
   _tasksCache: Map<number, any[]> = new Map();
   _fileWatchers: Map<number, any> = new Map(); // Store file watchers per node
   _taskPositions: Map<number, Array<{ taskIndex: number; x: number; y: number; radius: number }>> = new Map(); // Store task positions for click detection
   
+  getNodeHit(e: any) : SkillNode {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const w = this.screenToWorld(sx, sy);
+    return this.getNodeAtWorld(w.x, w.y);
+  }
+
   // Get tasks for a node (with caching)
   async getNodeTasks(node: SkillNode): Promise<any[]> {
     if (!node.fileLink) return [];
@@ -625,6 +723,18 @@ export class SkillTreeView extends ItemView {
 
     let isPanning = false;
     let edgesChanged = false;
+
+    this.canvas.addEventListener('click', async (e) => {
+      if (!this.canvas) return;
+      let hit = this.getNodeHit(e)
+      
+      if (hit) {
+        this.selectedNodeId = hit.id;
+        console.log("opening stats")
+        this.openNodeStats(hit)
+      }
+    })
+
     // double click: open file if node has fileLink, otherwise open editor, or add node if empty
     this.canvas.addEventListener('dblclick', async (e) => {
       if (!this.canvas) return;
@@ -634,7 +744,6 @@ export class SkillTreeView extends ItemView {
       const w = this.screenToWorld(sx, sy);
       const hit = this.getNodeAtWorld(w.x, w.y);
       if (hit) {
-        this.selectedNodeId = hit.id;
         // If node has a file link, open it instead of the editor
         if (hit.fileLink) {
           try {
@@ -654,6 +763,7 @@ export class SkillTreeView extends ItemView {
         this.render();
       }
     });
+
     // right-click on a node should open the editor modal
     this.canvas.addEventListener('contextmenu', (e) => {
       if (!this.canvas) return;
@@ -679,8 +789,10 @@ export class SkillTreeView extends ItemView {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const w = this.screenToWorld(sx, sy);
+
       // clear selection only for left-click; middle/right (panning) keep selection
       // But don't clear if clicking on a task node
+
       if (e.button === 0) {
         const taskHit = this.getTaskNodeAtWorld(w.x, w.y);
         if (!taskHit) {
@@ -692,12 +804,14 @@ export class SkillTreeView extends ItemView {
         isPanning = true;
         return;
       }
+
       // check task checkbox first (if a task is selected)
       const taskCheckboxHit = this.getTaskCheckboxAtWorld(w.x, w.y);
       if (taskCheckboxHit) {
         // Will handle toggle in mouseup - don't set _dragStart to prevent node dragging
         return;
       }
+
       // check task nodes first (before other checks)
       const taskHit = this.getTaskNodeAtWorld(w.x, w.y);
       if (taskHit) {
@@ -707,6 +821,7 @@ export class SkillTreeView extends ItemView {
         this.render(); // Update display to show expanded task
         return;
       }
+      
       // check edge endpoints first
       const edgeHit = this.getEdgeEndpointAtWorld(w.x, w.y);
       if (edgeHit) {
@@ -717,6 +832,7 @@ export class SkillTreeView extends ItemView {
         this.recordSnapshot();
         return;
       }
+
       // if not clicking directly on an endpoint, allow clicking near the edge body
       const edgeBody = this.getEdgeAtWorld(w.x, w.y, 12);
       if (edgeBody) {
@@ -727,6 +843,7 @@ export class SkillTreeView extends ItemView {
         this.recordSnapshot();
         return;
       }
+
       // check checkbox clicks first
       const checkboxHit = this.getCheckboxAtWorld(w.x, w.y);
       if (checkboxHit) {
@@ -737,6 +854,7 @@ export class SkillTreeView extends ItemView {
         this.render();
         return;
       }
+
       // check handles next
       const h = this.getNodeHandleAtWorld(w.x, w.y);
       if (h) {
@@ -747,6 +865,7 @@ export class SkillTreeView extends ItemView {
         this.recordSnapshot();
         return;
       }
+
       const hit = this.getNodeAtWorld(w.x, w.y);
       if (hit) {
         this.selectedNodeId = hit.id;
@@ -763,6 +882,7 @@ export class SkillTreeView extends ItemView {
         }
       }
     });
+
     window.addEventListener('mouseup', async (e) => {
       if (!this.canvas) return;
       const rect = this.canvas.getBoundingClientRect();
@@ -999,15 +1119,19 @@ export class SkillTreeView extends ItemView {
         this.render();
       }
     });
+
+
     this.canvas.addEventListener('wheel', (e) => {
       if (!this.canvas) return;
       e.preventDefault();
+
       const rect = this.canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const worldBefore = this.screenToWorld(sx, sy);
       const delta = -e.deltaY * 0.001;
       const factor = 1 + delta;
+
       this.scale *= factor;
       this.scale = Math.max(0.2, Math.min(3, this.scale));
       this.offset.x = sx - worldBefore.x * this.scale;
@@ -1020,8 +1144,10 @@ export class SkillTreeView extends ItemView {
     if (!this.nodes || this.nodes.length === 0) {
       this.nodes = defaultNodes();
     }
+
     // Load tasks for all nodes with file links
     await this.loadAllNodeTasks();
+    
     // Force initial resize to ensure canvas has size
     this.resize();
     // Ensure canvas is properly sized before first render
@@ -1147,36 +1273,50 @@ export class SkillTreeView extends ItemView {
       // measure text at a stable 14px font in device pixels
       this.context.setTransform(1, 0, 0, 1, 0, 0);
       this.context.font = '14px sans-serif';
-      
-      // Build label text with exp
+
+      // Wrap label after 4 words per line and append exp to last line
       const exp = n.exp !== undefined ? n.exp : 0;
-      let labelText = n.label;
-      if (exp > 0 || this.settings.showExpAsFraction) {
-        labelText = `${n.label} (${exp})`;
+      const words = (n.label || '').split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      for (let i = 0; i < words.length; i += 4) {
+        lines.push(words.slice(i, i + 4).join(' '));
       }
-      
-      // Measure title text width
-      const titleWidth = this.context.measureText(labelText).width || 0;
-      
+      if (lines.length === 0) lines.push('');
+      if (exp > 0 || this.settings.showExpAsFraction) {
+        lines[lines.length - 1] = `${lines[lines.length - 1]} (${exp})`.trim();
+      }
+
+      // Measure each wrapped line and take the maximum
+      let titleMaxWidth = 0;
+      for (const ln of lines) {
+        titleMaxWidth = Math.max(titleMaxWidth, this.context.measureText(ln).width || 0);
+      }
+
       // Measure file name if present (using smaller font)
       let fileNameWidth = 0;
       if (n.fileLink) {
         const pathParts = n.fileLink.split('/');
         let fileName = pathParts[pathParts.length - 1];
-        if (fileName.endsWith('.md')) {
-          fileName = fileName.slice(0, -3);
-        }
+        if (fileName.endsWith('.md')) fileName = fileName.slice(0, -3);
         this.context.font = '12px sans-serif';
         fileNameWidth = this.context.measureText(fileName).width || 0;
         this.context.font = '14px sans-serif'; // Reset
       }
-      
-      // Use the wider of the two texts
-      const textWidth = Math.max(titleWidth, fileNameWidth);
-      
+
+      // Use the wider of the title lines and file name
+      const textWidth = Math.max(titleMaxWidth, fileNameWidth);
+
       this.context.restore();
-      const padding = 12; // px of horizontal padding
-      const desiredScreenRadius = textWidth / 2 + padding;
+      const horizontalPadding = 12; // px horizontal padding
+      const verticalPadding = 8; // px vertical padding
+      const lineHeight = 16; // px at device pixel measurement
+
+      const numLines = lines.length + (n.fileLink ? 1 : 0);
+      const textHeight = numLines * lineHeight;
+
+      const desiredScreenRadiusFromWidth = textWidth / 2 + horizontalPadding;
+      const desiredScreenRadiusFromHeight = textHeight / 2 + verticalPadding;
+      const desiredScreenRadius = Math.max(desiredScreenRadiusFromWidth, desiredScreenRadiusFromHeight);
       const desiredWorldRadius = desiredScreenRadius / Math.max(0.0001, this.scale);
       return Math.max(this.settings.nodeRadius, desiredWorldRadius);
     } catch (e) {
@@ -1191,6 +1331,7 @@ export class SkillTreeView extends ItemView {
     }
   }
 
+  /** If a node with the HTML Class .skill-tree-node-modal exists, close it*/
   closeAllModals() {
     if (!this.containerEl) return;
     const nodeModal = this.containerEl.querySelector('.skill-tree-node-modal');
@@ -1215,6 +1356,7 @@ export class SkillTreeView extends ItemView {
     document.addEventListener('pointerdown', listener);
   }
 
+  /** Sets [[modalOutsideListener]] to null if it exists */
   removeOutsideClickHandler() {
     if (this.modalOutsideListener) {
       document.removeEventListener('pointerdown', this.modalOutsideListener);
@@ -1797,22 +1939,29 @@ export class SkillTreeView extends ItemView {
     }
   }
 
+
+/** Updates the 2D Context to display information on the screen */
   render(): void {
     if (!this.context || !this.canvas) return;
-    const ctx = this.context;
+    const context = this.context;
+ 
     // recompute node radii each render (depends on current scale and label widths)
     this.computeAllNodeRadii();
+
     // clear in device pixels
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
     // draw background in device pixels so it doesn't move with pan/zoom
-    ctx.save();
+    context.save();
     try {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      context.setTransform(1, 0, 0, 1, 0, 0);
     } catch (e) {
       /* ignore if not supported */
     }
+
     // respect Obsidian theme variable for background if available
     let bg = '#e7f5ff';
+
     try {
       const docStyle = getComputedStyle(document.documentElement);
       const cssBg = docStyle.getPropertyValue('--background-primary');
@@ -1821,32 +1970,48 @@ export class SkillTreeView extends ItemView {
         const cs = getComputedStyle(this.canvas);
         if (cs && cs.backgroundColor) bg = cs.backgroundColor;
       }
-    } catch (e) { /* ignore */ }
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    catch (e) { /* ignore */ }
+
+    context.fillStyle = bg;
+    context.fillRect(0, 0, this.canvas.width, this.canvas.height);
     
     // Draw warning banner at top if Tasks plugin is not installed
     if (!this.isTasksPluginInstalled()) {
-      ctx.save();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
       // Draw warning background
-      ctx.fillStyle = 'rgba(255, 193, 7, 0.9)'; // Amber/yellow warning color
-      ctx.fillRect(0, 0, this.canvas.width, 40);
+      context.fillStyle = 'rgba(255, 193, 7, 0.9)';
+      context.fillRect(0, 0, this.canvas.width, 40);
       // Draw warning text
-      ctx.fillStyle = '#000';
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('⚠️ Tasks plugin is required but not installed. Please install the Tasks plugin to use all features.', this.canvas.width / 2, 20);
-      ctx.restore();
+      context.fillStyle = '#000';
+      context.font = '14px sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText('⚠️ Tasks plugin is required but not installed. Please install the Tasks plugin to use all features.', this.canvas.width / 2, 20);
+      context.restore();
     }
+    // if (!this.isDataviewPluginInstalled()) {
+    //   context.save();
+    //   context.setTransform(1, 0, 0, 1, 0, 0);
+    //   // Draw warning background
+    //   context.fillStyle = 'rgba(255, 193, 7, 0.9)'; // Amber/yellow warning color
+    //   context.fillRect(0, 40, this.canvas.width, 40);
+    //   // Draw warning text
+    //   context.fillStyle = '#000';
+    //   context.font = '14px sans-serif';
+    //   context.textAlign = 'center';
+    //   context.textBaseline = 'middle';
+    //   context.fillText('⚠️ Dataview plugin is required but not installed. Please install the Tasks plugin to use all features.', this.canvas.width / 2, 20);
+    //   context.restore();
+    // }
     
-    ctx.restore();
+    context.restore();
 
-    ctx.save();
+    context.save();
     // apply pan/zoom for world drawing
-    ctx.translate(this.offset.x, this.offset.y);
-    ctx.scale(this.scale, this.scale);
+    context.translate(this.offset.x, this.offset.y);
+    context.scale(this.scale, this.scale);
 
     // draw explicit edges as arrows
     for (const e of this.edges) {
@@ -1896,42 +2061,45 @@ export class SkillTreeView extends ItemView {
           sy2 = b.y - (dy / d) * rTo;
         }
       }
-      ctx.save();
+      context.save();
       const edgeColor = chooseEdgeColor();
       // compute bezier control points
       const controls = computeBezierControls(sx1, sy1, sx2, sy2, e.fromSide, e.toSide, rFrom, rTo);
       if (this.settings.showBezier) {
         // draw halo for contrast
-        ctx.lineWidth = 6 / this.scale;
-        ctx.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
-        drawBezierArrow(ctx, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+        context.lineWidth = 6 / this.scale;
+        context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
+        drawBezierArrow(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
         // draw main edge
-        ctx.lineWidth = 2 / this.scale;
-        ctx.strokeStyle = edgeColor;
-        ctx.fillStyle = edgeColor;
-        drawBezierArrow(ctx, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+        context.lineWidth = 2 / this.scale;
+        context.strokeStyle = edgeColor;
+        context.fillStyle = edgeColor;
+        drawBezierArrow(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
       } else {
         // draw halo for contrast (straight)
-        ctx.lineWidth = 6 / this.scale;
-        ctx.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
-        drawArrow(ctx, sx1, sy1, sx2, sy2, this.scale);
+        context.lineWidth = 6 / this.scale;
+        context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
+        drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
         // draw main edge
-        ctx.lineWidth = 2 / this.scale;
-        ctx.strokeStyle = edgeColor;
-        ctx.fillStyle = edgeColor;
-        drawArrow(ctx, sx1, sy1, sx2, sy2, this.scale);
+        context.lineWidth = 2 / this.scale;
+        context.strokeStyle = edgeColor;
+        context.fillStyle = edgeColor;
+        drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
       }
-      ctx.restore();
+      context.restore();
     }
 
     for (const n of this.nodes) {
-      const r = this.nodeRadii[n.id] || this.settings.nodeRadius || 36;
-      ctx.beginPath();
+      const r = (this.nodeRadii[n.id] || this.settings.nodeRadius || 36);
+      context.beginPath();
+      
       // fill/stroke depending on state - use actual state from node object
       const nodeState = n.state || 'in-progress';
+      
       if (nodeState === 'complete') {
-        ctx.fillStyle = '#4caf50';
-        ctx.strokeStyle = '#2e7d32';
+        context.fillStyle = '#4caf50';
+        context.strokeStyle = '#2e7d32';
+        
       } else if (nodeState === 'unavailable') {
         // darken / gray-out unavailable nodes by mixing base color with a desaturated gray
         const base = '#2b6';
@@ -1941,29 +2109,30 @@ export class SkillTreeView extends ItemView {
         const mixR = Math.round(parsed.r * 0.4 + gray.r * 0.6);
         const mixG = Math.round(parsed.g * 0.4 + gray.g * 0.6);
         const mixB = Math.round(parsed.b * 0.4 + gray.b * 0.6);
-        ctx.fillStyle = `rgb(${mixR},${mixG},${mixB})`;
-        ctx.strokeStyle = `rgb(${Math.round(mixR * 0.9)},${Math.round(mixG * 0.9)},${Math.round(mixB * 0.9)})`;
+        context.fillStyle = `rgb(${mixR},${mixG},${mixB})`;
+        context.strokeStyle = `rgb(${Math.round(mixR * 0.9)},${Math.round(mixG * 0.9)},${Math.round(mixB * 0.9)})`;
+      
       } else {
-        ctx.fillStyle = '#2b6';
-        ctx.strokeStyle = '#173';
+        context.fillStyle = '#2b6';
+        context.strokeStyle = '#173';
       }
-      ctx.lineWidth = 2 / this.scale;
-      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      context.lineWidth = 4 / this.scale;
+      context.arc(n.x, n.y, r, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
       // draw selection highlight if this node is selected with pulsing animation
       if (this.selectedNodeId === n.id) {
         // Use sine wave for smooth pulsing (pulse between 6 and 10 pixels extra radius)
         const pulseAmount = 6 + 4 * Math.sin(this._animationTime / 500); // 500ms period
-        ctx.beginPath();
-        ctx.lineWidth = 4 / this.scale;
-        ctx.strokeStyle = 'rgba(255,165,0,0.95)';
-        ctx.arc(n.x, n.y, r + (pulseAmount / this.scale), 0, Math.PI * 2);
-        ctx.stroke();
+        context.beginPath();
+        context.lineWidth = 4 / this.scale;
+        context.strokeStyle = 'rgba(255,165,0,0.95)';
+        context.arc(n.x, n.y, r + (pulseAmount / this.scale), 0, Math.PI * 2);
+        context.stroke();
       }
       // Draw label - make it look clickable if there's a file link
-      ctx.textAlign = 'center';
-      ctx.font = `${14 / this.scale}px sans-serif`;
+      context.textAlign = 'center';
+      context.font = `${14 / this.scale}px sans-serif`;
       
       // Get theme-aware text color
       let labelTextColor = '#000';
@@ -1975,58 +2144,59 @@ export class SkillTreeView extends ItemView {
         }
       } catch (e) {}
       
-      // Build label text with exp
+      // Build wrapped label lines (wrap after 4 words) and append exp to last line
       const exp = n.exp !== undefined ? n.exp : 0;
-      let labelText = n.label;
-      if (exp > 0 || this.settings.showExpAsFraction) {
-        labelText = `${n.label} (${exp})`;
+      const words = (n.label || '').split(/\s+/).filter(Boolean);
+      const lines: string[] = [];
+      for (let i = 0; i < words.length; i += 4) {
+        lines.push(words.slice(i, i + 4).join(' '));
       }
-      
-      // Extract file name from fileLink if it exists
+      if (lines.length === 0) lines.push('');
+      if (exp > 0 || this.settings.showExpAsFraction) {
+        lines[lines.length - 1] = `${lines[lines.length - 1]}`.trim();
+      }
+
+      // Extract file name from fileLink if it exists (rendered as its own line)
       let fileName = '';
       if (n.fileLink) {
         const pathParts = n.fileLink.split('/');
         fileName = pathParts[pathParts.length - 1];
-        // Remove .md extension if present
-        if (fileName.endsWith('.md')) {
-          fileName = fileName.slice(0, -3);
-        }
+        if (fileName.endsWith('.md')) fileName = fileName.slice(0, -3);
       }
-      
-      // Calculate vertical positions for title and file name
+
       const lineHeight = 16 / this.scale;
-      let titleY = n.y + 5 / this.scale;
-      let fileNameY = titleY;
-      
-      if (n.fileLink && fileName) {
-        // If there's a file name, show title on first line, file name on second line
-        fileNameY = titleY + lineHeight;
-      }
-      
-      if (n.fileLink) {
-        // Style linked nodes differently (underline or different color)
-        ctx.fillStyle = '#0066cc'; // Blue color for linked nodes
-        ctx.fillText(labelText, n.x, titleY);
-        
-        // Draw file name below title if it exists
-        if (fileName) {
-          ctx.font = `${12 / this.scale}px sans-serif`;
-          ctx.fillStyle = '#0066cc';
-          ctx.fillText(fileName, n.x, fileNameY);
-          ctx.font = `${14 / this.scale}px sans-serif`; // Reset font
+      // Start drawing so the block of text is vertically centered around n.y
+      const totalLines = lines.length + (fileName ? 1 : 0);
+      const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
+
+      // Determine fill style for linked vs plain nodes
+      if (n.fileLink) context.fillStyle = '#0066cc';
+      else context.fillStyle = labelTextColor;
+
+      // Draw wrapped label lines
+      for (let i = 0; i < lines.length; i++) {
+        const text = lines[i];
+        const y = firstLineY + i * lineHeight;
+        context.fillText(text, n.x, y);
+        // underline the first line for linked nodes
+        if (i === 0 && n.fileLink) {
+          const textWidth = context.measureText(text).width;
+          context.strokeStyle = '#0066cc';
+          context.lineWidth = 1 / this.scale;
+          context.beginPath();
+          context.moveTo(n.x - textWidth / 2, y + 8 / this.scale);
+          context.lineTo(n.x + textWidth / 2, y + 8 / this.scale);
+          context.stroke();
         }
-        
-        // Draw underline to indicate it's clickable (only on title)
-        const textWidth = ctx.measureText(labelText).width;
-        ctx.strokeStyle = '#0066cc';
-        ctx.lineWidth = 1 / this.scale;
-        ctx.beginPath();
-        ctx.moveTo(n.x - textWidth / 2, titleY + 8 / this.scale);
-        ctx.lineTo(n.x + textWidth / 2, titleY + 8 / this.scale);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = labelTextColor;
-        ctx.fillText(labelText, n.x, titleY);
+      }
+
+      // Draw file name on its own line below wrapped label lines
+      if (fileName) {
+        context.font = `${12 / this.scale}px sans-serif`;
+        context.fillStyle = n.fileLink ? '#0066cc' : labelTextColor;
+        const y = firstLineY + lines.length * lineHeight;
+        context.fillText(fileName, n.x, y);
+        context.font = `${14 / this.scale}px sans-serif`;
       }
       // display checkbox for in-progress nodes (centered below text)
       // BUT: don't show checkbox if node has tasks (tasks have their own checkboxes)
@@ -2034,11 +2204,9 @@ export class SkillTreeView extends ItemView {
       const nodeTasks = this._tasksCache.get(n.id) || [];
       const hasTasks = nodeTasks.length > 0;
       
-      // Calculate the bottom of the text (accounting for title and file name if present)
-      let textBottomY = titleY;
-      if (n.fileLink && fileName) {
-        textBottomY = fileNameY; // File name is below title
-      }
+      // Calculate the bottom of the text (accounting for wrapped lines and optional file name)
+      let textBottomY = firstLineY + (lines.length - 1) * lineHeight;
+      if (fileName) textBottomY += lineHeight; // file name occupies another line below
       
       if (actualState === 'in-progress' && !hasTasks) {
         // Draw checkbox centered horizontally, below all text
@@ -2047,9 +2215,9 @@ export class SkillTreeView extends ItemView {
         const checkboxY = textBottomY + 8 / this.scale; // Below all text with spacing
         
         // Draw checkbox border
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5 / this.scale;
-        ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
+        context.strokeStyle = '#000';
+        context.lineWidth = 1.5 / this.scale;
+        context.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
         
         // Checkbox is empty (not checked) for in-progress nodes
       } else if (actualState === 'complete') {
@@ -2059,63 +2227,64 @@ export class SkillTreeView extends ItemView {
         const checkboxY = textBottomY + 8 / this.scale; // Below all text with spacing
         
         // Draw checkbox border
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5 / this.scale;
-        ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
+        context.strokeStyle = '#000';
+        context.lineWidth = 1.5 / this.scale;
+        context.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
         
         // Draw checkmark
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2 / this.scale;
-        ctx.beginPath();
-        ctx.moveTo(checkboxX + checkboxSize * 0.2, checkboxY + checkboxSize * 0.5);
-        ctx.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.75);
-        ctx.lineTo(checkboxX + checkboxSize * 0.8, checkboxY + checkboxSize * 0.25);
-        ctx.stroke();
+        context.strokeStyle = '#000';
+        context.lineWidth = 2 / this.scale;
+        context.beginPath();
+        context.moveTo(checkboxX + checkboxSize * 0.2, checkboxY + checkboxSize * 0.5);
+        context.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.75);
+        context.lineTo(checkboxX + checkboxSize * 0.8, checkboxY + checkboxSize * 0.25);
+        context.stroke();
         
         // Draw SVG checkmark icon in top-right corner
         const iconSize = 18 / this.scale;
         const iconX = n.x + r - iconSize - 4 / this.scale;
         const iconY = n.y - r + 4 / this.scale;
         
-        ctx.save();
-        ctx.translate(iconX, iconY);
+        context.save();
+        context.translate(iconX, iconY);
         // Draw circular background
-        ctx.fillStyle = '#4caf50'; // Green background
-        ctx.beginPath();
-        ctx.arc(iconSize / 2, iconSize / 2, iconSize / 2, 0, Math.PI * 2);
-        ctx.fill();
+        context.fillStyle = '#4caf50'; // Green background
+        context.beginPath();
+        context.arc(iconSize / 2, iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+        context.fill();
         // Draw white checkmark
-        ctx.strokeStyle = '#fff';
-        ctx.fillStyle = '#fff';
-        ctx.lineWidth = 2.5 / this.scale;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(iconSize * 0.25, iconSize * 0.5);
-        ctx.lineTo(iconSize * 0.45, iconSize * 0.7);
-        ctx.lineTo(iconSize * 0.75, iconSize * 0.3);
-        ctx.stroke();
-        ctx.restore();
+        context.strokeStyle = '#fff';
+        context.fillStyle = '#fff';
+        context.lineWidth = 2.5 / this.scale;
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.beginPath();
+        context.moveTo(iconSize * 0.25, iconSize * 0.5);
+        context.lineTo(iconSize * 0.45, iconSize * 0.7);
+        context.lineTo(iconSize * 0.75, iconSize * 0.3);
+        context.stroke();
+        context.restore();
       }
       // handles: render per-side unless that specific handle is already used by an explicit edge
-      if (this.settings.showHandles) {
+      // Show handles if the global setting is enabled or this node is currently selected
+      if (this.settings.showHandles || this.selectedNodeId === n.id) {
         const used = new Set<string>();
         for (const ee of this.edges) {
           if (ee.from === n.id && ee.fromSide) used.add(ee.fromSide);
           if (ee.to === n.id && ee.toSide) used.add(ee.toSide);
         }
         const hs = 6 / this.scale;
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1 / this.scale;
-        if (!used.has('top')) { ctx.beginPath(); ctx.arc(n.x, n.y - r, hs / 2, 0, Math.PI * 2); ctx.stroke(); }
-        if (!used.has('right')) { ctx.beginPath(); ctx.arc(n.x + r, n.y, hs / 2, 0, Math.PI * 2); ctx.stroke(); }
-        if (!used.has('bottom')) { ctx.beginPath(); ctx.arc(n.x, n.y + r, hs / 2, 0, Math.PI * 2); ctx.stroke(); }
-        if (!used.has('left')) { ctx.beginPath(); ctx.arc(n.x - r, n.y, hs / 2, 0, Math.PI * 2); ctx.stroke(); }
+        context.strokeStyle = '#000';
+        context.lineWidth = 1 / this.scale;
+        if (!used.has('top')) { context.beginPath(); context.arc(n.x, n.y - r, hs / 2, 0, Math.PI * 2); context.stroke(); }
+        if (!used.has('right')) { context.beginPath(); context.arc(n.x + r, n.y, hs / 2, 0, Math.PI * 2); context.stroke(); }
+        if (!used.has('bottom')) { context.beginPath(); context.arc(n.x, n.y + r, hs / 2, 0, Math.PI * 2); context.stroke(); }
+        if (!used.has('left')) { context.beginPath(); context.arc(n.x - r, n.y, hs / 2, 0, Math.PI * 2); context.stroke(); }
       }
       
       // Draw orbiting task nodes if node has a file link (works even without Tasks plugin)
       if (n.fileLink) {
-        this.renderOrbitingTasks(ctx, n, r);
+        this.renderOrbitingTasks(context, n, r);
       }
     }
 
@@ -2132,38 +2301,47 @@ export class SkillTreeView extends ItemView {
       const r = this.settings.nodeRadius || 36;
       const sx1 = ax + (dx / d) * r;
       const sy1 = ay + (dy / d) * r;
-      ctx.save();
-      ctx.setLineDash([4 / this.scale, 4 / this.scale]);
+      context.save();
+      context.setLineDash([4 / this.scale, 4 / this.scale]);
       const tempColor = chooseEdgeColor();
       // compute controls for temp edge
       const tempFromSide = this.creatingEdgeFromSide || this.getSideBetween(this.creatingEdgeFrom, { id: -1, x: bx, y: by, label: '' });
       const tempControls = computeBezierControls(sx1, sy1, bx, by, tempFromSide, null, r, 0);
       if (this.settings.showBezier) {
-        ctx.lineWidth = 3 / this.scale;
-        ctx.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
-        drawBezierArrow(ctx, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
-        ctx.lineWidth = 1 / this.scale;
-        ctx.strokeStyle = tempColor;
-        ctx.fillStyle = tempColor;
-        drawBezierArrow(ctx, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
+        context.lineWidth = 3 / this.scale;
+        context.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
+        drawBezierArrow(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
+        context.lineWidth = 1 / this.scale;
+        context.strokeStyle = tempColor;
+        context.fillStyle = tempColor;
+        drawBezierArrow(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
       } else {
-        ctx.lineWidth = 3 / this.scale;
-        ctx.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
-        drawArrow(ctx, sx1, sy1, bx, by, this.scale);
-        ctx.lineWidth = 1 / this.scale;
-        ctx.strokeStyle = tempColor;
-        ctx.fillStyle = tempColor;
-        drawArrow(ctx, sx1, sy1, bx, by, this.scale);
+        context.lineWidth = 3 / this.scale;
+        context.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
+        drawArrow(context, sx1, sy1, bx, by, this.scale);
+        context.lineWidth = 1 / this.scale;
+        context.strokeStyle = tempColor;
+        context.fillStyle = tempColor;
+        drawArrow(context, sx1, sy1, bx, by, this.scale);
       }
-      ctx.restore();
+      context.restore();
     }
 
-    ctx.restore();
+    context.restore();
     
-    // Draw exp overlay in bottom right corner
-    this.renderExpOverlay(ctx);
+    // Draw exp overlay in upper(?) right corner
+    this.renderExpOverlay(context);
   }
   
+  
+
+
+
+
+
+
+
+
   // Render exp overlay in top right corner (to avoid status bar)
   renderExpOverlay(ctx: CanvasRenderingContext2D) {
     // Calculate total exp from all completed nodes
@@ -2561,26 +2739,17 @@ export class SkillTreeView extends ItemView {
       const hasTasks = nodeTasks.length > 0;
       
       if (actualState === 'in-progress' && !hasTasks) {
-        // Calculate text bottom position (same logic as render)
+        // Calculate text bottom position (match wrapped rendering)
         const lineHeight = 16 / this.scale;
-        let titleY = n.y + 5 / this.scale;
-        let fileNameY = titleY;
-        
-        // Extract file name from fileLink if it exists
-        let fileName = '';
-        if (n.fileLink) {
-          const pathParts = n.fileLink.split('/');
-          fileName = pathParts[pathParts.length - 1];
-          if (fileName.endsWith('.md')) {
-            fileName = fileName.slice(0, -3);
-          }
-          fileNameY = titleY + lineHeight;
-        }
-        
-        let textBottomY = titleY;
-        if (n.fileLink && fileName) {
-          textBottomY = fileNameY;
-        }
+        const words = (n.label || '').split(/\s+/).filter(Boolean);
+        const lines: string[] = [];
+        for (let i = 0; i < words.length; i += 4) lines.push(words.slice(i, i + 4).join(' '));
+        if (lines.length === 0) lines.push('');
+        const hasFileName = !!n.fileLink;
+        const totalLines = lines.length + (hasFileName ? 1 : 0);
+        const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
+        let textBottomY = firstLineY + (lines.length - 1) * lineHeight;
+        if (hasFileName) textBottomY += lineHeight; // file name occupies another line
         
         const checkboxSize = 12 / this.scale;
         const checkboxX = n.x - checkboxSize / 2;
@@ -2773,49 +2942,7 @@ export class SkillTreeView extends ItemView {
     return null;
   }
 
-  async openNodeEditor(node: SkillNode) {
-    // create an in-DOM modal inside the view so clicks always work
-    if (!this.containerEl) {
-      const newLabel = window.prompt('Edit node label', node.label);
-      if (newLabel !== null) {
-        node.label = newLabel;
-            await this.saveNodes();
-        this.render();
-      }
-      return;
-    }
-    // ensure only one modal is open
-    this.closeAllModals();
-    const modal = this.containerEl.createDiv({ cls: 'skill-tree-node-modal' });
-    // Style the modal to be visible in top right
-    modal.style.position = 'absolute';
-    modal.style.top = '60px'; // Below toolbar
-    modal.style.right = '20px';
-    modal.style.zIndex = '1000';
-    modal.style.backgroundColor = 'var(--background-primary)';
-    modal.style.border = '1px solid var(--background-modifier-border)';
-    modal.style.borderRadius = '8px';
-    modal.style.padding = '20px';
-    modal.style.minWidth = '300px';
-    modal.style.maxWidth = '400px';
-    modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-    // close modal on outside click
-    this.installOutsideClickHandler(modal);
-    const h3 = modal.createEl('h3', { text: 'Edit Node' });
-    h3.style.marginTop = '0';
-    h3.style.marginBottom = '16px';
-    const row = modal.createDiv({ cls: 'st-row' });
-    row.style.marginBottom = '12px';
-    row.style.display = 'flex';
-    row.style.flexDirection = 'column';
-    row.style.gap = '4px';
-    const input = row.createEl('input') as HTMLInputElement;
-    input.type = 'text';
-    input.value = node.label;
-    input.style.width = '100%';
-    input.style.padding = '6px';
-    // state selector (Complete / In-Progress only - Unavailable is NEVER shown or selectable)
-    // If node is unavailable, don't show the state selector at all - just show a message
+  checkEditorModalUnavailableOption(node: SkillNode, modal: HTMLElement) {
     if (node.state === 'unavailable') {
       const stateRow = modal.createDiv({ cls: 'st-row' });
       stateRow.style.marginBottom = '12px';
@@ -2860,6 +2987,99 @@ export class SkillTreeView extends ItemView {
         this.render();
       });
     }
+  }
+
+
+  openModal(
+      modal: HTMLElement,
+      options: ModalStyleOptions = {}
+    ) {
+      Object.assign(modal.style, {
+        ...DEFAULT_MODAL_STYLES,
+        ...options,
+      });
+    }
+
+  async setStatsModalContents(modal: HTMLElement, node: SkillNode) {
+    const header = modal.createDiv();
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    header.style.margin = '0 20px 8px 20px';
+    header.createEl('h3', { text: node.label }).style.margin = '0';
+    modal.createEl('span', { text: 'Stats' }).style.fontWeight = '600';
+
+    // Requirements tree
+    const reqHeader = modal.createEl('h4', { text: 'Requirements' });
+    reqHeader.style.margin = '8px 20px 4px 20px';
+
+    const container = modal.createDiv();
+    container.style.margin = '0 20px 12px 20px';
+
+    // Helper: resolve direct children of a node
+    const childrenOf = (id: number) => {
+      return this.edges
+        .filter((e) => e.to === id && e.from !== null)
+        .map((e) => this.nodes.find((n) => n.id === e.from))
+        .filter((n): n is SkillNode => !!n);
+    };
+
+    const children = childrenOf(node.id);
+    if (children.length === 0) {
+      container.createEl('div', { text: 'None' });
+      return;
+    }
+
+    const ul = container.createEl('ul');
+    ul.style.margin = '4px 0 0 12px';
+    ul.style.paddingLeft = '12px';
+
+    for (const child of children) {
+      const li = ul.createEl('li');
+      li.style.marginBottom = '6px';
+      const childLabel = li.createEl('span', { text: child.label });
+
+      // grandchildren
+      const grandchildren = childrenOf(child.id);
+      if (grandchildren.length > 0) {
+        const subUl = li.createEl('ul');
+        subUl.style.margin = '4px 0 0 12px';
+        subUl.style.paddingLeft = '12px';
+        for (const gc of grandchildren) {
+          const gLi = subUl.createEl('li');
+          gLi.style.marginBottom = '4px';
+          gLi.createEl('span', { text: gc.label });
+
+          // if this grandchild has deeper children, show ellipsis
+          const deeper = childrenOf(gc.id);
+          if (deeper.length > 0) {
+            const ell = gLi.createEl('div', { text: '...' });
+            ell.style.display = 'inline-block';
+            ell.style.marginLeft = '6px';
+            ell.style.opacity = '0.7';
+          }
+        }
+      }
+    }
+  }
+
+  async setEditorModalContents(modal: HTMLElement, node: SkillNode) {
+    const h3 = modal.createEl('h3', { text: 'Edit Node' });
+    h3.style.marginTop = '0';
+    h3.style.marginBottom = '16px';
+    const row = modal.createDiv({ cls: 'st-row' });
+    row.style.marginBottom = '12px';
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '4px';
+    const input = row.createEl('input') as HTMLInputElement;
+    input.type = 'text';
+    input.value = node.label;
+    input.style.width = '100%';
+    input.style.padding = '6px';
+    // state selector (Complete / In-Progress only - Unavailable is NEVER shown or selectable)
+    // If node is unavailable, don't show the state selector at all - just show a message
+    this.checkEditorModalUnavailableOption(node, modal)
     // File link input
     const fileLinkRow = modal.createDiv({ cls: 'st-row' });
     fileLinkRow.style.marginBottom = '12px';
@@ -2900,8 +3120,8 @@ export class SkillTreeView extends ItemView {
       try { await this.saveNodes(); } catch (e) {}
       this.render();
     });
-    
-    // Exp input
+
+     // Exp input
     const expRow = modal.createDiv({ cls: 'st-row' });
     expRow.style.marginBottom = '12px';
     expRow.style.display = 'flex';
@@ -2916,6 +3136,7 @@ export class SkillTreeView extends ItemView {
     expInput.value = String(node.exp !== undefined ? node.exp : this.settings.defaultExp || 0);
     expInput.style.width = '100%';
     expInput.style.padding = '6px';
+
     expInput.addEventListener('change', async () => {
       this.recordSnapshot();
       const expValue = parseInt(expInput.value, 10);
@@ -2961,6 +3182,7 @@ export class SkillTreeView extends ItemView {
       try { await this.saveNodes(); } catch (e) {}
       this.render();
     });
+    
     const actions = modal.createDiv({ cls: 'st-actions' });
     actions.style.display = 'flex';
     actions.style.gap = '8px';
@@ -2983,6 +3205,45 @@ export class SkillTreeView extends ItemView {
       this.removeOutsideClickHandler();
     };
     closeBtn.onclick = () => { modal.remove(); this.removeOutsideClickHandler(); };
+  }
+
+  async openNodeStats(node: SkillNode) {
+    this.closeAllModals();
+    const modal = this.containerEl.createDiv({ cls: 'skill-tree-node-modal' });
+    this.openModal(modal, {
+      position: 'absolute',
+      left: '20px',
+    })
+    this.installOutsideClickHandler(modal);
+
+    await this.setStatsModalContents(modal, node)
+  }
+
+  async openNodeEditor(node: SkillNode) {
+    // create an in-DOM modal inside the view so clicks always work
+    if (!this.containerEl) {
+      const newLabel = window.prompt('Edit node label', node.label);
+      if (newLabel !== null) {
+        node.label = newLabel;
+            await this.saveNodes();
+        this.render();
+      }
+      return;
+    }
+    // ensure only one modal is open
+    this.closeAllModals();
+    const modal = this.containerEl.createDiv({ cls: 'skill-tree-node-modal' });
+    // Style the modal to be visible in top right
+    this.openModal(modal)
+    
+    // close modal on outside click
+    this.installOutsideClickHandler(modal);
+    
+    await this.setEditorModalContents(modal, node)
+
+    
+    
+   
   }
 
   async deleteNode(node: SkillNode, showConfirmation: boolean = true) {

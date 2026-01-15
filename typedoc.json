@@ -1,0 +1,19 @@
+{
+  "entryPoints": ["src"],
+  "out": "docs",
+  "externalSymbolLinkMappings": {
+    "obsidian": {
+      "addIcon": "#",
+      "Workspace.updateOptions": "#",
+      "addRibbonIcon": "#",
+      "registerView": "#"
+    },
+    "typescript": {
+      "setInterval": "#",
+      "clearInterval": "#"
+    },
+    "window": {
+      "setInterval": "#"
+    }
+  }
+}

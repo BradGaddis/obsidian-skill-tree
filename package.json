@@ -7,11 +7,12 @@
     "dev": "esbuild src/main.ts --bundle --format=cjs --external:obsidian --external:fs --external:path --outfile=main.js --sourcemap --watch"
   },
   "devDependencies": {
-    "esbuild": "^0.19.0",
+    "esbuild": "^0.27.2",
     "typedoc": "^0.28.16",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "obsidian": "^1.11.4"
+    "obsidian": "^1.11.4",
+    "obsidian-dataview": "^0.4.21"
   }
 }

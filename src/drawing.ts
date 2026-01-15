@@ -1,3 +1,12 @@
+/**
+ * Draw a straight arrow between two points on a canvas.
+ * @param ctx Canvas rendering context used for drawing.
+ * @param x1 Starting X coordinate.
+ * @param y1 Starting Y coordinate.
+ * @param x2 Ending X coordinate (arrow tip).
+ * @param y2 Ending Y coordinate (arrow tip).
+ * @param scale Optional scale factor to adjust arrow head size (default 1).
+ */
 export function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, scale = 1) {
   ctx.beginPath();
   ctx.moveTo(x1, y1);
@@ -18,6 +27,19 @@ export function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number,
 }
 
 // draw a cubic bezier from p0 to p3 with control points p1,p2 and an arrowhead at p3
+/**
+ * Draw a cubic bezier curve with an arrow head at the end point.
+ * @param ctx Canvas rendering context used for drawing.
+ * @param p0x Starting point X coordinate.
+ * @param p0y Starting point Y coordinate.
+ * @param p1x First control point X coordinate.
+ * @param p1y First control point Y coordinate.
+ * @param p2x Second control point X coordinate.
+ * @param p2y Second control point Y coordinate.
+ * @param p3x End point X coordinate (arrow tip).
+ * @param p3y End point Y coordinate (arrow tip).
+ * @param scale Optional scale factor to adjust arrow head size (default 1).
+ */
 export function drawBezierArrow(ctx: CanvasRenderingContext2D, p0x: number, p0y: number, p1x: number, p1y: number, p2x: number, p2y: number, p3x: number, p3y: number, scale = 1) {
   ctx.beginPath();
   ctx.moveTo(p0x, p0y);
@@ -41,6 +63,23 @@ export function drawBezierArrow(ctx: CanvasRenderingContext2D, p0x: number, p0y:
 }
 
 // approximate distance squared from point to cubic bezier by sampling
+/**
+ * Approximate the squared distance from a point to a cubic bezier curve.
+ * Samples the curve and returns the minimum squared distance and the
+ * parameter t corresponding to the closest sampled point.
+ * @param x Point X coordinate.
+ * @param y Point Y coordinate.
+ * @param p0x Curve start X coordinate.
+ * @param p0y Curve start Y coordinate.
+ * @param p1x First control point X coordinate.
+ * @param p1y First control point Y coordinate.
+ * @param p2x Second control point X coordinate.
+ * @param p2y Second control point Y coordinate.
+ * @param p3x Curve end X coordinate.
+ * @param p3y Curve end Y coordinate.
+ * @param samples Number of samples used for approximation (default 24).
+ * @returns Object containing `dist2` (minimum squared distance) and `t` (approximate parameter).
+ */
 export function distanceSqToBezier(x: number, y: number, p0x: number, p0y: number, p1x: number, p1y: number, p2x: number, p2y: number, p3x: number, p3y: number, samples = 24) {
   let minDist2 = Infinity;
   let closestT = 0;
@@ -73,6 +112,20 @@ export function distanceSqToBezier(x: number, y: number, p0x: number, p0y: numbe
   return { dist2: minDist2, t: closestT };
 }
 
+/**
+ * Compute control points for a cubic bezier curve between two nodes.
+ * Control points are adjusted by the provided sides and radii so that
+ * curves originate/terminate outside node bounds when needed.
+ * @param ax Source X coordinate.
+ * @param ay Source Y coordinate.
+ * @param bx Target X coordinate.
+ * @param by Target Y coordinate.
+ * @param fromSide Optional side ('top'|'right'|'bottom'|'left') of the source node.
+ * @param toSide Optional side ('top'|'right'|'bottom'|'left') of the target node.
+ * @param rFrom Radius of source node (used to offset control point).
+ * @param rTo Radius of target node (used to offset control point).
+ * @returns Object with control points `{ c1x, c1y, c2x, c2y }`.
+ */
 export function computeBezierControls(ax: number, ay: number, bx: number, by: number, fromSide: any, toSide: any, rFrom: number, rTo: number) {
   const dx = bx - ax;
   const dy = by - ay;
@@ -100,6 +153,11 @@ export function computeBezierControls(ax: number, ay: number, bx: number, by: nu
   return { c1x, c1y, c2x, c2y };
 }
 
+/**
+ * Parse a simple CSS color string (hex `#rgb`/`#rrggbb` or `rgb()`/`rgba()`).
+ * Returns an object `{ r, g, b }` with numeric channels or `null` if parsing fails.
+ * @param s CSS color string.
+ */
 export function parseCSSColor(s: string) {
   s = s.trim();
   if (!s) return null;
@@ -119,12 +177,24 @@ export function parseCSSColor(s: string) {
   return null;
 }
 
+/**
+ * Compute relative luminance of an RGB color in linear space.
+ * @param param0 Object with `r`,`g`,`b` channels in 0-255 range.
+ * @returns Luminance value in range 0..1.
+ */
 export function luminance({ r, g, b }: { r: number; g: number; b: number }) {
   const sr = r / 255; const sg = g / 255; const sb = b / 255;
   const linear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   return 0.2126 * linear(sr) + 0.7152 * linear(sg) + 0.0722 * linear(sb);
 }
 
+/**
+ * Convert RGB color (0-255) to HSL representation.
+ * @param r Red channel 0-255.
+ * @param g Green channel 0-255.
+ * @param b Blue channel 0-255.
+ * @returns Object `{ h, s, l }` with h in 0..1 and s,l in 0..1.
+ */
 export function rgbToHsl(r: number, g: number, b: number) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -142,6 +212,13 @@ export function rgbToHsl(r: number, g: number, b: number) {
   return { h, s, l };
 }
 
+/**
+ * Convert HSL color to RGB (0-255 channels).
+ * @param h Hue in 0..1.
+ * @param s Saturation in 0..1.
+ * @param l Lightness in 0..1.
+ * @returns Object `{ r, g, b }` with channels in 0..255.
+ */
 export function hslToRgb(h: number, s: number, l: number) {
   let r: number, g: number, b: number;
   if (s === 0) { r = g = b = l; }
@@ -162,6 +239,12 @@ export function hslToRgb(h: number, s: number, l: number) {
   return { r: r * 255, g: g * 255, b: b * 255 };
 }
 
+/**
+ * Choose a reasonable edge color based on current theme CSS variables.
+ * Falls back to computing contrast against the background and returns
+ * a CSS color string (e.g. `#fff` or `#000`).
+ * @returns CSS color string for drawing edges.
+ */
 export function chooseEdgeColor() {
   try {
     const docStyle = getComputedStyle(document.documentElement);
