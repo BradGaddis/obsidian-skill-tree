@@ -62,6 +62,44 @@ export function drawBezierArrow(ctx: CanvasRenderingContext2D, p0x: number, p0y:
   ctx.fill();
 }
 
+/**
+ * Draw a rigid bezier arrow with sharp angles (polyline style).
+ * Creates a path: start -> control1 -> control2 -> end with sharp corners.
+ * @param ctx Canvas rendering context used for drawing.
+ * @param p0x Starting point X coordinate.
+ * @param p0y Starting point Y coordinate.
+ * @param p1x First control point X coordinate.
+ * @param p1y First control point Y coordinate.
+ * @param p2x Second control point X coordinate.
+ * @param p2y Second control point Y coordinate.
+ * @param p3x End point X coordinate (arrow tip).
+ * @param p3y End point Y coordinate (arrow tip).
+ * @param scale Optional scale factor to adjust arrow head size (default 1).
+ */
+export function drawRigidBezierArrow(ctx: CanvasRenderingContext2D, p0x: number, p0y: number, p1x: number, p1y: number, p2x: number, p2y: number, p3x: number, p3y: number, scale = 1) {
+  ctx.beginPath();
+  ctx.moveTo(p0x, p0y);
+  ctx.lineTo(p1x, p1y); // Sharp angle at first control point
+  ctx.lineTo(p2x, p2y); // Sharp angle at second control point
+  ctx.lineTo(p3x, p3y); // End point
+  ctx.stroke();
+  // Arrow head direction based on last segment (p2 -> p3)
+  const dx = p3x - p2x;
+  const dy = p3y - p2y;
+  const angle = Math.atan2(dy, dx);
+  const headLen = 12 / Math.max(0.5, scale);
+  const pA1x = p3x - headLen * Math.cos(angle - Math.PI / 6);
+  const pA1y = p3y - headLen * Math.sin(angle - Math.PI / 6);
+  const pA2x = p3x - headLen * Math.cos(angle + Math.PI / 6);
+  const pA2y = p3y - headLen * Math.sin(angle + Math.PI / 6);
+  ctx.beginPath();
+  ctx.moveTo(p3x, p3y);
+  ctx.lineTo(pA1x, pA1y);
+  ctx.lineTo(pA2x, pA2y);
+  ctx.closePath();
+  ctx.fill();
+}
+
 // approximate distance squared from point to cubic bezier by sampling
 /**
  * Approximate the squared distance from a point to a cubic bezier curve.
@@ -124,32 +162,224 @@ export function distanceSqToBezier(x: number, y: number, p0x: number, p0y: numbe
  * @param toSide Optional side ('top'|'right'|'bottom'|'left') of the target node.
  * @param rFrom Radius of source node (used to offset control point).
  * @param rTo Radius of target node (used to offset control point).
+ * @param rightAngles Optional flag to create perfect 90-degree angles (for gamified style).
  * @returns Object with control points `{ c1x, c1y, c2x, c2y }`.
  */
-export function computeBezierControls(ax: number, ay: number, bx: number, by: number, fromSide: any, toSide: any, rFrom: number, rTo: number) {
+export function computeBezierControls(ax: number, ay: number, bx: number, by: number, fromSide: any, toSide: any, rFrom: number, rTo: number, rightAngles: boolean = false) {
   const dx = bx - ax;
   const dy = by - ay;
   const dist = Math.hypot(dx, dy) || 1;
-  const baseOffset = Math.max(40, dist * 0.35);
+  
+  // For 90-degree angles, create L-shaped paths with perfect right angles
+  if (rightAngles) {
+    const offset = Math.max(30, dist * 0.2); // Offset distance for 90-degree turns
+    
+    let c1x = ax, c1y = ay, c2x = bx, c2y = by;
+    
+    if (fromSide && toSide) {
+      // Both sides specified - create path that respects both sides with 90-degree turns
+      // First, calculate exit point from source node
+      if (fromSide === 'top') {
+        c1x = ax;
+        c1y = ay - (rFrom + offset);
+      } else if (fromSide === 'bottom') {
+        c1x = ax;
+        c1y = ay + (rFrom + offset);
+      } else if (fromSide === 'left') {
+        c1x = ax - (rFrom + offset);
+        c1y = ay;
+      } else if (fromSide === 'right') {
+        c1x = ax + (rFrom + offset);
+        c1y = ay;
+      }
+      
+      // Calculate entry point to target node
+      if (toSide === 'top') {
+        c2x = bx;
+        c2y = by - (rTo + offset);
+      } else if (toSide === 'bottom') {
+        c2x = bx;
+        c2y = by + (rTo + offset);
+      } else if (toSide === 'left') {
+        c2x = bx - (rTo + offset);
+        c2y = by;
+      } else if (toSide === 'right') {
+        c2x = bx + (rTo + offset);
+        c2y = by;
+      }
+      
+      // Create L-shape: determine which axis to move along first
+      // Check if we should go horizontal first or vertical first
+      const horizontalDist = Math.abs(c2x - c1x);
+      const verticalDist = Math.abs(c2y - c1y);
+      
+      // Create corner point for 90-degree turn
+      if (horizontalDist > verticalDist) {
+        // Move horizontally first, then vertically
+        // c1 is already set (exit point)
+        // c2 becomes the corner: same X as c1, same Y as final c2
+        const cornerX = c1x;
+        const cornerY = c2y;
+        c2x = cornerX;
+        c2y = cornerY;
+      } else {
+        // Move vertically first, then horizontally
+        // c1 is already set (exit point)
+        // c2 becomes the corner: same Y as c1, same X as final c2
+        const cornerX = c2x;
+        const cornerY = c1y;
+        c2x = cornerX;
+        c2y = cornerY;
+      }
+    } else if (fromSide) {
+      // Only fromSide specified - exit from node, then create L-shape to target
+      if (fromSide === 'top') {
+        c1x = ax;
+        c1y = ay - (rFrom + offset);
+      } else if (fromSide === 'bottom') {
+        c1x = ax;
+        c1y = ay + (rFrom + offset);
+      } else if (fromSide === 'left') {
+        c1x = ax - (rFrom + offset);
+        c1y = ay;
+      } else if (fromSide === 'right') {
+        c1x = ax + (rFrom + offset);
+        c1y = ay;
+      }
+      
+      // Create L-shape to target: determine dominant direction
+      const absDx = Math.abs(bx - c1x);
+      const absDy = Math.abs(by - c1y);
+      
+      if (absDx > absDy) {
+        // Move horizontally first, then vertically
+        c2x = bx;
+        c2y = c1y; // Corner: same Y as exit point
+      } else {
+        // Move vertically first, then horizontally
+        c2x = c1x; // Corner: same X as exit point
+        c2y = by;
+      }
+    } else if (toSide) {
+      // Only toSide specified - create L-shape from source, then enter node
+      if (toSide === 'top') {
+        c2x = bx;
+        c2y = by - (rTo + offset);
+      } else if (toSide === 'bottom') {
+        c2x = bx;
+        c2y = by + (rTo + offset);
+      } else if (toSide === 'left') {
+        c2x = bx - (rTo + offset);
+        c2y = by;
+      } else if (toSide === 'right') {
+        c2x = bx + (rTo + offset);
+        c2y = by;
+      }
+      
+      // Create L-shape from source: determine dominant direction
+      const absDx = Math.abs(c2x - ax);
+      const absDy = Math.abs(c2y - ay);
+      
+      if (absDx > absDy) {
+        // Move horizontally first, then vertically
+        c1x = ax;
+        c1y = c2y; // Corner: same Y as entry point
+      } else {
+        // Move vertically first, then horizontally
+        c1x = c2x; // Corner: same X as entry point
+        c1y = ay;
+      }
+    } else {
+      // No sides specified - create L-shape based on dominant direction
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      
+      if (absDx > absDy) {
+        // Horizontal movement dominates - go horizontal first, then vertical
+        c1x = ax + (dx > 0 ? offset : -offset);
+        c1y = ay;
+        c2x = bx - (dx > 0 ? offset : -offset);
+        c2y = ay; // Corner: same Y as start
+      } else {
+        // Vertical movement dominates - go vertical first, then horizontal
+        c1x = ax;
+        c1y = ay + (dy > 0 ? offset : -offset);
+        c2x = ax; // Corner: same X as start
+        c2y = by - (dy > 0 ? offset : -offset);
+      }
+    }
+    
+    return { c1x, c1y, c2x, c2y };
+  }
+  
+  // Original smooth bezier logic for non-gamified styles
+  const unitX = dx / dist;
+  const unitY = dy / dist;
+  
+  // Perpendicular direction (rotated 90 degrees)
+  const perpX = -unitY;
+  const perpY = unitX;
+  
+  // Very tight offset for sharp 70-110 degree angles
+  // Use a small fraction of distance to create sharp bends
+  const tightOffset = Math.max(10, dist * 0.08);
+  
   let c1x = ax, c1y = ay, c2x = bx, c2y = by;
+  
   if (fromSide) {
-    if (fromSide === 'top') { c1x = ax; c1y = ay - (rFrom + baseOffset); }
-    else if (fromSide === 'bottom') { c1x = ax; c1y = ay + (rFrom + baseOffset); }
-    else if (fromSide === 'left') { c1x = ax - (rFrom + baseOffset); c1y = ay; }
-    else if (fromSide === 'right') { c1x = ax + (rFrom + baseOffset); c1y = ay; }
+    // When side is specified, use perpendicular offset to create sharp angle
+    if (fromSide === 'top') { 
+      c1x = ax + perpX * tightOffset; 
+      c1y = ay - (rFrom + tightOffset * 0.5); 
+    }
+    else if (fromSide === 'bottom') { 
+      c1x = ax + perpX * tightOffset; 
+      c1y = ay + (rFrom + tightOffset * 0.5); 
+    }
+    else if (fromSide === 'left') { 
+      c1x = ax - (rFrom + tightOffset * 0.5); 
+      c1y = ay + perpY * tightOffset; 
+    }
+    else if (fromSide === 'right') { 
+      c1x = ax + (rFrom + tightOffset * 0.5); 
+      c1y = ay + perpY * tightOffset; 
+    }
   } else {
-    c1x = ax + dx * 0.3;
-    c1y = ay + dy * 0.3;
+    // No side specified - create sharp angle by moving perpendicular to main direction
+    // Move a small distance along main direction, then perpendicular
+    const alongDist = dist * 0.1; // Very close along the line
+    const perpDist = tightOffset; // Perpendicular offset for sharp angle
+    c1x = ax + unitX * alongDist + perpX * perpDist;
+    c1y = ay + unitY * alongDist + perpY * perpDist;
   }
+  
   if (toSide) {
-    if (toSide === 'top') { c2x = bx; c2y = by - (rTo + baseOffset); }
-    else if (toSide === 'bottom') { c2x = bx; c2y = by + (rTo + baseOffset); }
-    else if (toSide === 'left') { c2x = bx - (rTo + baseOffset); c2y = by; }
-    else if (toSide === 'right') { c2x = bx + (rTo + baseOffset); c2y = by; }
+    // When side is specified, use perpendicular offset to create sharp angle
+    if (toSide === 'top') { 
+      c2x = bx + perpX * tightOffset; 
+      c2y = by - (rTo + tightOffset * 0.5); 
+    }
+    else if (toSide === 'bottom') { 
+      c2x = bx + perpX * tightOffset; 
+      c2y = by + (rTo + tightOffset * 0.5); 
+    }
+    else if (toSide === 'left') { 
+      c2x = bx - (rTo + tightOffset * 0.5); 
+      c2y = by + perpY * tightOffset; 
+    }
+    else if (toSide === 'right') { 
+      c2x = bx + (rTo + tightOffset * 0.5); 
+      c2y = by + perpY * tightOffset; 
+    }
   } else {
-    c2x = bx - dx * 0.3;
-    c2y = by - dy * 0.3;
+    // No side specified - create sharp angle by moving perpendicular to main direction
+    // Move a small distance along main direction (backwards), then perpendicular
+    const alongDist = dist * 0.1; // Very close along the line
+    const perpDist = tightOffset; // Perpendicular offset for sharp angle
+    c2x = bx - unitX * alongDist + perpX * perpDist;
+    c2y = by - unitY * alongDist + perpY * perpDist;
   }
+  
   return { c1x, c1y, c2x, c2y };
 }
 

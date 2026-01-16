@@ -1,18 +1,71 @@
 import {ItemView, WorkspaceLeaf, TFile } from 'obsidian';
 
-import { SkillNode, SkillEdge, SkillTreeSettings, SkillTreeData } from './interfaces';
+import { SkillNode, SkillEdge, SkillTreeSettings, SkillTreeData, SKILL_TREE_STYLES } from './interfaces';
 import  {VIEW_TYPE_SKILLTREE}  from './main';
 import SkillTreePlugin from './main';
-import { chooseEdgeColor, computeBezierControls, drawBezierArrow, drawArrow, parseCSSColor, distanceSqToBezier } from './drawing';
+import { chooseEdgeColor, computeBezierControls, drawBezierArrow, drawRigidBezierArrow, drawArrow, parseCSSColor, distanceSqToBezier } from './drawing';
 import { Coordinate } from './types';
 import { ModalStyleOptions } from './types';
 import { DEFAULT_MODAL_STYLES } from './constants';
+
+/**
+ * Draw a hexagon shape
+ */
+function drawHexagon(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6; // Start at top
+    const px = x + radius * Math.cos(angle);
+    const py = y + radius * Math.sin(angle);
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+}
+
+/**
+ * Draw a star shape
+ */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, points: number = 5) {
+  ctx.beginPath();
+  const outerRadius = radius;
+  const innerRadius = radius * 0.5;
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (Math.PI / points) * i - Math.PI / 2;
+    const r = i % 2 === 0 ? outerRadius : innerRadius;
+    const px = x + r * Math.cos(angle);
+    const py = y + r * Math.sin(angle);
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+}
+
+/**
+ * Draw a diamond shape
+ */
+function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - radius);
+  ctx.lineTo(x + radius, y);
+  ctx.lineTo(x, y + radius);
+  ctx.lineTo(x - radius, y);
+  ctx.closePath();
+}
 
 /**
  * Create a small default set of nodes used when initializing a new tree.
  * @internal
  */
 function defaultNodes(): SkillNode[] {
+  // Note: Shape will be set based on current style when nodes are actually used
+  // This is just a placeholder - the actual shape will be set in loadNodes or addNode
   return [
     { id: Date.now(), x: 200, y: 150, state: 'unavailable', exp: 10 },
     { id: Date.now() + 1, x: 200, y: 150, state: 'unavailable', exp: 10 },
@@ -109,6 +162,12 @@ export class SkillTreeView extends ItemView {
   
   /** TODO */
   _animationFrameId: number | null = null;
+  
+  /** Track previous node states to detect state changes */
+  _previousNodeStates: Map<number, string> = new Map();
+  
+  /** Track active state change animations (nodeId -> { type, startTime }) */
+  _nodeStateChangeAnimations: Map<number, { type: 'in-progress' | 'complete', startTime: number }> = new Map();
 
   
   
@@ -169,12 +228,17 @@ export class SkillTreeView extends ItemView {
     }
   }
 
-  // Parse front matter from a file and extract shape (circle or square) using Dataview if available
-  async getNodeShapeFromFile(filePath: string): Promise<'circle' | 'square'> {
+  // Parse front matter from a file and extract shape using Dataview if available
+  async getNodeShapeFromFile(filePath: string): Promise<'circle' | 'square' | 'hexagon' | 'diamond'> {
     try {
       let normalizedPath = filePath.trim();
       if (normalizedPath.startsWith('/')) normalizedPath = normalizedPath.substring(1);
       if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
+
+      // Get default shape based on current style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      const defaultShape = styleDef?.nodeShape || 'circle';
 
       // Try to use Dataview API if available
       if (this.isDataviewPluginInstalled()) {
@@ -184,10 +248,11 @@ export class SkillTreeView extends ItemView {
             const page = dv.page(normalizedPath);
             if (page && page.shape) {
               const shape = page.shape.toLowerCase();
-              if (shape === 'square') {
-                return 'square';
+              if (shape === 'square' || shape === 'hexagon' || shape === 'diamond' || shape === 'circle') {
+                return shape as 'circle' | 'square' | 'hexagon' | 'diamond';
               }
-              return 'circle';
+              // Invalid shape, return default
+              return defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
             }
           }
         } catch (e) {
@@ -198,22 +263,29 @@ export class SkillTreeView extends ItemView {
 
       // Fallback: manual parsing
       const file = this.app.vault.getAbstractFileByPath(normalizedPath);
-      if (!file || !(file instanceof TFile)) return 'circle';
+      if (!file || !(file instanceof TFile)) return defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
 
       const content = await this.app.vault.read(file);
       // Simple YAML front matter regex: extract content between --- delimiters
       const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-      if (!frontMatterMatch) return 'circle';
+      if (!frontMatterMatch) return defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
 
       const frontMatter = frontMatterMatch[1];
-      // Look for shape: circle or shape: square
-      const shapeMatch = frontMatter.match(/shape\s*:\s*(circle|square)/i);
-      if (shapeMatch && (shapeMatch[1].toLowerCase() === 'square')) {
-        return 'square';
+      // Look for shape: circle, square, hexagon, or diamond
+      const shapeMatch = frontMatter.match(/shape\s*:\s*(circle|square|hexagon|diamond)/i);
+      if (shapeMatch) {
+        const shape = shapeMatch[1].toLowerCase();
+        if (shape === 'square' || shape === 'hexagon' || shape === 'diamond' || shape === 'circle') {
+          return shape as 'circle' | 'square' | 'hexagon' | 'diamond';
+        }
       }
-      return 'circle';
+      return defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
     } catch (e) {
-      return 'circle';
+      // Return default shape based on style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      const defaultShape = styleDef?.nodeShape || 'circle';
+      return defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
     }
   }
 
@@ -254,7 +326,15 @@ export class SkillTreeView extends ItemView {
 
       // Get the node to access its shape
       const node = this.nodes.find(n => n.id === nodeId);
-      const nodeShape = node?.shape || 'circle';
+      // Get default shape based on current style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      let defaultShape = styleDef?.nodeShape || 'circle';
+      // Filter out 'star' as it's not a valid node shape (only style shape)
+      if (defaultShape === 'star') {
+        defaultShape = 'circle';
+      }
+      const nodeShape = node?.shape || defaultShape;
       
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
         // Always update skilltree-node to reflect current node ID
@@ -1000,14 +1080,42 @@ export class SkillTreeView extends ItemView {
 
     let isPanning = false;
     let edgesChanged = false;
-
+    // Track if a node was dragged to prevent showing stats modal
+    let nodeWasDragged = false;
+    
     this.canvas.addEventListener('click', async (e) => {
       if (!this.canvas) return;
-      let hit = this.getNodeHit(e)
+      const rect = this.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const w = this.screenToWorld(sx, sy);
+      
+      // Check for task node click first
+      const taskHit = this.getTaskNodeAtWorld(w.x, w.y);
+      if (taskHit) {
+        this.selectedTask = { nodeId: taskHit.node.id, taskIndex: taskHit.taskIndex };
+        this.selectedNodeId = taskHit.node.id;
+        // Center and zoom on task
+        this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
+        this.render();
+        return;
+      }
+      
+      // Check for regular node click
+      let hit = this.getNodeHit(e);
       
       if (hit) {
+        // Only show stats modal if we didn't drag the node
+        if (nodeWasDragged) {
+          // Node was dragged, don't show stats modal
+          nodeWasDragged = false; // Reset for next interaction
+          this.selectedNodeId = hit.id;
+          return;
+        }
+        // Node was just clicked (not dragged), center/zoom and show stats modal
         this.selectedNodeId = hit.id;
-        this.openNodeStats(hit)
+        this.centerAndZoomOnPoint(hit.x, hit.y, 2.0);
+        this.openNodeStats(hit);
       }
     })
 
@@ -1036,10 +1144,25 @@ export class SkillTreeView extends ItemView {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
       const w = this.screenToWorld(sx, sy);
+      
+      // Check for task node
+      const taskHit = this.getTaskNodeAtWorld(w.x, w.y);
+      if (taskHit) {
+        e.preventDefault();
+        this.selectedTask = { nodeId: taskHit.node.id, taskIndex: taskHit.taskIndex };
+        this.selectedNodeId = taskHit.node.id;
+        // Center and zoom on task
+        this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
+        this.render();
+        return;
+      }
+      
       const hit = this.getNodeAtWorld(w.x, w.y);
       if (hit) {
         e.preventDefault();
         this.selectedNodeId = hit.id;
+        // Center and zoom on node
+        this.centerAndZoomOnPoint(hit.x, hit.y, 2.0);
         this.openNodeEditor(hit);
       } else {
         this.selectedNodeId = null;
@@ -1082,6 +1205,9 @@ export class SkillTreeView extends ItemView {
       if (taskHit) {
         // Select the task (don't move the parent node)
         this.selectedTask = { nodeId: taskHit.node.id, taskIndex: taskHit.taskIndex };
+        this.selectedNodeId = taskHit.node.id;
+        // Center and zoom on parent node
+        this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
         // Don't set _dragStart - we don't want to allow dragging the parent node when clicking tasks
         this.render(); // Update display to show expanded task
         return;
@@ -1160,6 +1286,7 @@ export class SkillTreeView extends ItemView {
         if (node) {
           if (node.x !== start.x || node.y !== start.y) {
             // Node was dragged
+            nodeWasDragged = true; // Mark that node was dragged
             await this.saveNodes();
           }
           // File link opening is now handled after all other handlers
@@ -1307,6 +1434,9 @@ export class SkillTreeView extends ItemView {
         // Just select the task, don't toggle (toggle is done via checkbox)
         // Selection is already handled in mousedown, but we need to ensure it's set here too
         this.selectedTask = { nodeId: taskHit.node.id, taskIndex: taskHit.taskIndex };
+        this.selectedNodeId = taskHit.node.id;
+        // Center and zoom on parent node
+        this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
         this.render();
         return; // Don't process other clicks
       }
@@ -1318,6 +1448,10 @@ export class SkillTreeView extends ItemView {
       this._edgeDragActive = false;
       this._edgeDragStart = null;
       isPanning = false;
+      // Reset drag flag after mouseup is processed
+      if (!nodeWasDragged) {
+        nodeWasDragged = false; // Ensure it's reset if it wasn't set
+      }
       // If any edges changed during this mouseup, apply rules, save and render
       try {
         if (edgesChanged) {
@@ -1404,8 +1538,27 @@ export class SkillTreeView extends ItemView {
 
     await this.loadNodes();
     try { (handlesCheckbox as HTMLInputElement).checked = !!this.settings.showHandles; } catch (e) {}
+    
+    // Initialize previous states for all nodes
+    for (const node of this.nodes) {
+      this._previousNodeStates.set(node.id, node.state || 'in-progress');
+    }
+    
     if (!this.nodes || this.nodes.length === 0) {
       this.nodes = defaultNodes();
+      // Set default shapes for default nodes based on current style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      let defaultShape = styleDef?.nodeShape || 'circle';
+      if (defaultShape === 'star') {
+        defaultShape = 'circle';
+      }
+      for (const node of this.nodes) {
+        if (!node.shape) {
+          node.shape = defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
+        }
+        this._previousNodeStates.set(node.id, node.state || 'in-progress');
+      }
     }
 
     // Load tasks for all nodes with file links
@@ -1636,17 +1789,31 @@ export class SkillTreeView extends ItemView {
   }
 
   addNode(x: number, y: number) {
+    // Get default shape based on current style
+    const selectedStyle = this.settings.style || 'default';
+    const styleDef = SKILL_TREE_STYLES[selectedStyle];
+    let defaultShape = styleDef?.nodeShape || 'circle';
+    // Filter out 'star' as it's not a valid node shape (only style shape)
+    if (defaultShape === 'star') {
+      defaultShape = 'circle';
+    }
+    
     this.nodes.push({ 
       id: Date.now() + Math.random(), 
       x, 
       y, 
       state: 'unavailable',
-      exp: 10
+      exp: 10,
+      shape: defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond'
     });
   }
 
   // Apply connection state rules
   applyConnectionStateRules() {
+    // Track state changes for animations (only in gamified mode)
+    const selectedStyle = this.settings.style || 'gamified';
+    const isGamified = selectedStyle === 'gamified';
+    
     // Build lookup maps
     const idToNode = new Map<number, SkillNode>();
     for (const n of this.nodes) idToNode.set(n.id, n);
@@ -1691,6 +1858,11 @@ export class SkillTreeView extends ItemView {
           // Truly orphaned
           if (allTasksComplete) {
             // All tasks complete - set to complete (even if orphaned)
+            const prevState = this._previousNodeStates.get(n.id);
+            if (prevState !== 'complete' && isGamified) {
+              // State changed to complete - trigger animation
+              this._nodeStateChangeAnimations.set(n.id, { type: 'complete', startTime: this._animationTime });
+            }
             n.state = 'complete';
           } else if (n.state !== 'complete') {
             // Not all tasks complete and not already complete - set to unavailable
@@ -1733,6 +1905,11 @@ export class SkillTreeView extends ItemView {
         
         // Set child to in-progress when it has a parent (unless it's already complete)
         if (childNode && childNode.state !== 'complete') {
+          const prevState = this._previousNodeStates.get(childNode.id);
+          if (prevState !== 'in-progress' && isGamified) {
+            // State changed to in-progress - trigger animation
+            this._nodeStateChangeAnimations.set(childNode.id, { type: 'in-progress', startTime: this._animationTime });
+          }
           childNode.state = 'in-progress';
         }
         
@@ -1755,6 +1932,11 @@ export class SkillTreeView extends ItemView {
           // This overrides Rule 3 for nodes where all children are complete
           // IMPORTANT: Preserve complete state - if user set it to complete, keep it complete
           if (n.state !== 'complete') {
+            const prevState = this._previousNodeStates.get(n.id);
+            if (prevState !== 'in-progress' && isGamified) {
+              // State changed to in-progress - trigger animation
+              this._nodeStateChangeAnimations.set(n.id, { type: 'in-progress', startTime: this._animationTime });
+            }
             n.state = 'in-progress';
           }
           // If it's already complete, leave it as complete (don't change it)
@@ -1849,13 +2031,13 @@ export class SkillTreeView extends ItemView {
       ctx.arc(taskX, taskY, taskNodeRadius * 0.7, 0, Math.PI * 2);
       ctx.fill();
       
-      // Draw checkbox or SVG checkmark when task is selected and expanded
+      // Draw checkbox or SVG checkmark - centered in task node when selected
       if (isTaskSelected) {
         if (task.completed) {
-          // Draw SVG checkmark icon (green circle with white checkmark) when completed
+          // Draw SVG checkmark icon (green circle with white checkmark) when completed - centered
           const iconSize = 18 / this.scale;
-          const iconX = taskX - taskNodeRadius * 0.6;
-          const iconY = taskY - taskNodeRadius * 0.6;
+          const iconX = taskX - iconSize / 2;
+          const iconY = taskY - iconSize / 2;
           
           ctx.save();
           ctx.translate(iconX, iconY);
@@ -1877,36 +2059,70 @@ export class SkillTreeView extends ItemView {
           ctx.stroke();
           ctx.restore();
         } else {
-          // Draw checkbox when not completed (clickable)
+          // Draw checkbox when not completed (clickable) - centered
           const checkboxSize = 16 / this.scale;
-          const checkboxX = taskX - taskNodeRadius * 0.6;
-          const checkboxY = taskY - taskNodeRadius * 0.6;
+          const checkboxX = taskX - checkboxSize / 2;
+          const checkboxY = taskY - checkboxSize / 2;
+          
+          // Get text color for checkbox border
+          const selectedStyle = this.settings.style || 'gamified';
+          const styleDef = SKILL_TREE_STYLES[selectedStyle];
+          let checkboxColor = '#333';
+          if (styleDef) {
+            const bgColor = styleDef.backgroundColor;
+            // Check if background is dark
+            if (bgColor && (bgColor.includes('#1') || bgColor.includes('#2') || bgColor.includes('#0') || 
+                bgColor.includes('rgb(2') || bgColor.includes('rgb(1') || bgColor.includes('rgb(3'))) {
+              checkboxColor = '#fff';
+            }
+          }
           
           // Draw checkbox border
           ctx.beginPath();
-          ctx.strokeStyle = '#333';
+          ctx.strokeStyle = checkboxColor;
           ctx.lineWidth = 2 / this.scale;
           ctx.strokeRect(checkboxX, checkboxY, checkboxSize, checkboxSize);
         }
       }
       
-      // Draw task text - always show full text, theme-aware
-      // Get theme-aware text color - ensure it's readable on task node background
+      // Draw task text - show full text below task node when selected
+      // Get theme-aware text color based on style background
       let textColor = '#000'; // Default to black for light mode
       try {
-        const docStyle = getComputedStyle(document.documentElement);
-        const textColorVar = docStyle.getPropertyValue('--text-normal');
-        const bgVar = docStyle.getPropertyValue('--background-primary') || '';
+        const selectedStyle = this.settings.style || 'gamified';
+        const styleDef = SKILL_TREE_STYLES[selectedStyle];
         
-        if (textColorVar && textColorVar.trim()) {
-          textColor = textColorVar.trim();
-        }
-        
-        // Detect dark mode and use white text for better contrast on task nodes
-        if (bgVar && (bgVar.includes('rgb(2') || bgVar.includes('rgb(1') || 
-            bgVar.includes('#1') || bgVar.includes('#2') || bgVar.includes('#0') ||
-            bgVar.includes('rgb(3') || bgVar.includes('rgb(4'))) {
-          textColor = '#fff'; // White for dark mode
+        if (styleDef) {
+          const bgColor = styleDef.backgroundColor;
+          // Check if background is dark - use white text for dark backgrounds
+          if (bgColor && (bgColor.includes('#1') || bgColor.includes('#2') || bgColor.includes('#0') || 
+              bgColor.includes('rgb(2') || bgColor.includes('rgb(1') || bgColor.includes('rgb(3') ||
+              bgColor.includes('rgb(4'))) {
+            textColor = '#fff'; // White for dark backgrounds
+          } else {
+            // Light background - use theme text color or black
+            const docStyle = getComputedStyle(document.documentElement);
+            const textColorVar = docStyle.getPropertyValue('--text-normal');
+            if (textColorVar && textColorVar.trim()) {
+              textColor = textColorVar.trim();
+            }
+          }
+        } else {
+          // Fallback to theme detection
+          const docStyle = getComputedStyle(document.documentElement);
+          const textColorVar = docStyle.getPropertyValue('--text-normal');
+          const bgVar = docStyle.getPropertyValue('--background-primary') || '';
+          
+          if (textColorVar && textColorVar.trim()) {
+            textColor = textColorVar.trim();
+          }
+          
+          // Detect dark mode
+          if (bgVar && (bgVar.includes('rgb(2') || bgVar.includes('rgb(1') || 
+              bgVar.includes('#1') || bgVar.includes('#2') || bgVar.includes('#0') ||
+              bgVar.includes('rgb(3') || bgVar.includes('rgb(4'))) {
+            textColor = '#fff';
+          }
         }
       } catch (e) {
         // Fallback to black if theme detection fails
@@ -1915,41 +2131,51 @@ export class SkillTreeView extends ItemView {
       ctx.fillStyle = textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      const fontSize = isTaskSelected ? Math.max(12 / this.scale, 10) : Math.max(10 / this.scale, 8);
+      const fontSize = isTaskSelected ? Math.max(14 / this.scale, 12) : Math.max(10 / this.scale, 8);
       ctx.font = `${fontSize}px sans-serif`;
       
       const taskText = task.text || '';
-      const maxTextWidth = taskNodeRadius * 6; // Wider for full text display
-      const textY = taskY + taskNodeRadius + (isTaskSelected ? 8 / this.scale : 4 / this.scale);
+      const textY = taskY + taskNodeRadius + (isTaskSelected ? 12 / this.scale : 4 / this.scale);
       
-      // Always show full text with word wrapping
-      const words = taskText.split(' ');
-      let line = '';
-      let yOffset = 0;
-      
-      // Add text shadow/outline for better visibility
-      ctx.save();
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-      ctx.shadowBlur = 2 / this.scale;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-      
-      for (const word of words) {
-        const testLine = line + (line ? ' ' : '') + word;
-        const testWidth = ctx.measureText(testLine).width;
-        if (testWidth > maxTextWidth && line) {
-          ctx.fillText(line, taskX, textY + yOffset);
-          line = word;
-          yOffset += fontSize + 2;
+      // When selected, show full text below with word wrapping
+      if (isTaskSelected) {
+        const maxTextWidth = 200 / this.scale; // Wider for full text display when selected
+        const words = taskText.split(' ');
+        let line = '';
+        let yOffset = 0;
+        
+        // Add text shadow/outline for better visibility on dark backgrounds
+        ctx.save();
+        if (textColor === '#fff') {
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         } else {
-          line = testLine;
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
         }
+        ctx.shadowBlur = 3 / this.scale;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        for (const word of words) {
+          const testLine = line + (line ? ' ' : '') + word;
+          const testWidth = ctx.measureText(testLine).width;
+          if (testWidth > maxTextWidth && line) {
+            ctx.fillText(line, taskX, textY + yOffset);
+            line = word;
+            yOffset += fontSize + 2;
+          } else {
+            line = testLine;
+          }
+        }
+        if (line) {
+          ctx.fillText(line, taskX, textY + yOffset);
+        }
+        
+        ctx.restore();
+      } else {
+        // Not selected - show truncated text
+        const truncated = taskText.length > 20 ? taskText.substring(0, 20) + '...' : taskText;
+        ctx.fillText(truncated, taskX, textY);
       }
-      if (line) {
-        ctx.fillText(line, taskX, textY + yOffset);
-      }
-      
-      ctx.restore();
       
       ctx.restore();
     }
@@ -2209,6 +2435,29 @@ export class SkillTreeView extends ItemView {
     }
   }
 
+  /**
+   * Draw a node shape based on the shape type
+   */
+  drawNodeShape(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, shape: string) {
+    switch (shape) {
+      case 'square':
+        ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+        break;
+      case 'hexagon':
+        drawHexagon(ctx, x, y, radius);
+        break;
+      case 'star':
+        drawStar(ctx, x, y, radius, 5);
+        break;
+      case 'diamond':
+        drawDiamond(ctx, x, y, radius);
+        break;
+      case 'circle':
+      default:
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        break;
+    }
+  }
 
 /** Updates the 2D Context to display information on the screen */
   render(): void {
@@ -2229,16 +2478,24 @@ export class SkillTreeView extends ItemView {
       /* ignore if not supported */
     }
 
-    // respect Obsidian theme variable for background if available
-    let bg = '#e7f5ff';
-
+    // Get background color from selected style
+    let bg = '#e7f5ff'; // Default fallback
+    
     try {
-      const docStyle = getComputedStyle(document.documentElement);
-      const cssBg = docStyle.getPropertyValue('--background-primary');
-      if (cssBg && cssBg.trim()) bg = cssBg.trim();
-      else if (this.canvas) {
-        const cs = getComputedStyle(this.canvas);
-        if (cs && cs.backgroundColor) bg = cs.backgroundColor;
+      // First, try to get background from the selected style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      if (styleDef && styleDef.backgroundColor) {
+        bg = styleDef.backgroundColor;
+      } else {
+        // Fallback to Obsidian theme variable if style not found
+        const docStyle = getComputedStyle(document.documentElement);
+        const cssBg = docStyle.getPropertyValue('--background-primary');
+        if (cssBg && cssBg.trim()) bg = cssBg.trim();
+        else if (this.canvas) {
+          const cs = getComputedStyle(this.canvas);
+          if (cs && cs.backgroundColor) bg = cs.backgroundColor;
+        }
       }
     }
     catch (e) { /* ignore */ }
@@ -2332,37 +2589,187 @@ export class SkillTreeView extends ItemView {
         }
       }
       context.save();
-      const edgeColor = chooseEdgeColor();
-      // compute bezier control points
-      const controls = computeBezierControls(sx1, sy1, sx2, sy2, e.fromSide, e.toSide, rFrom, rTo);
-      if (this.settings.showBezier) {
-        // draw halo for contrast
-        context.lineWidth = 6 / this.scale;
-        context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
-        drawBezierArrow(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
-        // draw main edge
-        context.lineWidth = 2 / this.scale;
-        context.strokeStyle = edgeColor;
-        context.fillStyle = edgeColor;
-        drawBezierArrow(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+      // Get edge color from style or use theme-based color
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      let edgeColor: string;
+      let edgeGlow = false;
+      const edgeStyle = styleDef?.edgeStyle || 'straight';
+      const isGamified = selectedStyle === 'gamified';
+      
+      // For gamified style, always use bezier (rigid)
+      const useBezier = isGamified || this.settings.showBezier;
+      
+      // Check if both nodes are unavailable - if so, skip animations
+      const aState = a.state || 'in-progress';
+      const bState = b.state || 'in-progress';
+      const bothUnavailable = aState === 'unavailable' && bState === 'unavailable';
+      
+      if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
+        edgeColor = styleDef.edgeColor;
+        edgeGlow = styleDef.edgeGlow || false;
       } else {
-        // draw halo for contrast (straight)
-        context.lineWidth = 6 / this.scale;
-        context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
-        drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
-        // draw main edge
-        context.lineWidth = 2 / this.scale;
-        context.strokeStyle = edgeColor;
-        context.fillStyle = edgeColor;
-        drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
+        edgeColor = chooseEdgeColor();
+      }
+      
+      // compute bezier control points
+      // For gamified style, use rightAngles=true to create perfect 90-degree angles
+      const controls = computeBezierControls(sx1, sy1, sx2, sy2, e.fromSide, e.toSide, rFrom, rTo, isGamified);
+      
+      // Choose drawing function: rigid bezier for gamified, smooth bezier otherwise
+      const drawBezier = isGamified ? drawRigidBezierArrow : drawBezierArrow;
+      
+      // Draw animated particles on edges for gamified style (skip if both nodes unavailable)
+      if (edgeGlow && styleDef?.animated && !bothUnavailable) {
+        const particleCount = 3;
+        const particleSpeed = this._animationTime * 0.002;
+        for (let i = 0; i < particleCount; i++) {
+          const particlePhase = (particleSpeed + i / particleCount) % 1;
+          const midX = sx1 + (sx2 - sx1) * particlePhase;
+          const midY = sy1 + (sy2 - sy1) * particlePhase;
+          context.beginPath();
+          context.fillStyle = edgeColor;
+          context.globalAlpha = 0.8;
+          context.arc(midX, midY, 3 / this.scale, 0, Math.PI * 2);
+          context.fill();
+          context.globalAlpha = 1.0;
+        }
+      }
+      
+      if (useBezier || edgeStyle === 'gradient') {
+        if (edgeStyle === 'gradient' && edgeGlow && !bothUnavailable) {
+          // Draw gradient edge with glow (skip animation if both nodes unavailable)
+          const gradient = context.createLinearGradient(sx1, sy1, sx2, sy2);
+          gradient.addColorStop(0, 'rgba(255, 215, 0, 0.3)');
+          gradient.addColorStop(0.5, edgeColor);
+          gradient.addColorStop(1, 'rgba(255, 215, 0, 0.3)');
+          
+          // Glow layer
+          context.shadowBlur = 15 / this.scale;
+          context.shadowColor = edgeColor;
+          context.lineWidth = 8 * this.scale;
+          context.strokeStyle = gradient;
+          context.globalAlpha = 0.4;
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+          context.globalAlpha = 1.0;
+          context.shadowBlur = 0;
+          
+          // Main edge
+          context.lineWidth = 3 * this.scale;
+          context.strokeStyle = gradient;
+          context.fillStyle = edgeColor;
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+        } else if (edgeGlow) {
+          // Draw glow effect for gamified style
+          context.shadowBlur = 15 / this.scale;
+          context.shadowColor = edgeColor;
+          context.lineWidth = 8 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.globalAlpha = 0.4;
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+          context.globalAlpha = 1.0;
+          context.shadowBlur = 0;
+          // draw main edge
+          context.lineWidth = 2 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.fillStyle = edgeColor;
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+        } else {
+          // draw halo for contrast
+          context.lineWidth = 6 * this.scale;
+          context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+          // draw main edge
+          context.lineWidth = 2 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.fillStyle = edgeColor;
+          drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, this.scale);
+        }
+      } else {
+        // Straight or wavy edges
+        if (edgeStyle === 'wavy' && edgeGlow && !bothUnavailable) {
+          // Draw wavy edge with glow (skip animation if both nodes unavailable)
+          const dx = sx2 - sx1;
+          const dy = sy2 - sy1;
+          const distance = Math.hypot(dx, dy);
+          const waveAmplitude = 8 / this.scale;
+          const waveFrequency = distance / 50;
+          const wavePhase = this._animationTime * 0.001;
+          
+          context.beginPath();
+          context.moveTo(sx1, sy1);
+          const steps = Math.max(20, Math.floor(distance / 5));
+          for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const baseX = sx1 + dx * t;
+            const baseY = sy1 + dy * t;
+            const perpX = -dy / distance;
+            const perpY = dx / distance;
+            const waveOffset = Math.sin(waveFrequency * t * Math.PI * 2 + wavePhase) * waveAmplitude;
+            context.lineTo(baseX + perpX * waveOffset, baseY + perpY * waveOffset);
+          }
+          
+          // Glow
+          context.shadowBlur = 15 / this.scale;
+          context.shadowColor = edgeColor;
+          context.lineWidth = 8 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.globalAlpha = 0.4;
+          context.stroke();
+          context.globalAlpha = 1.0;
+          context.shadowBlur = 0;
+          
+          // Main wavy line
+          context.lineWidth = 3 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.stroke();
+          
+          // Draw arrowhead at end
+          const angle = Math.atan2(dy, dx);
+          const headLen = 12 / this.scale;
+          const p1x = sx2 - headLen * Math.cos(angle - Math.PI / 6);
+          const p1y = sy2 - headLen * Math.sin(angle - Math.PI / 6);
+          const p2x = sx2 - headLen * Math.cos(angle + Math.PI / 6);
+          const p2y = sy2 - headLen * Math.sin(angle + Math.PI / 6);
+          context.beginPath();
+          context.moveTo(sx2, sy2);
+          context.lineTo(p1x, p1y);
+          context.lineTo(p2x, p2y);
+          context.closePath();
+          context.fillStyle = edgeColor;
+          context.fill();
+        } else if (edgeGlow) {
+          // Draw glow effect for gamified style
+          context.shadowBlur = 15 / this.scale;
+          context.shadowColor = edgeColor;
+          context.lineWidth = 8 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.globalAlpha = 0.4;
+          drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
+          context.globalAlpha = 1.0;
+          context.shadowBlur = 0;
+          // draw main edge
+          context.lineWidth = 2 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.fillStyle = edgeColor;
+          drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
+        } else {
+          // draw halo for contrast (straight)
+          context.lineWidth = 6 * this.scale;
+          context.strokeStyle = (edgeColor === '#fff' ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.12)');
+          drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
+          // draw main edge
+          context.lineWidth = 2 * this.scale;
+          context.strokeStyle = edgeColor;
+          context.fillStyle = edgeColor;
+          drawArrow(context, sx1, sy1, sx2, sy2, this.scale);
+        }
       }
       context.restore();
     }
 
     for (const n of this.nodes) {
       const r = (this.nodeRadii[n.id] || this.settings.nodeRadius || 36);
-      const isSquare = n.shape === 'square';
-      
       context.beginPath();
       
       // Check if node has a file but the file doesn't have the correct ID
@@ -2371,40 +2778,206 @@ export class SkillTreeView extends ItemView {
       // fill/stroke depending on state - use actual state from node object
       const nodeState = n.state || 'in-progress';
       
-      if (hasFileLinkIssue) {
-        // Node has a file but the file doesn't have the correct ID - make it red
-        context.fillStyle = '#f44336';
-        context.strokeStyle = '#c62828';
-      } else if (nodeState === 'complete') {
-        context.fillStyle = '#4caf50';
-        context.strokeStyle = '#2e7d32';
-        
-      } else if (nodeState === 'unavailable') {
-        // darken / gray-out unavailable nodes by mixing base color with a desaturated gray
-        const base = '#2b6';
-        const parsed = parseCSSColor(base) || { r: 43, g: 102, b: 102 };
-        const gray = { r: 120, g: 120, b: 120 };
-        // mix: 40% base, 60% gray
-        const mixR = Math.round(parsed.r * 0.4 + gray.r * 0.6);
-        const mixG = Math.round(parsed.g * 0.4 + gray.g * 0.6);
-        const mixB = Math.round(parsed.b * 0.4 + gray.b * 0.6);
-        context.fillStyle = `rgb(${mixR},${mixG},${mixB})`;
-        context.strokeStyle = `rgb(${Math.round(mixR * 0.9)},${Math.round(mixG * 0.9)},${Math.round(mixB * 0.9)})`;
+      // Get colors from style or use defaults
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
       
+      if (hasFileLinkIssue) {
+        // Node has a file but the file doesn't have the correct ID
+        if (styleDef && styleDef.nodeColors) {
+          context.fillStyle = styleDef.nodeColors.error.fill;
+          context.strokeStyle = styleDef.nodeColors.error.stroke;
+        } else {
+          context.fillStyle = '#f44336';
+          context.strokeStyle = '#c62828';
+        }
+      } else if (nodeState === 'complete') {
+        if (styleDef && styleDef.nodeColors) {
+          context.fillStyle = styleDef.nodeColors.complete.fill;
+          context.strokeStyle = styleDef.nodeColors.complete.stroke;
+        } else {
+          context.fillStyle = '#4caf50';
+          context.strokeStyle = '#2e7d32';
+        }
+      } else if (nodeState === 'unavailable') {
+        if (styleDef && styleDef.nodeColors) {
+          context.fillStyle = styleDef.nodeColors.unavailable.fill;
+          context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
+        } else {
+          // darken / gray-out unavailable nodes by mixing base color with a desaturated gray
+          const base = '#2b6';
+          const parsed = parseCSSColor(base) || { r: 43, g: 102, b: 102 };
+          const gray = { r: 120, g: 120, b: 120 };
+          // mix: 40% base, 60% gray
+          const mixR = Math.round(parsed.r * 0.4 + gray.r * 0.6);
+          const mixG = Math.round(parsed.g * 0.4 + gray.g * 0.6);
+          const mixB = Math.round(parsed.b * 0.4 + gray.b * 0.6);
+          context.fillStyle = `rgb(${mixR},${mixG},${mixB})`;
+          context.strokeStyle = `rgb(${Math.round(mixR * 0.9)},${Math.round(mixG * 0.9)},${Math.round(mixB * 0.9)})`;
+        }
       } else {
-        context.fillStyle = '#2b6';
-        context.strokeStyle = '#173';
+        // in-progress
+        if (styleDef && styleDef.nodeColors) {
+          context.fillStyle = styleDef.nodeColors.inProgress.fill;
+          context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+        } else {
+          context.fillStyle = '#2b6';
+          context.strokeStyle = '#173';
+        }
       }
       context.lineWidth = 4 / this.scale;
       
-      // Draw circle or square based on shape
-      if (isSquare) {
-        context.rect(n.x - r, n.y - r, r * 2, r * 2);
-      } else {
-        context.arc(n.x, n.y, r, 0, Math.PI * 2);
+      // Determine the shape to use (node shape from frontmatter takes precedence, then style default)
+      // Get default shape based on style if node doesn't have a shape
+      const defaultShape = styleDef?.nodeShape || 'circle';
+      // Node's shape from frontmatter takes precedence over style default
+      const effectiveShape = n.shape || defaultShape;
+      const isAnimated = styleDef && styleDef.animated;
+      
+      // Check for state change animation
+      const stateChangeAnim = this._nodeStateChangeAnimations.get(n.id);
+      const animElapsed = stateChangeAnim ? (this._animationTime - stateChangeAnim.startTime) : Infinity;
+      const animDuration = 2000; // 2 seconds
+      const animProgress = Math.min(1, animElapsed / animDuration);
+      const isAnimating = stateChangeAnim && animProgress < 1;
+      
+      // Add glow effect for gamified style (only for active nodes)
+      const shouldGlow = styleDef && styleDef.edgeGlow && !hasFileLinkIssue && nodeState !== 'unavailable';
+      if (shouldGlow) {
+        // Save current fill style for glow
+        const glowColor = context.fillStyle;
+        let glowIntensity = 20 / this.scale;
+        
+        // Enhance glow during state change animations
+        if (isAnimating) {
+          if (stateChangeAnim.type === 'complete') {
+            // Burst effect for complete - expanding glow
+            const burstScale = 1 + (1 - animProgress) * 0.5; // Start at 1.5x, shrink to 1x
+            glowIntensity = (20 / this.scale) * (1 + (1 - animProgress) * 2); // Stronger glow that fades
+          } else if (stateChangeAnim.type === 'in-progress') {
+            // Pulse effect for in-progress - pulsing glow
+            const pulsePhase = animProgress * Math.PI * 4; // 2 full pulses
+            glowIntensity = (20 / this.scale) * (1 + Math.sin(pulsePhase) * 0.5);
+          }
+        }
+        
+        context.shadowBlur = glowIntensity;
+        context.shadowColor = glowColor;
+        context.globalAlpha = 0.6;
+        context.beginPath();
+        // Draw glow with appropriate shape
+        this.drawNodeShape(context, n.x, n.y, r, effectiveShape);
+        context.fill();
+        context.globalAlpha = 1.0;
+        context.shadowBlur = 0;
+        // Restore fill style
+        context.fillStyle = glowColor;
       }
+      
+      // Add rotation animation for gamified style
+      if (isAnimated && shouldGlow && nodeState === 'complete') {
+        let rotation = (this._animationTime * 0.001) % (Math.PI * 2); // Slow rotation
+        
+        // Add spin-up animation when becoming complete
+        if (isAnimating && stateChangeAnim.type === 'complete') {
+          const spinAmount = (1 - animProgress) * Math.PI * 4; // Spin 2 full rotations, slowing down
+          rotation += spinAmount;
+        }
+        
+        context.save();
+        context.translate(n.x, n.y);
+        context.rotate(rotation);
+        context.translate(-n.x, -n.y);
+      }
+      
+      // Add pulsing animation for in-progress nodes
+      let pulseScale = 1;
+      if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
+        let basePulse = 1 + 0.1 * Math.sin(this._animationTime * 0.005); // Gentle pulse
+        
+        // Add expansion animation when becoming in-progress
+        if (isAnimating && stateChangeAnim.type === 'in-progress') {
+          const expandAmount = (1 - animProgress) * 0.3; // Expand 30%, then shrink back
+          pulseScale = basePulse + expandAmount;
+        } else {
+          pulseScale = basePulse;
+        }
+        
+        context.save();
+        context.translate(n.x, n.y);
+        context.scale(pulseScale, pulseScale);
+        context.translate(-n.x, -n.y);
+      }
+      
+      // Draw the node shape
+      context.beginPath();
+      this.drawNodeShape(context, n.x, n.y, r, effectiveShape);
       context.fill();
       context.stroke();
+      
+      // Add shimmer effect for complete nodes in gamified style
+      if (isAnimated && shouldGlow && nodeState === 'complete') {
+        let shimmerPhase = (this._animationTime * 0.003) % (Math.PI * 2);
+        let shimmerIntensity = 0.3 + 0.2 * Math.sin(shimmerPhase);
+        
+        // Enhanced shimmer during complete animation
+        if (isAnimating && stateChangeAnim.type === 'complete') {
+          // Stronger shimmer that fades out
+          shimmerIntensity = (0.5 + 0.5 * Math.sin(shimmerPhase * 2)) * (1 - animProgress * 0.5);
+        }
+        
+        const currentFill = context.fillStyle;
+        context.globalAlpha = shimmerIntensity;
+        context.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        context.beginPath();
+        this.drawNodeShape(context, n.x, n.y, r * 0.6, effectiveShape);
+        context.fill();
+        context.globalAlpha = 1.0;
+        context.fillStyle = currentFill;
+      }
+      
+      // Add particle burst effect for complete animation
+      if (isAnimating && stateChangeAnim.type === 'complete' && isAnimated) {
+        const particleCount = 8;
+        const burstRadius = r * (1 + (1 - animProgress) * 2); // Expanding burst
+        for (let i = 0; i < particleCount; i++) {
+          const angle = (i / particleCount) * Math.PI * 2;
+          const distance = burstRadius * animProgress;
+          const px = n.x + Math.cos(angle) * distance;
+          const py = n.y + Math.sin(angle) * distance;
+          const particleSize = (1 - animProgress) * 6 / this.scale;
+          
+          context.beginPath();
+          context.fillStyle = '#ffd700'; // Gold particles
+          context.globalAlpha = 1 - animProgress;
+          context.arc(px, py, particleSize, 0, Math.PI * 2);
+          context.fill();
+        }
+        context.globalAlpha = 1.0;
+      }
+      
+      // Add ripple effect for in-progress animation
+      if (isAnimating && stateChangeAnim.type === 'in-progress' && isAnimated) {
+        const rippleCount = 3;
+        for (let i = 0; i < rippleCount; i++) {
+          const rippleProgress = (animProgress + i * 0.3) % 1;
+          if (rippleProgress < 0.7) {
+            const rippleRadius = r * (1 + rippleProgress * 1.5);
+            context.beginPath();
+            context.strokeStyle = '#6a5acd'; // Slate blue
+            context.lineWidth = (3 * this.scale) * (1 - rippleProgress);
+            context.globalAlpha = (1 - rippleProgress) * 0.6;
+            this.drawNodeShape(context, n.x, n.y, rippleRadius, effectiveShape);
+            context.stroke();
+          }
+        }
+        context.globalAlpha = 1.0;
+      }
+      
+      // Restore transforms
+      if (isAnimated && (shouldGlow && nodeState === 'complete' || nodeState === 'in-progress' && !hasFileLinkIssue)) {
+        context.restore();
+      }
       // draw selection highlight if this node is selected with pulsing animation
       if (this.selectedNodeId === n.id) {
         // Use sine wave for smooth pulsing (pulse between 6 and 10 pixels extra radius)
@@ -2412,13 +2985,9 @@ export class SkillTreeView extends ItemView {
         context.beginPath();
         context.lineWidth = 4 / this.scale;
         context.strokeStyle = 'rgba(255,165,0,0.95)';
-        // Draw selection highlight for circle or square based on shape
-        if (isSquare) {
-          const expandedR = r + (pulseAmount / this.scale);
-          context.rect(n.x - expandedR, n.y - expandedR, expandedR * 2, expandedR * 2);
-        } else {
-          context.arc(n.x, n.y, r + (pulseAmount / this.scale), 0, Math.PI * 2);
-        }
+        // Draw selection highlight with appropriate shape
+        const expandedR = r + (pulseAmount / this.scale);
+        this.drawNodeShape(context, n.x, n.y, expandedR, effectiveShape);
         context.stroke();
       }
       // Draw label - make it look clickable if there's a file link
@@ -2592,14 +3161,17 @@ export class SkillTreeView extends ItemView {
       // compute controls for temp edge
       const tempFromSide = this.creatingEdgeFromSide || this.getSideBetween(this.creatingEdgeFrom, { id: -1, x: bx, y: by, state: 'unavailable' });
       const tempControls = computeBezierControls(sx1, sy1, bx, by, tempFromSide, null, r, 0);
-      if (this.settings.showBezier) {
+      const isGamifiedTemp = (this.settings.style || 'default') === 'gamified';
+      const useBezierTemp = isGamifiedTemp || this.settings.showBezier;
+      const drawBezierTemp = isGamifiedTemp ? drawRigidBezierArrow : drawBezierArrow;
+      if (useBezierTemp) {
         context.lineWidth = 3 / this.scale;
         context.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
-        drawBezierArrow(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
+        drawBezierTemp(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
         context.lineWidth = 1 / this.scale;
         context.strokeStyle = tempColor;
         context.fillStyle = tempColor;
-        drawBezierArrow(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
+        drawBezierTemp(context, sx1, sy1, tempControls.c1x, tempControls.c1y, tempControls.c2x, tempControls.c2y, bx, by, this.scale);
       } else {
         context.lineWidth = 3 / this.scale;
         context.strokeStyle = (tempColor === '#fff' ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.10)');
@@ -2643,35 +3215,41 @@ export class SkillTreeView extends ItemView {
       }
     }
     
-    // Get theme-aware colors
+    // Get theme-aware colors with better styling
     let textColor = '#000';
-    let bgColor = 'rgba(255, 255, 255, 0.9)';
+    let bgColor = 'rgba(255, 255, 255, 0.95)';
+    let borderColor = 'rgba(0, 0, 0, 0.2)';
     try {
       const docStyle = getComputedStyle(document.documentElement);
       const textVar = docStyle.getPropertyValue('--text-normal');
       const bgVar = docStyle.getPropertyValue('--background-primary');
+      const borderVar = docStyle.getPropertyValue('--background-modifier-border');
       if (textVar && textVar.trim()) textColor = textVar.trim();
       if (bgVar && bgVar.trim()) {
-        // Make background semi-transparent
+        // Make background more opaque for better readability
         bgColor = bgVar.trim();
         // Convert to rgba if needed
         if (bgColor.startsWith('#')) {
           const r = parseInt(bgColor.slice(1, 3), 16);
           const g = parseInt(bgColor.slice(3, 5), 16);
           const b = parseInt(bgColor.slice(5, 7), 16);
-          bgColor = `rgba(${r}, ${g}, ${b}, 0.9)`;
+          bgColor = `rgba(${r}, ${g}, ${b}, 0.95)`;
         } else if (bgColor.startsWith('rgb')) {
-          bgColor = bgColor.replace('rgb', 'rgba').replace(')', ', 0.9)');
+          bgColor = bgColor.replace('rgb', 'rgba').replace(')', ', 0.95)');
         }
+      }
+      if (borderVar && borderVar.trim()) {
+        borderColor = borderVar.trim();
       }
     } catch (e) {}
     
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset to device pixels
     
-    const padding = 10;
-    const fontSize = 14;
-    ctx.font = `${fontSize}px sans-serif`;
+    const padding = 12;
+    const fontSize = 15;
+    const borderRadius = 8;
+    ctx.font = `600 ${fontSize}px sans-serif`; // Make font bolder
     
     // Format exp display
     let expText = `Total EXP: ${totalExp}`;
@@ -2686,20 +3264,65 @@ export class SkillTreeView extends ItemView {
     const x = this.canvas!.width - boxWidth - padding;
     const y = padding + 60; // Position below toolbar (60px for toolbar height) to avoid status bar
     
-    // Draw background box
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(x, y, boxWidth, boxHeight);
-    ctx.strokeStyle = textColor;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x, y, boxWidth, boxHeight);
+    // Draw rounded background box with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
     
-    // Draw text
+    // Draw rounded rectangle
+    ctx.beginPath();
+    ctx.moveTo(x + borderRadius, y);
+    ctx.lineTo(x + boxWidth - borderRadius, y);
+    ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + borderRadius);
+    ctx.lineTo(x + boxWidth, y + boxHeight - borderRadius);
+    ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - borderRadius, y + boxHeight);
+    ctx.lineTo(x + borderRadius, y + boxHeight);
+    ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - borderRadius);
+    ctx.lineTo(x, y + borderRadius);
+    ctx.quadraticCurveTo(x, y, x + borderRadius, y);
+    ctx.closePath();
+    ctx.fillStyle = bgColor;
+    ctx.fill();
+    
+    // Draw border
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Reset shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    // Draw text with better positioning
     ctx.fillStyle = textColor;
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillText(expText, x + padding, y + padding);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(expText, x + padding, y + boxHeight / 2);
     
     ctx.restore();
+  }
+
+  /**
+   * Center and zoom on a specific point in world coordinates
+   */
+  centerAndZoomOnPoint(worldX: number, worldY: number, zoomLevel: number = 2.0) {
+    if (!this.canvas) return;
+    
+    // Set the zoom level
+    this.scale = Math.max(0.2, Math.min(3, zoomLevel));
+    
+    // Calculate offset to center the point on screen
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    
+    // Convert world point to screen coordinates at current scale
+    // Then adjust offset so it appears at center
+    this.offset.x = centerX - worldX * this.scale;
+    this.offset.y = centerY - worldY * this.scale;
+    
+    this.render();
   }
 
   screenToWorld(sx: number, sy: number) {
@@ -2813,8 +3436,22 @@ export class SkillTreeView extends ItemView {
         }
       }
       
-      // Load exp from file frontmatter or default to 10
+      // Get default shape based on current style
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      let defaultShape = styleDef?.nodeShape || 'circle';
+      // Filter out 'star' as it's not a valid node shape (only style shape)
+      if (defaultShape === 'star') {
+        defaultShape = 'circle';
+      }
+      
+      // Load exp from file frontmatter or default to 10, and set default shape if missing
       for (const node of this.nodes) {
+        // Set default shape if node doesn't have one
+        if (!node.shape) {
+          node.shape = defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond';
+        }
+        
         if (node.fileLink) {
           // Try to load exp from file frontmatter
           try {
@@ -3166,15 +3803,19 @@ export class SkillTreeView extends ItemView {
   getNodeAtWorld(x: number, y: number): SkillNode | null {
     for (const n of this.nodes) {
       const r = this.nodeRadii[n.id] || this.settings.nodeRadius || 36;
-      const isSquare = n.shape === 'square';
+      // Get effective shape (node shape or style default)
+      const selectedStyle = this.settings.style || 'gamified';
+      const styleDef = SKILL_TREE_STYLES[selectedStyle];
+      const defaultShape = styleDef?.nodeShape || 'circle';
+      const effectiveShape = n.shape || defaultShape;
       
-      if (isSquare) {
-        // Square collision: axis-aligned bounding box
+      if (effectiveShape === 'square' || effectiveShape === 'diamond') {
+        // Square/Diamond collision: axis-aligned bounding box
         if (x >= n.x - r && x <= n.x + r && y >= n.y - r && y <= n.y + r) {
           return n;
         }
       } else {
-        // Circle collision
+        // Circle/Hexagon/Star collision: distance check
         const dx = x - n.x;
         const dy = y - n.y;
         if (dx * dx + dy * dy <= r * r) return n;
@@ -3319,7 +3960,9 @@ export class SkillTreeView extends ItemView {
         if (e.toSide === 'left') { sx2 = toNode.x - rTo; sy2 = toNode.y; }
       }
       // compute bezier controls and test distance to curve
-      if (this.settings.showBezier) {
+      const isGamifiedStyle = (this.settings.style || 'default') === 'gamified';
+      const useBezierForHitTest = isGamifiedStyle || this.settings.showBezier;
+      if (useBezierForHitTest) {
         const ctr = computeBezierControls(sx1, sy1, sx2, sy2, e.fromSide, e.toSide, rFrom, rTo);
         const res = distanceSqToBezier(x, y, sx1, sy1, ctr.c1x, ctr.c1y, ctr.c2x, ctr.c2y, sx2, sy2, 28);
         if (res.dist2 <= thresh * thresh) {
@@ -3389,6 +4032,17 @@ export class SkillTreeView extends ItemView {
       stateSelect.addEventListener('change', async () => {
         this.recordSnapshot();
         const selected = stateSelect.value as ('complete'|'in-progress');
+        const prevState = this._previousNodeStates.get(node.id);
+        const selectedStyle = this.settings.style || 'gamified';
+        const isGamified = selectedStyle === 'gamified';
+        
+        // Track state change for animation
+        if (prevState !== selected && isGamified) {
+          if (selected === 'complete' || (selected === 'in-progress' && prevState === 'unavailable')) {
+            this._nodeStateChangeAnimations.set(node.id, { type: selected, startTime: this._animationTime });
+          }
+        }
+        
         node.state = selected;
         this.applyConnectionStateRules(); // Update parent states when child state changes
         try { await this.saveNodes(); } catch (e) {}
@@ -3774,7 +4428,15 @@ export class SkillTreeView extends ItemView {
         const fullFilePath = this.buildFilePath(filePath);
         
         // Create the file with initial content
-        const nodeShape = node.shape || 'circle';
+        // Get default shape based on current style
+        const selectedStyle = this.settings.style || 'gamified';
+        const styleDef = SKILL_TREE_STYLES[selectedStyle];
+        let defaultShape = styleDef?.nodeShape || 'circle';
+        // Filter out 'star' as it's not a valid node shape (only style shape)
+        if (defaultShape === 'star') {
+          defaultShape = 'circle';
+        }
+        const nodeShape = node.shape || defaultShape;
         const initialContent = `---\nskilltree-node: ${node.id}\nskilltree-node-exp: 10\nshape: ${nodeShape}\n---\n\n# ${this.getNodeDisplayLabel(node)}\n\n`;
         await this.app.vault.create(fullFilePath, initialContent);
         

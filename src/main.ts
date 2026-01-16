@@ -1,5 +1,5 @@
 import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, FuzzySuggestModal, TAbstractFile} from 'obsidian';
-import { SkillTreeSettings } from './interfaces';
+import { SkillTreeSettings, SKILL_TREE_STYLES } from './interfaces';
 import { SkillTreeView } from './skilltree-view';
 import { VIEW_TYPE_SKILLTREE } from './constants';
 
@@ -26,7 +26,8 @@ function defaultSettings(): SkillTreeSettings {
     showExpAsFraction: false,
     currentTreeName: 'default',
     trees: { 'default': { name: 'default', nodes: [], edges: [] } }, // TODO implement
-    defaultFilePath: '' // Empty string = root directory
+    defaultFilePath: '', // Empty string = root directory
+    style: 'gamified' // Default style
   };
 }
 
@@ -61,6 +62,18 @@ export default class SkillTreePlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign(defaultSettings(), await this.loadData());
+    // Ensure style is set (for backward compatibility)
+    if (!this.settings.style || !SKILL_TREE_STYLES[this.settings.style]) {
+      // Migrate old style names to new ones
+      if (this.settings.style === 'default') {
+        this.settings.style = 'simple-light';
+      } else if (this.settings.style === 'dark') {
+        this.settings.style = 'simple-dark';
+      } else {
+        // Default to gamified for new installations or invalid styles
+        this.settings.style = 'gamified';
+      }
+    }
   }
 
   async saveSettings() {
@@ -163,16 +176,41 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.updateViews();
         }));
 
+    // Only show bezier toggle if not using gamified style (gamified always uses rigid bezier)
+    const currentStyle = this.plugin.settings.style || 'default';
+    if (currentStyle !== 'gamified') {
+      new Setting(containerEl)
+        .setName('Bezier edges')
+        .setDesc('Use curved bezier edges instead of straight lines')
+        .addToggle(toggle => toggle
+          .setValue(this.plugin.settings.showBezier)
+          .onChange(async (value) => {
+            this.plugin.settings.showBezier = value;
+            await this.plugin.saveSettings();
+            this.plugin.updateViews();
+          }));
+    }
+
     new Setting(containerEl)
-      .setName('Bezier edges')
-      .setDesc('Use curved bezier edges instead of straight lines')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.showBezier)
-        .onChange(async (value) => {
-          this.plugin.settings.showBezier = value;
+      .setName('Style')
+      .setDesc('Visual style for the skill tree canvas')
+      .addDropdown(dropdown => {
+        Object.keys(SKILL_TREE_STYLES).forEach(styleKey => {
+          dropdown.addOption(styleKey, SKILL_TREE_STYLES[styleKey].name);
+        });
+        dropdown.setValue(this.plugin.settings.style || 'default');
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.style = value;
+          // For gamified style, force bezier to be enabled
+          if (value === 'gamified') {
+            this.plugin.settings.showBezier = true;
+          }
           await this.plugin.saveSettings();
           this.plugin.updateViews();
-        }));
+          // Refresh settings display to show/hide bezier toggle
+          this.display();
+        });
+      });
 
     // Default file path setting with autocomplete
     const folders = this.app.vault.getAllFolders();
