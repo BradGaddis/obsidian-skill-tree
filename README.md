@@ -4,6 +4,8 @@ This is a work in progress.
 
 <center><h1>A SKILL TREE FOR WHATEVER YOU NEED IN LIFE</center></h1>
 
+This is a vibe-coded project. I will comb through it on my own time, but I really don't much like Type/Javascript, therefore I am taking the easy approach.
+
 <center><h2>USAGE</h2></center>
 
   

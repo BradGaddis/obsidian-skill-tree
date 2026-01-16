@@ -2,16 +2,16 @@
  * Represents a node (skill) on the skill tree.
  * @remarks
  * Nodes may optionally reference an Obsidian note via `fileLink` and carry
- * experience points in `exp`.
+ * experience points in `exp`. Shape can be set via front matter (default: 'circle').
  */
 export interface SkillNode {
   id: number;
   x: number;
   y: number;
-  label: string;
   state?: 'complete' | 'in-progress' | 'unavailable';
   fileLink?: string; // Path to an Obsidian file
   exp?: number; // Experience points for this node
+  shape?: 'circle' | 'square'; // Node shape, default 'circle'
 }
 
 /**
@@ -49,7 +49,6 @@ export interface SkillTreeData {
  * Plugin settings persisted between Obsidian sessions.
  */
 export interface SkillTreeSettings {
-  defaultLabel: string;
   nodeRadius: number;
   showHandles: boolean;
   showBezier: boolean;
@@ -57,22 +56,5 @@ export interface SkillTreeSettings {
   showExpAsFraction: boolean;
   currentTreeName: string;
   trees: Record<string, SkillTreeData>;
-}
-
-export interface SkillTreeData {
-  name: string;
-  nodes: SkillNode[];
-  edges: SkillEdge[];
-}
-
-
-export interface SkillTreeSettings {
-  defaultLabel: string;
-  nodeRadius: number;
-  showHandles: boolean;
-  showBezier: boolean;
-  defaultExp: number;
-  showExpAsFraction: boolean;
-  currentTreeName: string;
-  trees: Record<string, SkillTreeData>;
+  defaultFilePath: string; // Default path for creating files (empty string = root)
 }

@@ -1,4 +1,4 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App,} from 'obsidian';
+import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, FuzzySuggestModal, TAbstractFile} from 'obsidian';
 import { SkillTreeSettings } from './interfaces';
 import { SkillTreeView } from './skilltree-view';
 import { VIEW_TYPE_SKILLTREE } from './constants';
@@ -19,14 +19,14 @@ export { SkillTreeView };
  */
 function defaultSettings(): SkillTreeSettings {
   return {
-    defaultLabel: 'New Skill', 
     nodeRadius: 36, 
     showHandles: false, 
     showBezier: false, 
     defaultExp: 10, 
     showExpAsFraction: false,
     currentTreeName: 'default',
-    trees: { 'default': { name: 'default', nodes: [], edges: [] } } // TODO implement
+    trees: { 'default': { name: 'default', nodes: [], edges: [] } }, // TODO implement
+    defaultFilePath: '' // Empty string = root directory
   };
 }
 
@@ -85,6 +85,41 @@ export default class SkillTreePlugin extends Plugin {
 }
 
 /**
+ * Folder suggestion modal for selecting directories with fuzzy search
+ */
+class FolderSuggestionModal extends FuzzySuggestModal<string> {
+  folders: string[];
+  onChoose: (value: string) => void;
+
+  constructor(app: App, folders: string[], onChoose: (value: string) => void) {
+    super(app);
+    this.folders = folders;
+    this.onChoose = onChoose;
+  }
+
+  getItems(): string[] {
+    return this.folders;
+  }
+
+  getItemText(item: string): string {
+    return item === '' ? 'Root' : item;
+  }
+
+  onChooseItem(item: string, evt: MouseEvent | KeyboardEvent): void {
+    this.close();
+    this.onChoose(item);
+  }
+  
+  // Override to show all folders when no query
+  getSuggestions(query: string): string[] {
+    if (!query) {
+      return this.folders;
+    }
+    return super.getSuggestions(query);
+  }
+}
+
+/**
  * Settings tab displayed in Obsidian's settings dialog for the plugin.
  */
 class SkillTreeSettingTab extends PluginSettingTab {
@@ -101,18 +136,6 @@ class SkillTreeSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     containerEl.createEl('h2', { text: 'Skill Tree Settings' });
-
-    new Setting(containerEl)
-      .setName('Default label')
-      .setDesc('Default label for new nodes')
-      .addText(text => text
-        .setPlaceholder('New Skill')
-        .setValue(this.plugin.settings.defaultLabel)
-        .onChange(async (value) => {
-          this.plugin.settings.defaultLabel = value;
-          await this.plugin.saveSettings();
-          this.plugin.updateViews();
-        }));
 
     new Setting(containerEl)
       .setName('Min node radius')
@@ -150,5 +173,55 @@ class SkillTreeSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.updateViews();
         }));
+
+    // Default file path setting with autocomplete
+    const folders = this.app.vault.getAllFolders();
+    const folderPaths = ['']; // Start with root (empty string)
+    folders.forEach(folder => {
+      folderPaths.push(folder.path);
+    });
+    // Sort folder paths (root first, then alphabetically)
+    folderPaths.sort((a, b) => {
+      if (a === '') return -1; // Root first
+      if (b === '') return 1;
+      return a.localeCompare(b);
+    });
+    
+    const pathSetting = new Setting(containerEl)
+      .setName('Default file path')
+      .setDesc('Directory where new files will be created (empty = root). Click Browse to select a folder.')
+      .addText(text => {
+        const currentValue = this.plugin.settings.defaultFilePath || '';
+        text.setPlaceholder('Root (or type a folder path)')
+            .setValue(currentValue)
+            .onChange(async (value) => {
+              // Validate that the path is a valid folder (allow empty for root)
+              const isValid = value === '' || folderPaths.includes(value);
+              if (isValid) {
+                this.plugin.settings.defaultFilePath = value;
+                await this.plugin.saveSettings();
+                // Clear any error styling
+                text.inputEl.style.borderColor = '';
+              } else {
+                // Show error styling for invalid paths
+                text.inputEl.style.borderColor = 'var(--text-error)';
+              }
+            });
+        
+        // Add a browse button
+        const browseBtn = pathSetting.controlEl.createEl('button', { text: 'Browse' });
+        browseBtn.style.marginLeft = '8px';
+        browseBtn.style.padding = '4px 12px';
+        browseBtn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const modal = new FolderSuggestionModal(this.app, folderPaths, (selectedPath: string) => {
+            text.setValue(selectedPath);
+            this.plugin.settings.defaultFilePath = selectedPath;
+            this.plugin.saveSettings();
+          });
+          modal.open();
+        };
+      });
   }
 }
