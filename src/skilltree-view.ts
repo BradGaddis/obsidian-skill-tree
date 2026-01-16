@@ -168,6 +168,15 @@ export class SkillTreeView extends ItemView {
   
   /** Track active state change animations (nodeId -> { type, startTime }) */
   _nodeStateChangeAnimations: Map<number, { type: 'in-progress' | 'complete', startTime: number }> = new Map();
+  
+  /** Track previous total exp to detect when it reaches total available */
+  _previousTotalExp: number = 0;
+  
+  /** Track exp overlay animation when exp equals total */
+  _expOverlayAnimation: { startTime: number; active: boolean } | null = null;
+  
+  /** Track task children modal */
+  _taskChildrenModal: HTMLElement | null = null;
 
   
   
@@ -794,6 +803,94 @@ export class SkillTreeView extends ItemView {
     // If not all tasks are complete, let connection rules handle the state
   }
   
+  // Complete all tasks in a note
+  async completeAllTasksInNote(node: SkillNode) {
+    if (!node.fileLink) return;
+    
+    const tasks = this._tasksCache.get(node.id) || [];
+    if (tasks.length === 0) return;
+    
+    try {
+      // Normalize path
+      let filePath = node.fileLink.trim();
+      if (!filePath.endsWith('.md')) {
+        filePath = filePath + '.md';
+      }
+      
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!file || !(file instanceof TFile)) return;
+      
+      // Try to use Tasks plugin API if available
+      if (this.isTasksPluginInstalled()) {
+        const tasksPlugin = this.getTasksPlugin();
+        if (tasksPlugin && tasksPlugin.api) {
+          // Complete all tasks using Tasks API
+          for (const task of tasks) {
+            if (task.completed) continue; // Skip already completed tasks
+            
+            if (task.originalTask) {
+              try {
+                // Try toggleTask if available
+                if (typeof tasksPlugin.api.toggleTask === 'function') {
+                  await tasksPlugin.api.toggleTask(task.originalTask);
+                  continue;
+                }
+                // Try updating status
+                if (task.originalTask.status !== undefined && task.originalTask.status !== 'x') {
+                  task.originalTask.status = 'x';
+                  if (typeof tasksPlugin.api.updateTask === 'function') {
+                    await tasksPlugin.api.updateTask(task.originalTask);
+                    continue;
+                  } else if (typeof tasksPlugin.api.replaceTaskWithTasks === 'function') {
+                    await tasksPlugin.api.replaceTaskWithTasks(task.originalTask, [task.originalTask]);
+                    continue;
+                  }
+                }
+              } catch (e) {
+                // Fallback to manual toggle
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: manual toggle for all tasks
+      const content = await this.app.vault.read(file);
+      const lines = content.split('\n');
+      let modified = false;
+      
+      for (const task of tasks) {
+        if (task.completed || task.line === undefined || task.line < 0 || task.line >= lines.length) continue;
+        
+        const line = lines[task.line];
+        // Toggle the checkbox: [ ] -> [x]
+        const newLine = line.replace(/\[([ x])\]/i, (match, status) => {
+          return status.toLowerCase() === 'x' ? '[x]' : '[x]';
+        });
+        
+        if (newLine !== line) {
+          lines[task.line] = newLine;
+          modified = true;
+        }
+      }
+      
+      if (modified) {
+        await this.app.vault.modify(file, lines.join('\n'));
+      }
+      
+      // Reload tasks after modification
+      const newTasks = await this.getTasksFromFile(node.fileLink);
+      newTasks.forEach((t: any) => {
+        t.filePath = node.fileLink;
+      });
+      this._tasksCache.set(node.id, newTasks);
+      this.updateNodeStateFromTasks(node);
+      this.render();
+    } catch (e) {
+      console.error('Failed to complete all tasks:', e);
+    }
+  }
+  
   // Toggle task completion in file using Tasks API if available
   async toggleTaskCompletion(node: SkillNode, taskIndex: number) {
     if (!node.fileLink) return;
@@ -1097,6 +1194,17 @@ export class SkillTreeView extends ItemView {
         this.selectedNodeId = taskHit.node.id;
         // Center and zoom on task
         this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
+        
+        // Check if task has children and show modal
+        const tasks = this._tasksCache.get(taskHit.node.id) || [];
+        const task = tasks[taskHit.taskIndex];
+        if (task && task.children && task.children.length > 0) {
+          this.showTaskChildrenModal(taskHit.node, taskHit.taskIndex, task);
+        } else {
+          // Close modal if task has no children
+          this.closeTaskChildrenModal();
+        }
+        
         this.render();
         return;
       }
@@ -1167,6 +1275,7 @@ export class SkillTreeView extends ItemView {
       } else {
         this.selectedNodeId = null;
         this.selectedTask = null;
+        this.closeTaskChildrenModal();
       }
     });
 
@@ -1186,6 +1295,7 @@ export class SkillTreeView extends ItemView {
         if (!taskHit) {
           this.selectedNodeId = null;
           this.selectedTask = null;
+        this.closeTaskChildrenModal();
         }
       }
       if (e.button === 1 || e.button === 2) {
@@ -1203,14 +1313,52 @@ export class SkillTreeView extends ItemView {
       // check task nodes first (before other checks)
       const taskHit = this.getTaskNodeAtWorld(w.x, w.y);
       if (taskHit) {
+        // Check if clicking the same task - toggle modal
+        const isSameTask = this.selectedTask && 
+          this.selectedTask.nodeId === taskHit.node.id && 
+          this.selectedTask.taskIndex === taskHit.taskIndex;
+        
         // Select the task (don't move the parent node)
         this.selectedTask = { nodeId: taskHit.node.id, taskIndex: taskHit.taskIndex };
         this.selectedNodeId = taskHit.node.id;
         // Center and zoom on parent node
         this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
+        
+        // If clicking the same task and modal is open, toggle it
+        if (isSameTask && this._taskChildrenModal) {
+          this.closeTaskChildrenModal();
+        }
+        // Otherwise, centerAndZoomOnPoint will handle showing the modal if task has children
+        
         // Don't set _dragStart - we don't want to allow dragging the parent node when clicking tasks
         this.render(); // Update display to show expanded task
         return;
+      }
+      
+      // Check for child task node click
+      const tasks = this._tasksCache.get(this.selectedTask?.nodeId || -1) || [];
+      let clickedChildTask = false;
+      if (this.selectedTask) {
+        const parentTask = tasks[this.selectedTask.taskIndex];
+        if (parentTask && parentTask.children) {
+          for (const childIndex of parentTask.children) {
+            const childTaskPos = this._taskPositions.get(this.selectedTask.nodeId)?.find(p => p.taskIndex === childIndex);
+            if (childTaskPos) {
+              const dx = w.x - childTaskPos.x;
+              const dy = w.y - childTaskPos.y;
+              const dist2 = dx * dx + dy * dy;
+              if (dist2 <= childTaskPos.radius * childTaskPos.radius) {
+                clickedChildTask = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // If clicking outside task/child nodes, close modal
+      if (!clickedChildTask) {
+        this.closeTaskChildrenModal();
       }
       
       // check edge endpoints first
@@ -1260,7 +1408,8 @@ export class SkillTreeView extends ItemView {
       const hit = this.getNodeAtWorld(w.x, w.y);
       if (hit) {
         this.selectedNodeId = hit.id;
-        this.selectedTask = null; // Clear task selection when clicking on a node
+        this.selectedTask = null;
+        this.closeTaskChildrenModal(); // Clear task selection when clicking on a node
         if (e.shiftKey) {
           this.recordSnapshot();
           this.creatingEdgeFrom = hit;
@@ -1423,8 +1572,8 @@ export class SkillTreeView extends ItemView {
       // Check for task checkbox clicks first (check regardless of _dragStart)
       const taskCheckboxHit = this.getTaskCheckboxAtWorld(w.x, w.y);
       if (taskCheckboxHit) {
-        // Toggle task completion using Tasks API
-        await this.toggleTaskCompletion(taskCheckboxHit.node, taskCheckboxHit.taskIndex);
+        // Complete all tasks in the note
+        await this.completeAllTasksInNote(taskCheckboxHit.node);
         return; // Don't process other clicks
       }
       
@@ -1437,6 +1586,17 @@ export class SkillTreeView extends ItemView {
         this.selectedNodeId = taskHit.node.id;
         // Center and zoom on parent node
         this.centerAndZoomOnPoint(taskHit.node.x, taskHit.node.y, 2.5);
+        
+        // Check if task has children and show modal
+        const tasks = this._tasksCache.get(taskHit.node.id) || [];
+        const task = tasks[taskHit.taskIndex];
+        if (task && task.children && task.children.length > 0) {
+          this.showTaskChildrenModal(taskHit.node, taskHit.taskIndex, task);
+        } else {
+          // Close modal if task has no children
+          this.closeTaskChildrenModal();
+        }
+        
         this.render();
         return; // Don't process other clicks
       }
@@ -1533,6 +1693,10 @@ export class SkillTreeView extends ItemView {
       this.scale = Math.max(0.2, Math.min(3, this.scale));
       this.offset.x = sx - worldBefore.x * this.scale;
       this.offset.y = sy - worldBefore.y * this.scale;
+      
+      // Close task modal on zoom
+      this.closeTaskChildrenModal();
+      
       this.render();
     }, { passive: false });
 
@@ -2600,10 +2764,13 @@ export class SkillTreeView extends ItemView {
       // For gamified style, always use bezier (rigid)
       const useBezier = isGamified || this.settings.showBezier;
       
-      // Check if both nodes are unavailable - if so, skip animations
+      // Check node states - only animate edges where at least one node is in-progress (not both complete)
       const aState = a.state || 'in-progress';
       const bState = b.state || 'in-progress';
       const bothUnavailable = aState === 'unavailable' && bState === 'unavailable';
+      const bothComplete = aState === 'complete' && bState === 'complete';
+      // Only animate if at least one node is in-progress (exclude both complete and both unavailable)
+      const shouldAnimateEdge = isGamified && !bothUnavailable && !bothComplete && (aState === 'in-progress' || bState === 'in-progress');
       
       if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
         edgeColor = styleDef.edgeColor;
@@ -2619,8 +2786,8 @@ export class SkillTreeView extends ItemView {
       // Choose drawing function: rigid bezier for gamified, smooth bezier otherwise
       const drawBezier = isGamified ? drawRigidBezierArrow : drawBezierArrow;
       
-      // Draw animated particles on edges for gamified style (skip if both nodes unavailable)
-      if (edgeGlow && styleDef?.animated && !bothUnavailable) {
+      // Draw animated particles on edges for gamified style (only for complete/in-progress connections)
+      if (edgeGlow && styleDef?.animated && shouldAnimateEdge) {
         const particleCount = 3;
         const particleSpeed = this._animationTime * 0.002;
         for (let i = 0; i < particleCount; i++) {
@@ -2637,8 +2804,8 @@ export class SkillTreeView extends ItemView {
       }
       
       if (useBezier || edgeStyle === 'gradient') {
-        if (edgeStyle === 'gradient' && edgeGlow && !bothUnavailable) {
-          // Draw gradient edge with glow (skip animation if both nodes unavailable)
+        if (edgeStyle === 'gradient' && edgeGlow && shouldAnimateEdge) {
+          // Draw gradient edge with glow (only for complete/in-progress connections)
           const gradient = context.createLinearGradient(sx1, sy1, sx2, sy2);
           gradient.addColorStop(0, 'rgba(255, 215, 0, 0.3)');
           gradient.addColorStop(0.5, edgeColor);
@@ -2687,8 +2854,8 @@ export class SkillTreeView extends ItemView {
         }
       } else {
         // Straight or wavy edges
-        if (edgeStyle === 'wavy' && edgeGlow && !bothUnavailable) {
-          // Draw wavy edge with glow (skip animation if both nodes unavailable)
+        if (edgeStyle === 'wavy' && edgeGlow && shouldAnimateEdge) {
+          // Draw wavy edge with glow (only for complete/in-progress connections)
           const dx = sx2 - sx1;
           const dy = sy2 - sy1;
           const distance = Math.hypot(dx, dy);
@@ -2848,18 +3015,7 @@ export class SkillTreeView extends ItemView {
         const glowColor = context.fillStyle;
         let glowIntensity = 20 / this.scale;
         
-        // Enhance glow during state change animations
-        if (isAnimating) {
-          if (stateChangeAnim.type === 'complete') {
-            // Burst effect for complete - expanding glow
-            const burstScale = 1 + (1 - animProgress) * 0.5; // Start at 1.5x, shrink to 1x
-            glowIntensity = (20 / this.scale) * (1 + (1 - animProgress) * 2); // Stronger glow that fades
-          } else if (stateChangeAnim.type === 'in-progress') {
-            // Pulse effect for in-progress - pulsing glow
-            const pulsePhase = animProgress * Math.PI * 4; // 2 full pulses
-            glowIntensity = (20 / this.scale) * (1 + Math.sin(pulsePhase) * 0.5);
-          }
-        }
+        // No enhanced glow animations - only edges are animated
         
         context.shadowBlur = glowIntensity;
         context.shadowColor = glowColor;
@@ -2874,38 +3030,12 @@ export class SkillTreeView extends ItemView {
         context.fillStyle = glowColor;
       }
       
-      // Add rotation animation for gamified style
-      if (isAnimated && shouldGlow && nodeState === 'complete') {
-        let rotation = (this._animationTime * 0.001) % (Math.PI * 2); // Slow rotation
-        
-        // Add spin-up animation when becoming complete
-        if (isAnimating && stateChangeAnim.type === 'complete') {
-          const spinAmount = (1 - animProgress) * Math.PI * 4; // Spin 2 full rotations, slowing down
-          rotation += spinAmount;
-        }
-        
+      // Add rotation animation for in-progress nodes in gamified style
+      if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
+        const rotation = (this._animationTime * 0.001) % (Math.PI * 2); // Slow rotation
         context.save();
         context.translate(n.x, n.y);
         context.rotate(rotation);
-        context.translate(-n.x, -n.y);
-      }
-      
-      // Add pulsing animation for in-progress nodes
-      let pulseScale = 1;
-      if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
-        let basePulse = 1 + 0.1 * Math.sin(this._animationTime * 0.005); // Gentle pulse
-        
-        // Add expansion animation when becoming in-progress
-        if (isAnimating && stateChangeAnim.type === 'in-progress') {
-          const expandAmount = (1 - animProgress) * 0.3; // Expand 30%, then shrink back
-          pulseScale = basePulse + expandAmount;
-        } else {
-          pulseScale = basePulse;
-        }
-        
-        context.save();
-        context.translate(n.x, n.y);
-        context.scale(pulseScale, pulseScale);
         context.translate(-n.x, -n.y);
       }
       
@@ -2915,69 +3045,13 @@ export class SkillTreeView extends ItemView {
       context.fill();
       context.stroke();
       
-      // Add shimmer effect for complete nodes in gamified style
-      if (isAnimated && shouldGlow && nodeState === 'complete') {
-        let shimmerPhase = (this._animationTime * 0.003) % (Math.PI * 2);
-        let shimmerIntensity = 0.3 + 0.2 * Math.sin(shimmerPhase);
-        
-        // Enhanced shimmer during complete animation
-        if (isAnimating && stateChangeAnim.type === 'complete') {
-          // Stronger shimmer that fades out
-          shimmerIntensity = (0.5 + 0.5 * Math.sin(shimmerPhase * 2)) * (1 - animProgress * 0.5);
-        }
-        
-        const currentFill = context.fillStyle;
-        context.globalAlpha = shimmerIntensity;
-        context.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        context.beginPath();
-        this.drawNodeShape(context, n.x, n.y, r * 0.6, effectiveShape);
-        context.fill();
-        context.globalAlpha = 1.0;
-        context.fillStyle = currentFill;
-      }
-      
-      // Add particle burst effect for complete animation
-      if (isAnimating && stateChangeAnim.type === 'complete' && isAnimated) {
-        const particleCount = 8;
-        const burstRadius = r * (1 + (1 - animProgress) * 2); // Expanding burst
-        for (let i = 0; i < particleCount; i++) {
-          const angle = (i / particleCount) * Math.PI * 2;
-          const distance = burstRadius * animProgress;
-          const px = n.x + Math.cos(angle) * distance;
-          const py = n.y + Math.sin(angle) * distance;
-          const particleSize = (1 - animProgress) * 6 / this.scale;
-          
-          context.beginPath();
-          context.fillStyle = '#ffd700'; // Gold particles
-          context.globalAlpha = 1 - animProgress;
-          context.arc(px, py, particleSize, 0, Math.PI * 2);
-          context.fill();
-        }
-        context.globalAlpha = 1.0;
-      }
-      
-      // Add ripple effect for in-progress animation
-      if (isAnimating && stateChangeAnim.type === 'in-progress' && isAnimated) {
-        const rippleCount = 3;
-        for (let i = 0; i < rippleCount; i++) {
-          const rippleProgress = (animProgress + i * 0.3) % 1;
-          if (rippleProgress < 0.7) {
-            const rippleRadius = r * (1 + rippleProgress * 1.5);
-            context.beginPath();
-            context.strokeStyle = '#6a5acd'; // Slate blue
-            context.lineWidth = (3 * this.scale) * (1 - rippleProgress);
-            context.globalAlpha = (1 - rippleProgress) * 0.6;
-            this.drawNodeShape(context, n.x, n.y, rippleRadius, effectiveShape);
-            context.stroke();
-          }
-        }
-        context.globalAlpha = 1.0;
-      }
-      
-      // Restore transforms
-      if (isAnimated && (shouldGlow && nodeState === 'complete' || nodeState === 'in-progress' && !hasFileLinkIssue)) {
+      // Restore transform if rotation was applied
+      if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
         context.restore();
       }
+      
+      // Remove node shimmer, particle burst, and ripple animations - only animate edges
+      
       // draw selection highlight if this node is selected with pulsing animation
       if (this.selectedNodeId === n.id) {
         // Use sine wave for smooth pulsing (pulse between 6 and 10 pixels extra radius)
@@ -3034,24 +3108,76 @@ export class SkillTreeView extends ItemView {
       const totalLines = lines.length + (fileName ? 1 : 0);
       const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
 
-      // Determine fill style - use normal text color for all nodes
-      context.fillStyle = labelTextColor;
+      // Determine fill style - use engraved effect for unavailable nodes in gamified mode
+      const isGamifiedUnavailable = (selectedStyle === 'gamified' && nodeState === 'unavailable');
+      
+      if (isGamifiedUnavailable) {
+        // Engraved impression effect: draw darker shadow first, then lighter text on top
+        context.shadowColor = 'rgba(0, 0, 0, 0.8)';
+        context.shadowBlur = 0;
+        context.shadowOffsetX = 1 / this.scale;
+        context.shadowOffsetY = 1 / this.scale;
+        context.fillStyle = 'rgba(200, 200, 200, 0.4)'; // Light gray for engraved look
+      } else {
+        context.fillStyle = labelTextColor;
+      }
 
       // Draw wrapped label lines
       for (let i = 0; i < lines.length; i++) {
         const text = lines[i];
         const y = firstLineY + i * lineHeight;
-        context.fillText(text, n.x, y);
+        
+        if (isGamifiedUnavailable) {
+          // Draw shadow/engraved effect
+          context.save();
+          context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+          context.shadowBlur = 2 / this.scale;
+          context.shadowOffsetX = 1 / this.scale;
+          context.shadowOffsetY = 1 / this.scale;
+          context.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Dark shadow
+          context.fillText(text, n.x, y);
+          context.restore();
+          
+          // Draw lighter text on top for engraved effect
+          context.fillStyle = 'rgba(255, 255, 255, 0.7)'; // Light text
+          context.fillText(text, n.x, y);
+        } else {
+          context.fillText(text, n.x, y);
+        }
       }
 
       // Draw file name on its own line below wrapped label lines
       if (fileName) {
         context.font = `${12 / this.scale}px sans-serif`;
-        context.fillStyle = labelTextColor;
-        const y = firstLineY + lines.length * lineHeight;
-        context.fillText(fileName, n.x, y);
+        
+        if (isGamifiedUnavailable) {
+          // Draw shadow/engraved effect for filename
+          context.save();
+          context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+          context.shadowBlur = 2 / this.scale;
+          context.shadowOffsetX = 1 / this.scale;
+          context.shadowOffsetY = 1 / this.scale;
+          context.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Dark shadow
+          const y = firstLineY + lines.length * lineHeight;
+          context.fillText(fileName, n.x, y);
+          context.restore();
+          
+          // Draw lighter text on top
+          context.fillStyle = 'rgba(255, 255, 255, 0.7)'; // Light text
+          context.fillText(fileName, n.x, y);
+        } else {
+          context.fillStyle = labelTextColor;
+          const y = firstLineY + lines.length * lineHeight;
+          context.fillText(fileName, n.x, y);
+        }
+        
         context.font = `${14 / this.scale}px sans-serif`;
       }
+      
+      // Reset shadow
+      context.shadowBlur = 0;
+      context.shadowOffsetX = 0;
+      context.shadowOffsetY = 0;
       // display checkbox for in-progress nodes (centered below text)
       // BUT: don't show checkbox if node has tasks (tasks have their own checkboxes)
       const actualState = n.state || 'in-progress';
@@ -3215,6 +3341,18 @@ export class SkillTreeView extends ItemView {
       }
     }
     
+    // Check if exp just reached total (for animation)
+    if (totalExp === totalAvailableExp && totalAvailableExp > 0 && this._previousTotalExp < totalAvailableExp) {
+      // Exp just reached total - trigger animation
+      this._expOverlayAnimation = { startTime: this._animationTime, active: true };
+    }
+    this._previousTotalExp = totalExp;
+    
+    // Clean up animation after 2 seconds
+    if (this._expOverlayAnimation && this._animationTime - this._expOverlayAnimation.startTime > 2000) {
+      this._expOverlayAnimation = null;
+    }
+    
     // Get theme-aware colors with better styling
     let textColor = '#000';
     let bgColor = 'rgba(255, 255, 255, 0.95)';
@@ -3270,6 +3408,38 @@ export class SkillTreeView extends ItemView {
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2;
     
+    // Apply animation effects if exp just reached total
+    let scale = 1;
+    let glowIntensity = 0;
+    if (this._expOverlayAnimation && this._expOverlayAnimation.active) {
+      const animElapsed = this._animationTime - this._expOverlayAnimation.startTime;
+      const animDuration = 2000; // 2 seconds
+      const animProgress = Math.min(1, animElapsed / animDuration);
+      
+      // Pulse scale effect
+      const pulsePhase = animProgress * Math.PI * 4; // 2 pulses
+      scale = 1 + Math.sin(pulsePhase) * 0.15 * (1 - animProgress); // Start at 1.15x, fade to 1x
+      
+      // Glow effect
+      glowIntensity = (1 - animProgress) * 20; // Fade from 20 to 0
+    }
+    
+    // Apply scale transform
+    const centerX = x + boxWidth / 2;
+    const centerY = y + boxHeight / 2;
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.scale(scale, scale);
+    ctx.translate(-centerX, -centerY);
+    
+    // Draw glow if animating
+    if (glowIntensity > 0) {
+      ctx.shadowColor = '#4caf50'; // Green glow
+      ctx.shadowBlur = glowIntensity;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+    
     // Draw rounded rectangle
     ctx.beginPath();
     ctx.moveTo(x + borderRadius, y);
@@ -3321,6 +3491,20 @@ export class SkillTreeView extends ItemView {
     // Then adjust offset so it appears at center
     this.offset.x = centerX - worldX * this.scale;
     this.offset.y = centerY - worldY * this.scale;
+    
+    // Check if we're zooming to a selected task with children and show modal
+    if (this.selectedTask) {
+      const tasks = this._tasksCache.get(this.selectedTask.nodeId) || [];
+      const task = tasks[this.selectedTask.taskIndex];
+      if (task && task.children && task.children.length > 0) {
+        const node = this.nodes.find(n => n.id === this.selectedTask!.nodeId);
+        if (node) {
+          this.showTaskChildrenModal(node, this.selectedTask.taskIndex, task);
+        }
+      } else {
+        this.closeTaskChildrenModal();
+      }
+    }
     
     this.render();
   }
@@ -5075,27 +5259,119 @@ export class SkillTreeView extends ItemView {
     this.edges = this.edges.filter((e) => e.from !== node.id && e.to !== node.id);
     this.selectedNodeId = null; // Clear selection
     this.selectedTask = null; // Clear task selection
+    this.closeTaskChildrenModal(); // Close task modal if open
     
     // Update frontmatter for nodes that were connected to the deleted node
     for (const affectedNode of affectedNodes) {
       await this.updateFileFrontmatterWithNodeId(affectedNode.fileLink!, affectedNode.id);
     }
-    
-    // Clean up task cache and file watchers
-    this._tasksCache.delete(node.id);
-    this._taskPositions.delete(node.id);
-    const watcher = this._fileWatchers.get(node.id);
-    if (watcher && typeof watcher === 'function') {
-      watcher();
-      this._fileWatchers.delete(node.id);
-    }
-    // Clean up last known node IDs map
-    if (node.fileLink) {
-      this._lastKnownNodeIds.delete(node.fileLink);
-    }
-    
-    await this.saveNodes();
-    this.render();
   }
-
+  
+  // Show modal with task children
+  showTaskChildrenModal(node: SkillNode, taskIndex: number, task: any) {
+    // Close existing modal if any
+    this.closeTaskChildrenModal();
+    
+    if (!task.children || task.children.length === 0) return;
+    
+    const tasks = this._tasksCache.get(node.id) || [];
+    const childTasks = task.children.map((childIndex: number) => tasks[childIndex]).filter(Boolean);
+    
+    if (childTasks.length === 0) return;
+    
+    // Create modal element
+    const modal = document.createElement('div');
+    modal.className = 'skill-tree-task-children-modal';
+    modal.style.position = 'absolute';
+    modal.style.zIndex = '10000';
+    modal.style.backgroundColor = 'var(--background-primary)';
+    modal.style.border = '1px solid var(--background-modifier-border)';
+    modal.style.borderRadius = '8px';
+    modal.style.padding = '12px';
+    modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+    modal.style.maxWidth = '300px';
+    modal.style.maxHeight = '400px';
+    modal.style.overflowY = 'auto';
+    
+    // Position modal to the side of the task node
+    const taskPos = this._taskPositions.get(node.id)?.find(p => p.taskIndex === taskIndex);
+    if (taskPos) {
+      const screenPos = this.worldToScreen(taskPos.x, taskPos.y);
+      const rect = this.canvas!.getBoundingClientRect();
+      modal.style.left = `${rect.left + screenPos.x + 40}px`;
+      modal.style.top = `${rect.top + screenPos.y - 20}px`;
+    } else {
+      // Fallback positioning
+      modal.style.right = '20px';
+      modal.style.top = '100px';
+    }
+    
+    // Add title
+    const title = modal.createEl('div', { text: 'Child Tasks' });
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '8px';
+    title.style.fontSize = '14px';
+    
+    // Add child tasks list
+    const list = modal.createEl('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '4px';
+    
+    for (const childTask of childTasks) {
+      const item = list.createEl('div');
+      item.style.display = 'flex';
+      item.style.alignItems = 'center';
+      item.style.gap = '8px';
+      item.style.padding = '4px';
+      item.style.borderRadius = '4px';
+      item.style.cursor = 'pointer';
+      
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = 'var(--background-modifier-hover)';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = 'transparent';
+      });
+      
+      // Checkbox
+      const checkbox = item.createEl('input', { type: 'checkbox' });
+      checkbox.checked = childTask.completed || false;
+      checkbox.style.cursor = 'pointer';
+      checkbox.addEventListener('change', async () => {
+        const childTaskIndex = tasks.indexOf(childTask);
+        if (childTaskIndex >= 0) {
+          await this.toggleTaskCompletion(node, childTaskIndex);
+        }
+      });
+      
+      // Task text
+      const text = item.createEl('span', { text: childTask.text || 'Task' });
+      text.style.flex = '1';
+      text.style.fontSize = '13px';
+      if (childTask.completed) {
+        text.style.textDecoration = 'line-through';
+        text.style.opacity = '0.6';
+      }
+    }
+    
+    // Add close button
+    const closeBtn = modal.createEl('button', { text: 'Close' });
+    closeBtn.style.marginTop = '8px';
+    closeBtn.style.width = '100%';
+    closeBtn.style.padding = '6px';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.onclick = () => this.closeTaskChildrenModal();
+    
+    document.body.appendChild(modal);
+    this._taskChildrenModal = modal;
+  }
+  
+  // Close task children modal
+  closeTaskChildrenModal() {
+    if (this._taskChildrenModal) {
+      this._taskChildrenModal.remove();
+      this._taskChildrenModal = null;
+    }
+  }
 }
