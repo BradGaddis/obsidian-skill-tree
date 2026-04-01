@@ -4,9 +4,39 @@ import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 
 // TODO IMPLEMENT
 let view: SkillTreeView
+const dpr = window.devicePixelRatio || 1;
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
     view = skillTreeView
+    SetupCanvas()
+}
+
+function SetupCanvas() {
+    view.containerEl.style.display = 'flex';
+    view.containerEl.style.flexDirection = 'column';
+    view.containerEl.style.height = '100%';
+
+    view.canvasWrap = view.containerEl.createEl('div', { cls: 'skill-tree-canvas-wrap' });
+    view.canvasWrap.style.width = '100%';
+    view.canvasWrap.style.flex = '1';
+    view.canvasWrap.style.minHeight = '400px';
+    view.canvasWrap.style.overflow = 'hidden';
+    view.canvasWrap.style.position = 'relative';
+
+    view.canvas = view.canvasWrap.createEl('canvas');
+    view.canvas.style.width = '100%';
+    view.canvas.style.height = '100%';
+
+    const context = view.canvas.getContext('2d');
+    if (!context) return;
+
+    const rect = view.canvas.getBoundingClientRect();
+
+    view.canvas.width = Math.round(rect.width * dpr);
+    view.canvas.height = Math.round(rect.height * dpr);
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    view.context = context;
 }
 
 // Function to update toolbar button visibility/states based on edit mode
@@ -40,14 +70,10 @@ export function ComputeAllNodeRadii() {
 
 // TODO refactor
 export function Render(): void {
-
     if (!view.context || !view.canvas) return;
 
-    const context = view.context;
+    // const context = view.context;
 
-    // TODO Move to graph
-    // nvm, it's dead code I think
-    // view.computeAllNodeRadiiIfNeeded();
 
     // if (!view._cachedThemeColors) {
     //     try {
@@ -63,45 +89,15 @@ export function Render(): void {
     //     }
     // }
 
-    context.clearRect(0, 0, view.canvas.width, view.canvas.height);
+    // context.clearRect(0, 0, view.canvas.width, view.canvas.height);
 
-    context.save();
-    try {
-        context.setTransform(1, 0, 0, 1, 0, 0);
-    } catch (e) { /* ignore */ }
-
-    const cacheDuration = 1000;
+    // try {
+    //     context.setTransform(1, 0, 0, 1, 0, 0);
+    // } catch (e) { /* ignore */ }
 
 
-    // TODO does this make sense?
-    //
-    let isDarkMode: boolean = false;
-    // if (view._cachedDarkMode && Date.now() - view._cachedDarkMode.timestamp < cacheDuration) {
-    //     isDarkMode = view._cachedDarkMode.isDark;
-    // } else {
-    //     isDarkMode = document.body.classList.contains('theme-dark');
-    //     view._cachedDarkMode = { isDark: isDarkMode, timestamp: Date.now() };
-    // }
-    let bg = isDarkMode ? '#1e1e1e' : '#ffffff';
-
-    const padding = 2;
-    context.fillStyle = bg;
-    context.fillRect(-padding, -padding, view.canvas.width + padding * 2, view.canvas.height + padding * 2);
-
-    if (!view.isTasksPluginInstalled() || !view.isDataviewPluginInstalled()) {
-        context.save();
-        context.setTransform(1, 0, 0, 1, 0, 0);
-        context.fillStyle = 'rgba(255, 193, 7, 0.9)';
-        context.fillRect(0, 0, view.canvas.width, 40);
-        context.fillStyle = '#000';
-        context.font = '14px sans-serif';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText('⚠️ Tasks and Dataview plugins are required. Please install/enable both plugins to use all features.', view.canvas.width / 2, 20);
-        context.restore();
-    }
-
-    context.restore();
+    DisplayBanner();
+    return
 
     context.save();
     const dpr = window.devicePixelRatio || 1;
@@ -112,6 +108,7 @@ export function Render(): void {
         context.translate(view.offset.x, view.offset.y);
         context.scale(view.scale, view.scale);
     }
+
 
     const clientW = view.canvas.width / dpr;
     const clientH = view.canvas.height / dpr;
@@ -988,4 +985,31 @@ export function Render(): void {
     // try {
     //     view.view.updateNodeDropdown();
     // } catch (e) { }
+}
+
+
+function DisplayBanner(padding: number = 2) {
+    const context = view.context;
+    const canvas = view.canvas;
+    if (!context || !canvas) return;
+
+    context.save();
+    // context.setTransform(1, 0, 0, 1, 0, 0);
+
+    context.fillStyle = 'rgba(255, 193, 7, 0.9)';
+    context.fillRect(0, 0, canvas.width, 40);
+
+    if (!view.isTasksPluginInstalled() || !view.isDataviewPluginInstalled()) {
+        context.fillStyle = '#000';
+        // context.font = '14px sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(
+            '⚠️ Tasks and Dataview plugins are required. Please install/enable both plugins to use all features.',
+            canvas.width / 2,
+            20
+        );
+    }
+
+    context.restore();
 }

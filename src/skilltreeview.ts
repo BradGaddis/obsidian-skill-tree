@@ -64,21 +64,22 @@ export class SkillTreeView extends ItemView {
 
 
     async onOpen(): Promise<void> {
+        InitRecorder(this)
         InitTreeManager(this) // this must be called before InitToolBar
         InitToolBar(this)
         InitDialog(this)
         InitSkillModal(this)
-        InitRecorder(this)
         InitJSONEditor(this)
+
         InitRenderer(this)
 
         await this.loadSettings();
+        Render();
     }
 
     async loadSettings() {
         this.plugin.settings = Object.assign(defaultSettings(), await this.plugin.loadData());
         UpdateToolbarUI();
-        Render();
     }
 
     async SwitchMode(mode: Mode) {
