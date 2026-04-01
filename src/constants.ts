@@ -22,6 +22,8 @@ export const TOOL_BAR_WRAPPER_DOM_EL_INFO = { cls: 'skill-tree-toolbar-wrapper' 
 export const COLLAPSE_DOM_EL_INFO = { text: '▼', cls: 'skill-tree-collapse-btn' }
 export const TOOLBAR_BUTTON_DOM_EL_INFO = { cls: 'skill-tree-toolbar-buttons' }
 
+export const SKILLTREE_CANVAS_WRAP = { cls: 'skill-tree-canvas-wrap' };
+
 export const HISTORY_UPPER_BOUNDS = 100;
 
 export const LOOP_UPPER_LIMIT = 1000;

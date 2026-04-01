@@ -3,16 +3,17 @@ import SkillTreePlugin, { defaultSettings } from "./main";
 import { VIEW_TYPE_SKILLTREE } from "./constants";
 import { Coordinate, Mode } from "./types";
 import { SkillTreeSettings } from "./main";
-import { Graph } from "./graph";
+// import { Graph } from "./graph";
 import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SkillNode } from './skill_nodes/skill_node'
 import { InitRecorder, RecordSnapshot, SaveNodes, Undo } from "./recorder";
-import { InitRenderer, Render, RequestRender, UpdateToolbarUI } from "./renderer";
+import { InitRenderer, Render, UpdateToolbarUI } from "./renderer";
 import { InitTreeManager, UpdateTreeSelector } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
 import { InitSkillModal } from "./modal";
 import { InitJSONEditor } from "./json_editor";
+
 import { modeToggleBtn } from "./toolbar";
 
 export class SkillTreeView extends ItemView {
@@ -22,7 +23,7 @@ export class SkillTreeView extends ItemView {
     resizeObserver: ResizeObserver | null = null;
     offset: Coordinate = { x: 0, y: 0 };
     scale = 1;
-    graph: Graph = new Graph();
+    // graph: Graph = new Graph();
     plugin: SkillTreePlugin;
     _modeToggleButton: HTMLButtonElement | null = null;
     _goToLinkedBtn: HTMLButtonElement | null = null;
@@ -33,22 +34,22 @@ export class SkillTreeView extends ItemView {
         return this.plugin.settings;
     }
 
-    get nodes(): SkillNode[] {
-        return this.graph.getAllNodes() as SkillNode[];
-    }
-    set nodes(val: SkillNode[]) {
-        this.graph.nodes.clear();
-        for (const n of val) {
-            this.graph.nodes.set(n.id, SkillNode.fromJSON(n));
-        }
-    }
+    // get nodes(): SkillNode[] {
+    // return this.graph.getAllNodes() as SkillNode[];
+    // }
+    // set nodes(val: SkillNode[]) {
+    // this.graph.nodes.clear();
+    // for (const n of val) {
+    //     this.graph.nodes.set(n.id, SkillNode.fromJSON(n));
+    // }
+    // }
 
-    get edges(): SkillEdge[] {
-        return this.graph.edges as SkillEdge[];
-    }
-    set edges(val: SkillEdge[]) {
-        this.graph.edges = val;
-    }
+    // get edges(): SkillEdge[] {
+    // return this.graph.edges as SkillEdge[];
+    // }
+    // set edges(val: SkillEdge[]) {
+    // this.graph.edges = val;
+    // }
 
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
@@ -65,7 +66,7 @@ export class SkillTreeView extends ItemView {
 
     async onOpen(): Promise<void> {
         InitRecorder(this)
-        InitTreeManager(this) // this must be called before InitToolBar
+        await InitTreeManager(this) // this must be called before InitToolBar
         InitToolBar(this)
         InitDialog(this)
         InitSkillModal(this)

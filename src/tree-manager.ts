@@ -1,12 +1,33 @@
+import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SaveNodes } from "./recorder";
+import { CheckpointNode } from "./skill_nodes/checkpoint_node";
+import { OptionalNode } from "./skill_nodes/optional_node";
+import { RepeatingNode } from "./skill_nodes/repeating_node";
+import { SkillNode } from "./skill_nodes/skill_node";
+import { TaskNode } from "./skill_nodes/task_node";
+import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
+
+
+
 // TODO refactor | cleanup
 
 let view: SkillTreeView
-// let currentTree = null
+let currentTree: SkillTreeData
+let nodes: Map<string | number, SkillNode> = new Map();
+let edges: SkillEdge[] = [];
 
-export function InitTreeManager(skillTreeView: SkillTreeView): void {
+export function GetNodes(): Map<string | number, SkillNode> {
+    return nodes;
+}
+
+export function GetEdges(): SkillEdge[] {
+    return edges;
+}
+
+export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
     view = skillTreeView
+    await LoadNodes()
 }
 
 export function GetTreesLinkingToCurrent(): string[] {
@@ -196,4 +217,82 @@ export async function SwitchTree(treeName: string) {
     // view.updateLinkedTreeBanner();
     // view.updateOrphanJumpBtnVisibility();
     // view.requestRender();
+}
+
+async function LoadNodes() {
+    currentTree = view.settings.trees[view.settings.currentTreeName];
+
+    if (currentTree) {
+        loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
+    } else {
+        // Initialize if tree doesn't exist
+        view.settings.trees[view.settings.currentTreeName] = {
+            name: view.settings.currentTreeName,
+            nodes: [],
+            edges: []
+        };
+        await view.plugin.saveSettings();
+    }
+}
+
+function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
+    nodes.clear();
+    edges = [...edgesData];
+
+    for (const data of nodesData) {
+        const node = NodeFromJSON(data);
+        if (!node) {
+            return
+        }
+        if (!node.id) {
+            node.id = crypto.randomUUID()
+            nodes.set(node.id, node);
+        }
+    }
+
+    rebuildRelationships();
+}
+
+
+function NodeFromJSON(data: any): any {
+    if (data.nodeType) {
+        switch (data.nodeType) {
+            case 'CheckpointNode':
+                return CheckpointNode.fromJSON(data);
+            case 'TreeLinkNode':
+                return TreeLinkNode.fromJSON(data);
+            case 'RepeatingNode':
+                return RepeatingNode.fromJSON(data);
+            case 'TaskNode':
+                return TaskNode.fromJSON(data);
+            case 'OptionalNode':
+                return OptionalNode.fromJSON(data);
+        }
+    }
+}
+
+function rebuildRelationships(): void {
+    clearRelationships();
+    buildRelationshipsFromEdges();
+}
+
+
+function clearRelationships(): void {
+    for (const node of nodes.values()) {
+        node.children = [];
+        node.parents = [];
+    }
+}
+
+
+function buildRelationshipsFromEdges(): void {
+    for (const edge of edges) {
+        if (edge.from == null || edge.to == null) continue;
+        const childNode = nodes.get(edge.from);
+        const parentNode = nodes.get(edge.to);
+        if (childNode && parentNode) {
+            childNode.parents.push(parentNode);
+            parentNode.children.push(childNode);
+        }
+    }
 }

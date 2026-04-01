@@ -14,8 +14,8 @@ export function defaultSettings(): SkillTreeSettings {
     showExpAsFraction: false,
     currentTreeName: 'default',
     trees: { 'default': { name: 'default', nodes: [], edges: [] } },
-    defaultFilePath: '', // Empty string = root directory
-    style: 'gamified', // Default style
+    defaultFilePath: '',
+    style: 'gamified',
     modalPositions: {},
     suppressDeleteConfirmation: false,
     showLevelPane: true,
