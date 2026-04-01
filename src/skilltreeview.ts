@@ -1,15 +1,19 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
-import SkillTreePlugin from "./main";
+import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import SkillTreePlugin, { defaultSettings } from "./main";
 import { VIEW_TYPE_SKILLTREE } from "./constants";
-import { Coordinate } from "./types";
+import { Coordinate, Mode } from "./types";
 import { SkillTreeSettings } from "./main";
 import { Graph } from "./graph";
 import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SkillNode } from './skill_nodes/skill_node'
-import { RecordSnapshot, SaveNodes, Undo } from "./recorder";
-import { RequestRender } from "./renderer";
-import { UpdateTreeSelector } from "./tree-manager";
+import { InitRecorder, RecordSnapshot, SaveNodes, Undo } from "./recorder";
+import { InitRenderer, Render, RequestRender, UpdateToolbarUI } from "./renderer";
+import { InitTreeManager, UpdateTreeSelector } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
+import { InitDialog } from "./dialog";
+import { InitSkillModal } from "./modal";
+import { InitJSONEditor } from "./json_editor";
+import { modeToggleBtn } from "./toolbar";
 
 export class SkillTreeView extends ItemView {
     canvas: HTMLCanvasElement | null = null;
@@ -60,7 +64,45 @@ export class SkillTreeView extends ItemView {
 
 
     async onOpen(): Promise<void> {
+        InitTreeManager(this) // this must be called before InitToolBar
         InitToolBar(this)
+        InitDialog(this)
+        InitSkillModal(this)
+        InitRecorder(this)
+        InitJSONEditor(this)
+        InitRenderer(this)
+
+        await this.loadSettings();
+    }
+
+    async loadSettings() {
+        this.plugin.settings = Object.assign(defaultSettings(), await this.plugin.loadData());
+        UpdateToolbarUI();
+        Render();
+    }
+
+    async SwitchMode(mode: Mode) {
+        switch (mode) {
+            case "edit":
+                this.plugin.settings.mode = "edit"
+                modeToggleBtn.textContent = 'Edit Mode';
+                break;
+            case "view":
+                this.plugin.settings.mode = "view"
+                modeToggleBtn.textContent = 'View Mode';
+                break;
+            default:
+                new Notice("Somehow the toggle broke. Debugging needed...")
+                break;
+        }
+
+        if (this.plugin.settings.mode != mode) {
+            new Notice(`Switched to ${mode} mode`);
+        }
+        this.plugin.settings.mode = mode
+        await this.plugin.saveSettings();
+        UpdateToolbarUI();
+        Render();
     }
 
     addNodeAt(x: number, y: number, extras?: Record<string, any>) /*: SkillNode */ {
@@ -116,7 +158,24 @@ export class SkillTreeView extends ItemView {
     }
 
 
+    isTasksPluginInstalled(): boolean {
+        try {
+            const tasksPlugin = (this.app as any).plugins?.plugins?.['obsidian-tasks-plugin'];
+            return !!tasksPlugin;
+        } catch (e) {
+            return false;
+        }
+    }
 
+    isDataviewPluginInstalled(): boolean {
+        try {
+            const dataviewPlugin = (this.app as any).plugins?.plugins?.['dataview'];
+            return !!dataviewPlugin;
+
+        } catch (e) {
+            return false;
+        }
+    }
 
 
 }

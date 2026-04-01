@@ -5,7 +5,7 @@ import { SkillTreeView } from "./skilltreeview";
 let view: SkillTreeView
 // let currentTree = null
 
-export function init(skillTreeView: SkillTreeView): void {
+export function InitTreeManager(skillTreeView: SkillTreeView): void {
     view = skillTreeView
 }
 
@@ -119,9 +119,9 @@ export function UpdateTreeSelector(select: HTMLSelectElement) {
     for (const treeName of Object.keys(view.settings.trees)) {
         const option = select.createEl('option', { text: treeName });
         option.value = treeName;
-        if (treeName === view.settings.currentTreeName) {
-            option.selected = true;
-        }
+        // if (treeName === view.settings.currentTreeName) {
+        //     option.selected = true;
+        // }
     }
     const newTreeOption = select.createEl('option', { text: '+ New Tree...' });
     newTreeOption.value = '__NEW_TREE__';

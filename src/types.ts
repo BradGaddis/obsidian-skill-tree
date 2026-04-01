@@ -3,6 +3,7 @@
  */
 export type Coordinate = Record<'x' | 'y', number>
 
+export type Mode = Partial<'view' | 'edit'>
 
 export type ModalStyleOptions = Partial<{
     position: CSSStyleDeclaration["position"];

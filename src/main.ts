@@ -2,9 +2,11 @@ import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, FuzzySuggestModa
 import { SkillTreeData, CustomTheme } from './interfaces';
 import { VIEW_TYPE_SKILLTREE } from './constants';
 import { SkillTreeView } from './skilltreeview';
+import { Mode } from './types'
 
-function defaultSettings(): SkillTreeSettings {
+export function defaultSettings(): SkillTreeSettings {
   return {
+    mode: "view",
     nodeRadius: 36,
     maxNodeRadius: 72,
     showBezier: false,
@@ -37,9 +39,6 @@ export default class SkillTreePlugin extends Plugin {
   /** The settings. Will be default if nothing is saved or changed */
   settings: SkillTreeSettings = defaultSettings();
 
-  /** Whether the skill tree is in edit mode (shows UI for adding/editing nodes) */
-  editMode: boolean = false;
-
   /** Status bar item showing level and exp */
   statusBarItem: HTMLElement | null = null;
 
@@ -59,25 +58,25 @@ export default class SkillTreePlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
-    this.addCommand?.({
-      id: 'toggle-edit-mode',
-      name: 'Skill Tree: Toggle Edit Mode',
-      checkCallback: (checking) => {
-        const view = this.getActiveView();
-        if (view) {
-          if (!checking) {
-            this.editMode = !this.editMode;
-            this.settings.editMode = this.editMode;
-            this.saveSettings();
-            // Sync edit mode buttons directly
-            // view.syncEditModeButtons(this.editMode);
-            // view.requestRender();
-          }
-          return true;
-        }
-        return false;
-      },
-    });
+    // this.addCommand?.({
+    //   id: 'toggle-edit-mode',
+    //   name: 'Skill Tree: Toggle Edit Mode',
+    //   checkCallback: (checking) => {
+    //     const view = this.getActiveView();
+    //     if (view) {
+    //       if (!checking) {
+    // this.settings.editMode = !this.editMode;
+    // this.settings.editMode = this.editMode;
+    // this.saveSettings();
+    // // Sync edit mode buttons directly
+    // // view.syncEditModeButtons(this.editMode);
+    // view.requestRender();
+    //       }
+    //       return true;
+    //     }
+    //     return false;
+    //   },
+    // });
 
     this.addCommand?.({
       id: 'jump-to-node',
@@ -933,6 +932,7 @@ class TreeSelectModal extends FuzzySuggestModal<string> {
 
 
 export interface SkillTreeSettings {
+  mode: Mode
   /** Minimum radius for nodes in pixels (default: 36) */
   nodeRadius: number;
   /** Maximum radius for nodes in pixels (default: 72) */

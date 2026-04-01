@@ -17,26 +17,32 @@ import {
     SwitchTree,
     CreateTree,
 } from "./tree-manager"
-import { RequestRender } from "./renderer";
+import { Render, UpdateToolbarUI } from "./renderer";
 import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddNodeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
 import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor as RefreshJSONEditor } from "./json_editor";
 import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal";
 
 // TODO bulletproof these later
+export let modeToggleBtn: HTMLButtonElement
+
 let view: SkillTreeView
+
 let isMobile: boolean
-let toolBarElements: Record<string, HTMLElement> = {}
-let editModeOnlyButtons: Array<HTMLElement> = []
+// let toolBarElements: Record<string, HTMLElement> = {}
+export let editModeOnlyButtons: Array<HTMLElement> = []
+let collapseBtn: HTMLElement
 let toolbar: HTMLElement
 let toolbarWrapper: HTMLElement
+let collapseButtonWrapper: HTMLElement
 let toolbarButtons: HTMLElement
-let modeToggleBtn: HTMLButtonElement
 let goToLinkedBtn: HTMLElement
 let nodeJumpBtn: HTMLElement
 let orphanJumpBtn: HTMLElement
 let treeSelectorDiv: HTMLElement
 let treeSelect: HTMLSelectElement
+let floatingExpandBtn: HTMLElement
+let toolbarCollapsed: boolean
 
 
 export function InitToolBar(skillTreeView: SkillTreeView) {
@@ -44,34 +50,52 @@ export function InitToolBar(skillTreeView: SkillTreeView) {
     view.containerEl.empty();
     isMobile = TestIsMobile(); //currently not used for anything. just here for later
     toolbar = view.containerEl.createEl('div', TOOLBAR_DOM_EL_INFO);
+    toolbar.style.display = 'flex'
     toolbar.style.marginTop = isMobile ? '60px' : '0px';
-    SetUpToolBarWrapper()
+    SetupCollapseButtonWrapper()
+    SetupFloatingExpandBtn()
     SetupCollapseButton()
+    SetUpToolBarWrapper()
     SetupToolbarButtons()
 }
 
-
-
-
-function SetUpToolBarWrapper(): void {
-    // Wrapper div for buttons and collapse
+function SetupCollapseButtonWrapper(): void {
     const wrapper = toolbar.createEl('div', TOOL_BAR_WRAPPER_DOM_EL_INFO);
     wrapper.style.padding = '4px 16px';
     wrapper.style.display = 'flex';
+    wrapper.style.position = 'relative'
     wrapper.style.alignItems = 'center';
     wrapper.style.justifyContent = 'center';
-    toolbarWrapper = wrapper
+    collapseButtonWrapper = wrapper
+}
 
+
+function SetUpToolBarWrapper(): void {
+    toolbarWrapper = toolbar.createEl('div', TOOL_BAR_WRAPPER_DOM_EL_INFO);
+    SetWrapperStyles()
+}
+
+function SetWrapperStyles() {
+    toolbarWrapper.style.padding = '4px 16px';
+    toolbarWrapper.style.display = 'flex';
+    toolbarWrapper.style.position = 'relative'
+    toolbarWrapper.style.alignItems = 'center';
+    toolbarWrapper.style.justifyContent = 'center';
+    toolbarWrapper.style.display = toolbarCollapsed ? 'none' : '';
 }
 
 function SetupCollapseButton(): void {
-    const collapseBtn = toolbarWrapper.createEl('button', COLLAPSE_DOM_EL_INFO);
+    collapseBtn = collapseButtonWrapper.createEl('button', COLLAPSE_DOM_EL_INFO);
     collapseBtn.title = 'Collapse toolbar';
-    collapseBtn.style.marginRight = '16px';
+    // collapseBtn.style.marginRight = '16px';
+    collapseBtn.style.position = 'absolute';
+    collapseBtn.style.left = '8px';
+    collapseBtn.style.top = isMobile ? '68px' : '8px';
+    collapseBtn.style.zIndex = '100';
+    collapseBtn.onclick = ToggleToolbar
     if (isMobile) {
         collapseBtn.style.marginTop = '60px';
     }
-    toolBarElements["collapseBtn"] = collapseBtn
 }
 
 function SetupToolbarButtons(): void {
@@ -95,10 +119,10 @@ function SetupToolbarButtons(): void {
 
     SetupJumpToNodeButton();
     SetupJumpToOrphanButton();
-    // SetupTreeSelectorDiv();
-    // SetupRenameTreeButton()
-    // SetupDeleteTreeButton();
-    // SetUpGoToLinkedBtn();
+    SetupTreeSelectorDiv();
+    SetupRenameTreeButton()
+    SetupDeleteTreeButton();
+    SetUpGoToLinkedBtn();
 
     // Initialize to not showing edit mode buttons
     for (let button of editModeOnlyButtons) {
@@ -150,7 +174,7 @@ function SetupAddEmptyButton() {
             view.addNodeAt(200, 150);
         }
         await SaveNodes();
-        RequestRender();
+        Render();
         RefreshJSONEditor();
     };
 
@@ -169,7 +193,7 @@ function SetupAddOptionalButton() {
         }
         view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'OptionalNode', optional: true, state: 'in-progress', exp: 0 });
         await SaveNodes();
-        RequestRender();
+        Render();
         RefreshJSONEditor();
     };
 }
@@ -187,7 +211,7 @@ function SetupAddCheckpointButton() {
         }
         view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'CheckpointNode', checkpoint: true, shape: 'diamond', exp: 0 });
         await SaveNodes();
-        RequestRender();
+        Render();
         RefreshJSONEditor();
     };
 }
@@ -217,10 +241,10 @@ function SetupAddRepeatingButton() {
 
 function SetupModeToggleButton(): void {
     const toggleBtn = toolbarButtons.createEl('button', {
-        text: view.plugin.editMode ? 'Edit Mode' : 'View Mode',
+        text: 'View Mode',
         cls: 'skill-tree-editmode-toggle'
     });
-    toggleBtn.classList.toggle('active', view.plugin.editMode);
+    // toggleBtn.classList.toggle('active', view.settings.mode == "edit");
     toggleBtn.style.marginRight = '16px';
     toggleBtn.style.fontWeight = '500';
     toggleBtn.style.border = '1px solid var(--text-muted)';
@@ -228,26 +252,33 @@ function SetupModeToggleButton(): void {
     toggleBtn.style.lineHeight = '1.2';
 
     modeToggleBtn = toggleBtn
+
     modeToggleBtn.onclick = async () => {
-        view.plugin.editMode = !view.plugin.editMode;
-        view.plugin.settings.editMode = view.plugin.editMode;
+        switch (view.plugin.settings.mode) {
+            case "edit":
+                {
+                    view.SwitchMode("view");
+                    break;
+                }
+            case "view":
+                {
+                    view.SwitchMode("edit")
+                    break;
+                }
+            default:
+                new Notice("Somehow the toggle broke. Debugging needed...")
+                break;
+        }
         await view.plugin.saveSettings();
-        UpdateEditModeUI(view.plugin.editMode);
-        new Notice(view.plugin.editMode ? "Switched to Edit mode" : "Switched to View mode");
-        RequestRender();
+        UpdateToolbarUI();
+        Render();
     };
 }
 
 function SetupUndoButton() {
-
     const undoBtn = toolbarButtons.createEl('button', { text: 'Undo' });
-    undoBtn.onclick = () => {
-        if (!view.plugin.editMode) {
-            view.plugin.editMode = true;
-            view.plugin.settings.editMode = true;
-            UpdateEditModeUI(true);
-            new Notice("Switched to Edit mode");
-        }
+    undoBtn.onclick = async () => {
+        view.SwitchMode('edit')
         Undo();
     };
 }
@@ -256,12 +287,7 @@ function SetupRedoButton() {
 
     const redoBtn = toolbarButtons.createEl('button', { text: 'Redo' });
     redoBtn.onclick = () => {
-        if (!view.plugin.editMode) {
-            view.plugin.editMode = true;
-            view.plugin.settings.editMode = true;
-            UpdateEditModeUI(true);
-            new Notice("Switched to Edit mode");
-        }
+        view.SwitchMode('edit')
         Redo();
     };
 }
@@ -299,7 +325,7 @@ async function SetupDeleteTreeButton() {
         if (confirmDelete) {
             await DeleteTree(currentTree);
             UpdateTreeSelector(treeSelect);
-            RequestRender()
+            Render()
         };
     };
 }
@@ -352,7 +378,7 @@ function SetupTreeSelectorDiv() {
                     await CreateTree(trimmedName);
                     await SwitchTree(trimmedName);
                     UpdateTreeSelector(treeSelect);
-                    RequestRender();
+                    Render();
                 }
             } else {
                 UpdateTreeSelector(treeSelect);
@@ -360,7 +386,7 @@ function SetupTreeSelectorDiv() {
         } else {
             await SwitchTree(treeSelect.value);
             UpdateTreeSelector(treeSelect);
-            RequestRender();
+            Render();
         }
     };
 
@@ -372,80 +398,96 @@ function SetUpGoToLinkedBtn() {
     goToLinkedBtn.title = 'Jump to a tree that links to view one';
 
     goToLinkedBtn.onclick = () => {
-        const linkingTrees = GetTreesLinkingToCurrent();
-
-        if (linkingTrees.length === 0) {
-            new Notice('No trees link to view tree');
-            return;
-        }
-
-        if (linkingTrees.length === 1) {
-            SwitchTree(linkingTrees[0]);
-            return;
-        }
-
-        const container = view.canvasWrap || view.containerEl;
-        if (!container) return;
-
-        view.closeAllModals();
-
-        const dropdown = container.createEl('div');
-        dropdown.className = 'skill-tree-dropdown';
-        dropdown.style.cssText = `
-        position: fixed;
-        z-index: 10000;
-        background: var(--background-primary);
-        border: 1px solid var(--background-modifier-border);
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 8px 0;
-        min-width: 180px;
-      `;
-
-        const rect = view._goToLinkedBtn!.getBoundingClientRect();
-        dropdown.style.left = `${rect.left}px`;
-        dropdown.style.top = `${rect.bottom + 4}px`;
-
-        linkingTrees.forEach(treeName => {
-            const item = dropdown.createEl('div');
-            item.style.cssText = 'padding: 8px 16px; cursor: pointer; font-size: 14px;';
-            item.textContent = treeName;
-            item.onmouseenter = () => {
-                item.style.background = 'var(--background-modifier-hover)';
-            };
-            item.onmouseleave = () => {
-                item.style.background = '';
-            };
-            item.onclick = async () => {
-                dropdown.remove();
-                view.removeOutsideClickHandler();
-                await view.plugin.switchTree(treeName);
-                view.plugin.activateView();
-            };
-        });
-
-        const outsideHandler = (e: MouseEvent) => {
-            if (!dropdown.contains(e.target as Node) && e.target !== view._goToLinkedBtn) {
-                dropdown.remove();
-                document.removeEventListener('click', outsideHandler);
-                view.removeOutsideClickHandler();
-            }
-        };
-        setTimeout(() => document.addEventListener('click', outsideHandler), 10);
+        console.log("TODO")
+        //   const linkingTrees = GetTreesLinkingToCurrent();
+        //
+        //   if (linkingTrees.length === 0) {
+        //       new Notice('No trees link to view tree');
+        //       return;
+        //   }
+        //
+        //   if (linkingTrees.length === 1) {
+        //       SwitchTree(linkingTrees[0]);
+        //       return;
+        //   }
+        //
+        //   const container = view.canvasWrap || view.containerEl;
+        //   if (!container) return;
+        //
+        //   view.closeAllModals();
+        //
+        //   const dropdown = container.createEl('div');
+        //   dropdown.className = 'skill-tree-dropdown';
+        //   dropdown.style.cssText = `
+        //   position: fixed;
+        //   z-index: 10000;
+        //   background: var(--background-primary);
+        //   border: 1px solid var(--background-modifier-border);
+        //   border-radius: 6px;
+        //   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        //   padding: 8px 0;
+        //   min-width: 180px;
+        // `;
+        //
+        //   const rect = view._goToLinkedBtn!.getBoundingClientRect();
+        //   dropdown.style.left = `${rect.left}px`;
+        //   dropdown.style.top = `${rect.bottom + 4}px`;
+        //
+        //   linkingTrees.forEach(treeName => {
+        //       const item = dropdown.createEl('div');
+        //       item.style.cssText = 'padding: 8px 16px; cursor: pointer; font-size: 14px;';
+        //       item.textContent = treeName;
+        //       item.onmouseenter = () => {
+        //           item.style.background = 'var(--background-modifier-hover)';
+        //       };
+        //       item.onmouseleave = () => {
+        //           item.style.background = '';
+        //       };
+        //       item.onclick = async () => {
+        //           dropdown.remove();
+        //           view.removeOutsideClickHandler();
+        //           await view.plugin.switchTree(treeName);
+        //           view.plugin.activateView();
+        //       };
+        //   });
+        //
+        //   const outsideHandler = (e: MouseEvent) => {
+        //       if (!dropdown.contains(e.target as Node) && e.target !== view._goToLinkedBtn) {
+        //           dropdown.remove();
+        //           document.removeEventListener('click', outsideHandler);
+        //           view.removeOutsideClickHandler();
+        //       }
+        //   };
+        //   setTimeout(() => document.addEventListener('click', outsideHandler), 10);
     };
 
     updateGoToLinkedBtnVisibility()
 }
 
-// Function to update toolbar button visibility/states based on edit mode
-export function UpdateEditModeUI(enabled: boolean): void {
-    for (let button of editModeOnlyButtons) {
-        button.style.display = enabled ? 'inline-block' : 'none';
-    };
+
+function ToggleToolbar(): void {
+    toolbarCollapsed = !toolbarCollapsed;
+    collapseBtn.style.display = !toolbarCollapsed ? '' : 'none';
+    floatingExpandBtn.style.display = toolbarCollapsed ? '' : 'none';
+    SetWrapperStyles()
+}
+
+function SetupFloatingExpandBtn() {
+    floatingExpandBtn = collapseButtonWrapper.createEl('button', {
+        text: '▶',
+        cls: 'skill-tree-floating-expand-btn'
+    });
+    floatingExpandBtn.title = 'Expand toolbar';
+    floatingExpandBtn.style.display = 'none';
+    floatingExpandBtn.style.position = 'absolute';
+    floatingExpandBtn.style.left = '8px';
+    floatingExpandBtn.style.top = isMobile ? '68px' : '8px';
+    floatingExpandBtn.style.zIndex = '100';
+    floatingExpandBtn.onclick = ToggleToolbar
 }
 
 // TODO rename to better name when understanding wtf it was used for
-export function updateGoToLinkedBtnVisibility(): void {
+function updateGoToLinkedBtnVisibility(): void {
     if (!goToLinkedBtn) return;
 
     const linkingTrees = GetTreesLinkingToCurrent();
