@@ -1,0 +1,226 @@
+/* Gamified modal styles */
+.gamified-modal {
+	color: var(--text-normal);
+	border-radius: 12px;
+	padding: 12px 8px;
+}
+
+.gamified-level-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 48px;
+	text-align: center;
+	box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+
+/* .gamified-progress { } */
+.gamified-progress-inner {
+	/* Gamified modal styles */
+	.gamified-modal {
+		color: var(--text-normal);
+		border-radius: 12px;
+		padding: 12px 8px;
+	}
+
+	.gamified-level-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 48px;
+		text-align: center;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+	}
+
+	/* .gamified-progress { } */
+	.gamified-progress-inner {
+		height: 100%;
+		border-radius: 999px;
+	}
+
+	/* Subtle enhancements for node editor when gamified */
+	.skill-tree-node-modal.gamified-modal h3 { color: var(--interactive-accent); }
+
+	/* Floating level pane */
+	.skill-tree-level-pane {
+		font-family: var(--font-interface);
+	}
+	.skill-tree-level-pane .st-level-title {
+		font-size: 14px;
+	}
+	.skill-tree-level-pane .st-level-progress-inner {
+		background: linear-gradient(90deg, var(--interactive-accent), #ffd36b);
+	}
+
+	/* Ensure description links are visible and clickable inside modals */
+	.st-desc a {
+		color: var(--text-accent);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.gamified-exp-badge {
+		background: rgba(255,255,255,0.04);
+		padding: 6px 10px;
+		border-radius: 8px;
+		color: var(--text-normal);
+		font-weight: 600;
+	}
+
+	/* Header note link (top-right) */
+	.st-note-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12px;
+		color: var(--text-accent);
+		text-decoration: underline;
+	}
+	/* Gamified modal styles */
+	.gamified-modal {
+		color: var(--text-normal);
+		border-radius: 12px;
+		padding: 12px 8px;
+	}
+
+	.gamified-level-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 48px;
+		text-align: center;
+		box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+	}
+
+	.gamified-progress-inner {
+		height: 100%;
+		border-radius: 999px;
+	}
+
+	/* Subtle enhancements for node editor when gamified */
+	.skill-tree-node-modal.gamified-modal h3 { color: var(--interactive-accent); }
+
+	/* Floating level pane styles */
+	.skill-tree-level-pane {
+		font-family: var(--font-interface);
+		display: inline-block;
+		box-sizing: border-box;
+	}
+	.skill-tree-level-pane .skill-tree-level-content {
+		font-size: 12px;
+		margin-left: 8px;
+	}
+	.skill-tree-level-pane .skill-tree-level-progress-inner {
+		background: linear-gradient(90deg, var(--interactive-accent), #ffd36b);
+	}
+
+	/* Ensure description links are visible and clickable inside modals */
+	.st-desc a {
+		color: var(--text-accent);
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
+	.gamified-exp-badge {
+		background: rgba(255,255,255,0.04);
+		padding: 6px 10px;
+		border-radius: 8px;
+		color: var(--text-normal);
+		font-weight: 600;
+	}
+
+	/* Header note link (top-right) */
+	.st-note-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12px;
+		color: var(--text-accent);
+		text-decoration: underline;
+	}
+	.st-note-link .st-note-icon {
+		font-size: 14px;
+	}
+/* Compact, content-fitting level pane overrides */
+.skill-tree-level-pane {
+	display: inline-block !important;
+	padding: 4px 8px !important;
+	box-sizing: border-box !important;
+	height: auto !important;
+	min-height: 0 !important;
+	line-height: 1 !important;
+}
+.skill-tree-level-pane .skill-tree-level-content { margin-left: 8px; font-size: 12px; }
+.skill-tree-level-pane > div { display: block; }
+.skill-tree-level-pane .skill-tree-level-progress-inner { height: 100% !important; border-radius: 999px !important; }
+.skill-tree-level-pane .skill-tree-level-progress-inner { transition: width 300ms ease !important; }
+
+/* Toolbar styling */
+.skill-tree-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 8px;
+}
+.skill-tree-toolbar-wrapper {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+}
+.skill-tree-toolbar-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+/* Floating expand button when toolbar is collapsed */
+.skill-tree-floating-expand-btn {
+	background: var(--background-primary, #fff);
+	border: 1px solid var(--text-muted, #666);
+	border-radius: 4px;
+	padding: 4px 8px;
+	cursor: pointer;
+	font-size: 12px;
+}
+.skill-tree-floating-expand-btn:hover {
+	background: var(--background-secondary, #f0f0f0);
+}
+
+/* Right-side collapsible node list overlay (attached to toolbar) */
+.skill-tree-node-overlay {
+	display: none;
+	position: absolute;
+	right: 8px;
+	top: calc(100% + 6px);
+	width: 260px;
+	max-width: calc(100vw - 24px);
+	max-height: 60vh;
+	overflow: auto;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+	padding: 8px;
+	border-radius: 8px;
+	z-index: 1200;
+	box-sizing: border-box;
+}
+.skill-tree-node-overlay.open { display: block; }
+.skill-tree-node-overlay .st-overlay-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.skill-tree-node-overlay .st-overlay-search { width:100%; padding:6px; border-radius:6px; border:1px solid var(--background-modifier-border); box-sizing:border-box; }
+.skill-tree-node-overlay ul { list-style:none; margin:6px 0 0 0; padding:0; }
+.skill-tree-node-overlay li { padding:6px; border-radius:6px; cursor:pointer; font-size:13px; }
+.skill-tree-node-overlay li:hover { background: var(--background-modifier-hover); }
+
+@media (max-width: 800px) {
+	.skill-tree-node-overlay { right: 6px; left: 6px; width: auto; max-width: none; border-radius: 10px; }
+	.skill-tree-toolbar { margin-top: 90px; padding-top: 10px; }
+	.skill-tree-canvas-wrap { min-height: calc(100vh - 140px); }
+}
+
+/* Node list pane - centered modal */
+.skill-tree-node-list-pane {
+	overflow: hidden;
+}
+.skill-tree-node-list-pane ul li:last-child {
+	border-bottom: none;
+}

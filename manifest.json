@@ -1,0 +1,10 @@
+{
+	"id": "skill-tree",
+	"name": "Skill Tree",
+	"version": "1.0.0",
+	"description": "A gamified skill tree visualization plugin for Obsidian.",
+	"author": "Brad Gaddis",
+	"authorUrl": "https://github.com/bradgaddis",
+	"fundingUrl": "",
+	"isDesktopOnly": true
+}

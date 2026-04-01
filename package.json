@@ -1,0 +1,24 @@
+{
+  "name": "skill-tree",
+  "version": "1.0.0",
+  "description": "A gamified skill tree visualization plugin for Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --format=cjs --external:obsidian --external:fs --external:path --outfile=main.js --sourcemap",
+    "dev": "esbuild src/main.ts --bundle --format=cjs --external:obsidian --external:fs --external:path --outfile=main.js --sourcemap --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "esbuild": "^0.27.2",
+    "typedoc": "^0.28.16",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.0"
+  },
+  "dependencies": {
+    "obsidian": "^1.11.4",
+    "obsidian-dataview": "^0.4.21"
+  }
+}
