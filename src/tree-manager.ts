@@ -27,6 +27,7 @@ export function GetEdges(): SkillEdge[] {
 
 export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
     view = skillTreeView
+    console.log("initializing tree manager")
     await LoadNodes()
 }
 
@@ -223,8 +224,10 @@ async function LoadNodes() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
     if (currentTree) {
+        console.log(`Loading current tree: ${currentTree}`)
         loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
     } else {
+        console.log("initializing tree")
         // Initialize if tree doesn't exist
         view.settings.trees[view.settings.currentTreeName] = {
             name: view.settings.currentTreeName,
@@ -246,8 +249,9 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
         }
         if (!node.id) {
             node.id = crypto.randomUUID()
-            nodes.set(node.id, node);
         }
+        nodes.set(node.id, node);
+        console.log(`${node} loaded`)
     }
 
     rebuildRelationships();

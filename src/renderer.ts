@@ -16,6 +16,13 @@ let nodeRadius
 let nodeRadii: Record<string | number, number> = {}
 let allNodeRadii
 
+let clientW
+let clientH
+let leftWorld
+let rightWorld
+let topWorld
+let bottomWorld
+let cullMargin
 
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
@@ -87,37 +94,31 @@ export function Render(): void {
         context.scale(view.scale, view.scale);
     }
 
-    // TODO do I need this?
 
-    // const clientW = view.canvas.width / dpr;
-    // const clientH = view.canvas.height / dpr;
-    // const leftWorld = (-view.offset.x) / view.scale;
-    // const rightWorld = (clientW - view.offset.x) / view.scale;
-    // const topWorld = (-view.offset.y) / view.scale;
-    // const bottomWorld = (clientH - view.offset.y) / view.scale;
-    // const cullMargin = 120 / view.scale;
-    // const fastMode = (view.scale < 0.8) || (view.nodes.length > 200);
+    const clientW = view.canvas.width / dpr;
+    const clientH = view.canvas.height / dpr;
+    const leftWorld = (-view.offset.x) / view.scale;
+    const rightWorld = (clientW - view.offset.x) / view.scale;
+    const topWorld = (-view.offset.y) / view.scale;
+    const bottomWorld = (clientH - view.offset.y) / view.scale;
+    const cullMargin = 120 / view.scale;
 
+    nodeRadius = view.settings.nodeRadius || 36;
 
     const nodeMap = GetNodes()
+
     RenderEdgeLines(nodeMap)
-    // const nodeRadius = view.settings.nodeRadius || 36;
+
+    // RenderNodes()
 
 
-    // const allNodeRadii = new Map(view.nodes.map(n => [n.id, view.nodeRadii[n.id] || nodeRadius]));
-    //
-    // const selectedStyle = view.settings.style || 'gamified';
-    // const styleDef = SKILL_TREE_STYLES[selectedStyle];
-    // const defaultShape = styleDef?.nodeShape || 'circle';
-
-    // const edgeLineWidth = 24 / Math.max(0.3, view.scale);
 
 
     // const nodesWithTasks = new Set(view._tasksCache.keys());
     //
     // const showExpAsFraction = view.settings.showExpAsFraction;
     //
-    // const editMode = view.settings.mode == "edit";
+    const editMode = view.settings.mode == "edit";
     //
     // //TODO implement somewhere
     // // const selectedNodeId = view.selectedNodeId;
@@ -127,8 +128,9 @@ export function Render(): void {
     //
     //
     // const nodeStateColorKeys = new Map<string | number, string>();
-    // for (const n of view.nodes) {
-    //     const state = n.state || 'in-progress';
+    //
+    // for (const n of nodeMap) {
+    // const state = n.state || 'in-progress';
     //     nodeStateColorKeys.set(n.id, state === 'complete' ? 'complete' : (state === 'unavailable' ? 'unavailable' : (state === 'on-hold' ? 'onHold' : 'inProgress')));
     // }
     //
@@ -994,9 +996,6 @@ function RenderWarningBanner(padding: number = 2) {
 
 }
 
-function RenderNodes() {
-
-}
 
 function RenderTemporaryEdgeLine() {
 
@@ -1006,7 +1005,7 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
     const edgeLineWidth = 24 / Math.max(0.3, view.scale);
     const nodes = GetNodes()
 
-    const allNodeRadii = new Map(
+    allNodeRadii = new Map(
         [...nodes.values()].map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
@@ -1105,9 +1104,9 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
         const bKey = nodeStateColorKeys.get(b.id) || 'inProgress';
         const aState = a.state || 'in-progress';
         const bState = b.state || 'in-progress';
+        // TODO refactor
         const bothUnavailable = aState === 'unavailable' && bState === 'unavailable';
         const bothComplete = aState === 'complete' && bState === 'complete';
-        const shouldAnimateEdge = false;
 
         if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
             edgeColor = styleDef.edgeColor;
@@ -1121,8 +1120,11 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
         //     edgeGlow = true;
         // }
 
+        // Apparently this error is fine
         let fromNodeColor = edgeColor;
         let toNodeColor = edgeColor;
+
+        // TODO refactor | this makes the gradient
         try {
             if (styleDef && styleDef.nodeColors) {
                 fromNodeColor = (styleDef.nodeColors as any)[aKey]?.stroke || (styleDef.nodeColors as any)[aKey]?.fill || edgeColor;
@@ -1185,47 +1187,47 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
                 context.fillStyle = edgeColor;
                 drawBezier(context, sx1, sy1, controls.c1x, controls.c1y, controls.c2x, controls.c2y, sx2, sy2, edgeLineWidth);
             }
-        }// else {
-        //     if (edgeStyle === 'wavy' && edgeGlow && shouldAnimateEdge) {
-        //         const dx = sx2 - sx1;
-        //         const dy = sy2 - sy1;
-        //         const distance = Math.hypot(dx, dy);
-        //         const waveAmplitude = 8 / view.scale;
-        //         const waveFrequency = distance / 50;
-        //         const wavePhase = view._animationTime * 0.001;
-        //
-        //         context.beginPath();
-        //         context.moveTo(sx1, sy1);
-        //         const steps = Math.max(20, Math.floor(distance / 5));
-        //         for (let i = 1; i <= steps; i++) {
-        //             const t = i / steps;
-        //             const baseX = sx1 + dx * t;
-        //             const baseY = sy1 + dy * t;
-        //             const perpX = -dy / distance;
-        //             const perpY = dx / distance;
-        //             const waveOffset = Math.sin(waveFrequency * t * Math.PI * 2 + wavePhase) * waveAmplitude;
-        //             context.lineTo(baseX + perpX * waveOffset, baseY + perpY * waveOffset);
-        //         }
-        //
-        //         context.lineWidth = edgeLineWidth;
-        //         context.strokeStyle = edgeColor;
-        //         context.stroke();
-        //
-        //         const angle = Math.atan2(dy, dx);
-        //         const headLen = edgeLineWidth * 2;
-        //         const p1x = sx2 - headLen * Math.cos(angle - Math.PI / 6);
-        //         const p1y = sy2 - headLen * Math.sin(angle - Math.PI / 6);
-        //         const p2x = sx2 - headLen * Math.cos(angle + Math.PI / 6);
-        //         const p2y = sy2 - headLen * Math.sin(angle + Math.PI / 6);
-        //         context.beginPath();
-        //         context.moveTo(sx2, sy2);
-        //         context.lineTo(p1x, p1y);
-        //         context.lineTo(p2x, p2y);
-        //         context.closePath();
-        //         context.fillStyle = edgeColor;
-        //         context.fill();
-        //     }
-        // }
+        } else {
+            if (edgeStyle === 'wavy' && edgeGlow && shouldAnimateEdge) {
+                const dx = sx2 - sx1;
+                const dy = sy2 - sy1;
+                const distance = Math.hypot(dx, dy);
+                const waveAmplitude = 8 / view.scale;
+                const waveFrequency = distance / 50;
+                const wavePhase = view._animationTime * 0.001;
+
+                context.beginPath();
+                context.moveTo(sx1, sy1);
+                const steps = Math.max(20, Math.floor(distance / 5));
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const baseX = sx1 + dx * t;
+                    const baseY = sy1 + dy * t;
+                    const perpX = -dy / distance;
+                    const perpY = dx / distance;
+                    const waveOffset = Math.sin(waveFrequency * t * Math.PI * 2 + wavePhase) * waveAmplitude;
+                    context.lineTo(baseX + perpX * waveOffset, baseY + perpY * waveOffset);
+                }
+
+                context.lineWidth = edgeLineWidth;
+                context.strokeStyle = edgeColor;
+                context.stroke();
+
+                const angle = Math.atan2(dy, dx);
+                const headLen = edgeLineWidth * 2;
+                const p1x = sx2 - headLen * Math.cos(angle - Math.PI / 6);
+                const p1y = sy2 - headLen * Math.sin(angle - Math.PI / 6);
+                const p2x = sx2 - headLen * Math.cos(angle + Math.PI / 6);
+                const p2y = sy2 - headLen * Math.sin(angle + Math.PI / 6);
+                context.beginPath();
+                context.moveTo(sx2, sy2);
+                context.lineTo(p1x, p1y);
+                context.lineTo(p2x, p2y);
+                context.closePath();
+                context.fillStyle = edgeColor;
+                context.fill();
+            }
+        }
         context.restore();
     }
 }
@@ -1429,4 +1431,1173 @@ export function computeBezierControls(ax: number, ay: number, bx: number, by: nu
     }
 
     return { c1x, c1y, c2x, c2y };
+}
+
+function GetVisibleNodes(): SkillNode[] {
+    return GetNodes().filter(n => {
+        const r = nodeRadii[n.id] || nodeRadius;
+        return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
+            n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin);
+
+    });
+}
+
+
+function RenderNodes() {
+    for (const n of visibleNodes) {
+        const r = allNodeRadii.get(n.id) as number;
+
+        context.beginPath();
+
+        const hasFileLinkIssue = n.fileLink && !this.nodeFileHasCorrectId(n);
+
+        const nodeState = n.state || 'in-progress';
+
+        if (hasFileLinkIssue) {
+            if (styleDef && styleDef.nodeColors) {
+                context.fillStyle = styleDef.nodeColors.error.fill;
+                context.strokeStyle = styleDef.nodeColors.error.stroke;
+            } else {
+                context.fillStyle = '#f44336';
+                context.strokeStyle = '#c62828';
+            }
+        } else if (n.optional) {
+            if (styleDef && styleDef.nodeColors) {
+                context.fillStyle = styleDef.nodeColors.optional.fill;
+                context.strokeStyle = styleDef.nodeColors.optional.stroke;
+            } else {
+                context.fillStyle = '#87ceeb';
+                context.strokeStyle = '#5fb0db';
+            }
+        } else if (n.checkpoint) {
+            if (nodeState === 'complete') {
+                context.fillStyle = '#4caf50';
+                context.strokeStyle = '#2e7d32';
+            } else {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.inProgress.fill;
+                    context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+                } else {
+                    context.fillStyle = '#ff9800';
+                    context.strokeStyle = '#e65100';
+                }
+            }
+        } else if (nodeState === 'complete') {
+            if (styleDef && styleDef.nodeColors) {
+                context.fillStyle = styleDef.nodeColors.complete.fill;
+                context.strokeStyle = styleDef.nodeColors.complete.stroke;
+            } else {
+                context.fillStyle = '#FFD700';
+                context.strokeStyle = '#b8860b';
+            }
+        } else if (nodeState === 'on-hold') {
+            if (styleDef && styleDef.nodeColors && styleDef.nodeColors.onHold) {
+                context.fillStyle = styleDef.nodeColors.onHold.fill;
+                context.strokeStyle = styleDef.nodeColors.onHold.stroke;
+            } else {
+                context.fillStyle = '#ff6b6b';
+                context.strokeStyle = '#c92a2a';
+            }
+        } else if (nodeState === 'unavailable') {
+            if (styleDef && styleDef.nodeColors) {
+                context.fillStyle = styleDef.nodeColors.unavailable.fill;
+                context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
+            } else {
+                context.fillStyle = this._unavailableNodeColors!.fill;
+                context.strokeStyle = this._unavailableNodeColors!.stroke;
+            }
+        } else {
+            if (styleDef && styleDef.nodeColors) {
+                context.fillStyle = styleDef.nodeColors.inProgress.fill;
+                context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+            } else {
+                context.fillStyle = '#2b6';
+                context.strokeStyle = '#173';
+            }
+        }
+        context.lineWidth = 4 / this.scale;
+
+        const validShapes = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
+        const effectiveShape = (n.shape && validShapes.includes(n.shape)) ? n.shape : defaultShape;
+        const isAnimated = false;
+        const isAnimating = false;
+
+        context.beginPath();
+        this.drawNodeShape(context, n.x, n.y, r, effectiveShape);
+        context.fill();
+
+        if (effectiveShape === 'repeat') {
+            let centerColor = '#ffffff';
+            if (nodeState === 'complete') {
+                centerColor = '#4caf50';
+            } else if (nodeState === 'in-progress') {
+                centerColor = '#ffcc80';
+            } else if (nodeState === 'on-hold') {
+                centerColor = '#e1bee7';
+            } else {
+                centerColor = '#e0e0e0';
+            }
+            context.beginPath();
+            context.arc(n.x, n.y, r * 0.55, 0, Math.PI * 2);
+            context.fillStyle = centerColor;
+            context.fill();
+        }
+
+        context.stroke();
+
+        if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
+            context.restore();
+        }
+
+        if (selectedNodeId === n.id) {
+            const pulseAmount = 8;
+            context.beginPath();
+            context.lineWidth = 4 / this.scale;
+            context.strokeStyle = 'rgba(255,165,0,0.95)';
+            const expandedR = r + (pulseAmount / this.scale);
+            this.drawNodeShape(context, n.x, n.y, expandedR, effectiveShape);
+            context.stroke();
+        }
+
+        if (n.repeating && n.showRepeatCount && n.repeatCount > 0) {
+            const badgeRadius = r * 0.35;
+            const badgeX = n.x + r * 0.7;
+            const badgeY = n.y - r * 0.7;
+
+            context.beginPath();
+            context.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+            context.fillStyle = '#ffd700';
+            context.fill();
+            context.lineWidth = 2 / this.scale;
+            context.strokeStyle = '#cc9900';
+            context.stroke();
+
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.font = `bold ${10 / this.scale}px sans-serif`;
+            context.fillStyle = '#000';
+            const displayCount = n.repeatMax && n.repeatCount >= n.repeatMax
+                ? `${n.repeatCount}✓`
+                : `×${n.repeatCount}`;
+            context.fillText(displayCount, badgeX, badgeY);
+        }
+
+        if (n.repeating && nodeState === 'complete') {
+            const tempNode = n as any;
+            let cooldownText = '';
+
+            if (tempNode.getResetDisplayText) {
+                cooldownText = tempNode.getResetDisplayText();
+            }
+
+            if (!cooldownText && n.repeatCooldownHours) {
+                const now = Date.now();
+                if (!n.repeatLastCompleted) {
+                    n.repeatLastCompleted = now;
+                    n.repeatCount = 1;
+                }
+                const remaining = (n.repeatCooldownHours * 60 * 60 * 1000) - (now - n.repeatLastCompleted);
+                if (remaining > 0) {
+                    const hours = Math.floor(remaining / (60 * 60 * 1000));
+                    const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+                    const secs = Math.floor((remaining % (60 * 1000)) / 1000);
+                    if (hours > 0) {
+                        cooldownText = `Resets in: ${hours}h ${mins}m`;
+                    } else if (mins > 0) {
+                        cooldownText = `Resets in: ${mins}m`;
+                    } else {
+                        cooldownText = `Resets in: ${secs}s`;
+                    }
+                } else {
+                    n.repeatLastCompleted = now;
+                    n.repeatCount++;
+                    const hrs = n.repeatCooldownHours;
+                    if (hrs >= 24) {
+                        const days = Math.floor(hrs / 24);
+                        const remainingHours = hrs % 24;
+                        if (remainingHours > 0) {
+                            cooldownText = `Resets in: ${days}d ${remainingHours}h`;
+                        } else {
+                            cooldownText = `Resets in: ${days}d`;
+                        }
+                    } else if (hrs >= 1) {
+                        const mins = Math.round((hrs % 1) * 60);
+                        if (mins > 0) {
+                            cooldownText = `Resets in: ${Math.floor(hrs)}h ${mins}m`;
+                        } else {
+                            cooldownText = `Resets in: ${Math.floor(hrs)}h`;
+                        }
+                    } else {
+                        cooldownText = `Resets in: ${Math.round(hrs * 60)}m`;
+                    }
+                }
+            }
+
+            if (cooldownText) {
+                context.textAlign = 'center';
+                context.textBaseline = 'top';
+                context.font = `${9 / this.scale}px sans-serif`;
+                context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                context.fillText(cooldownText, n.x, n.y + r + (4 / this.scale));
+            }
+        }
+
+        if (fastMode) {
+            continue;
+        }
+
+        context.textAlign = 'center';
+        context.font = `${14 / this.scale}px sans-serif`;
+
+        let labelTextColor = cachedTextColor;
+
+        if (n.checkpoint) {
+            labelTextColor = '#000';
+        }
+
+        let lines: string[] = [];
+        if (n.optional) {
+            lines = ['Optional Path'];
+        } else if (n.treeLink) {
+            lines = ['Tree Link', n.treeLink];
+        } else {
+            const exp = n.exp !== undefined ? n.exp : 0;
+            const words = (this.getNodeDisplayLabel(n) || '').split(/\s+/).filter(Boolean);
+            for (let i = 0; i < words.length; i += 4) {
+                lines.push(words.slice(i, i + 4).join(' '));
+            }
+            if (lines.length === 0) lines.push('');
+            if (exp > 0 || showExpAsFraction) {
+                lines[lines.length - 1] = `${lines[lines.length - 1]}`.trim();
+            }
+        }
+
+        let fileName = '';
+        let isUnlinked = false;
+        if (!n.optional && !n.checkpoint && !n.treeLink) {
+            if (n.fileLink) {
+                fileName = this.getNodeFileName(n);
+                isUnlinked = !this.isNodeFileLinked(n);
+            } else {
+                fileName = 'Right click to add note';
+                isUnlinked = true;
+            }
+        } else if (n.treeLink && n.fileLink) {
+            isUnlinked = !this.isNodeFileLinked(n);
+        }
+
+        const lineHeight = 16 / this.scale;
+        const totalLines = lines.length + (fileName ? 1 : 0) + (isUnlinked ? 1 : 0);
+        let firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
+
+        const taskListForHint = this._tasksCache.get(n.id) || [];
+        const incompleteCount = taskListForHint.filter((t: any) => !t.completed).length;
+        const hintHasTasks = taskListForHint.length > 0;
+        let showTaskHint = hintHasTasks && incompleteCount > 0;
+        if (n.optional || n.checkpoint) showTaskHint = false;
+        if (showTaskHint) {
+            firstLineY -= (lineHeight * 0.35);
+        }
+
+        const isGamifiedUnavailable = (selectedStyle === 'gamified' && nodeState === 'unavailable');
+
+        if (isGamifiedUnavailable) {
+            context.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            context.shadowBlur = 0;
+            context.shadowOffsetX = 1 / this.scale;
+            context.shadowOffsetY = 1 / this.scale;
+            context.fillStyle = 'rgba(200, 200, 200, 0.4)';
+        } else {
+            context.fillStyle = labelTextColor;
+        }
+
+        for (let i = 0; i < lines.length; i++) {
+            const text = lines[i];
+            const y = firstLineY + i * lineHeight;
+
+            if (isGamifiedUnavailable) {
+                context.save();
+                context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                context.shadowBlur = 2 / this.scale;
+                context.shadowOffsetX = 1 / this.scale;
+                context.shadowOffsetY = 1 / this.scale;
+                context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                context.fillText(text, n.x, y);
+                context.restore();
+
+                context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                context.fillText(text, n.x, y);
+            } else {
+                context.fillText(text, n.x, y);
+            }
+        }
+
+        if (n.optional) {
+            try {
+                const iconScreenSize = 30;
+                const iconSize = iconScreenSize / this.scale;
+                const iconX = n.x;
+                const iconY = firstLineY + lines.length * lineHeight + (iconSize * 0.9);
+
+                context.save();
+                let bgColor = '#ffffff';
+                let strokeColor = labelTextColor;
+                try {
+                    if (styleDef && styleDef.nodeColors && (styleDef.nodeColors as any).optional) {
+                        bgColor = (styleDef.nodeColors as any).optional.fill || bgColor;
+                        strokeColor = (styleDef.nodeColors as any).optional.stroke || strokeColor;
+                    }
+                } catch (e) { }
+
+                context.beginPath();
+                context.fillStyle = bgColor;
+                context.strokeStyle = strokeColor;
+                context.lineWidth = 3 / this.scale;
+                context.arc(iconX, iconY, iconSize / 2, 0, Math.PI * 2);
+                context.fill();
+                context.stroke();
+
+                let textColor = '#fff';
+                try {
+                    const parsed = parseCSSColor(bgColor);
+                    if (parsed) {
+                        const lum = (0.299 * parsed.r + 0.587 * parsed.g + 0.114 * parsed.b) / 255;
+                        textColor = lum > 0.55 ? '#111' : '#fff';
+                    }
+                } catch (e) { }
+
+                context.fillStyle = textColor;
+                context.font = `${Math.max(18 / this.scale, 14 / this.scale)}px sans-serif`;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText('?', iconX, iconY + (1 / this.scale));
+                context.restore();
+            } catch (e) { }
+        }
+
+        if (fileName) {
+            context.font = `${12 / this.scale}px sans-serif`;
+
+            if (isGamifiedUnavailable) {
+                context.save();
+                context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                context.shadowBlur = 2 / this.scale;
+                context.shadowOffsetX = 1 / this.scale;
+                context.shadowOffsetY = 1 / this.scale;
+                context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                const y = firstLineY + lines.length * lineHeight;
+                context.fillText(fileName, n.x, y);
+                context.restore();
+
+                context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                context.fillText(fileName, n.x, y);
+
+                if (isUnlinked) {
+                    const unlinkedY = y + lineHeight;
+                    context.save();
+                    context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                    context.shadowBlur = 2 / this.scale;
+                    context.shadowOffsetX = 1 / this.scale;
+                    context.shadowOffsetY = 1 / this.scale;
+                    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    context.fillText('[unlinked]', n.x, unlinkedY);
+                    context.restore();
+                    context.fillStyle = 'rgba(255, 180, 100, 0.9)';
+                    context.fillText('[unlinked]', n.x, unlinkedY);
+                }
+            } else {
+                context.fillStyle = labelTextColor;
+                const y = firstLineY + lines.length * lineHeight;
+                context.fillText(fileName, n.x, y);
+
+                if (isUnlinked) {
+                    const unlinkedY = y + lineHeight;
+                    context.fillStyle = '#e67e22';
+                    context.fillText('[unlinked]', n.x, unlinkedY);
+                }
+            }
+
+            context.font = `${14 / this.scale}px sans-serif`;
+        }
+
+        if (showTaskHint) {
+            try {
+                let hint = 'Incomplete Tasks.';
+                let baseFontSize = 11 / this.scale;
+                const minFontSize = 8 / this.scale;
+                context.font = `${baseFontSize}px sans-serif`;
+
+                const maxWidth = Math.max((r * 2) - (12 / this.scale), 40 / this.scale);
+                let measured = context.measureText(hint).width;
+
+                while (measured > maxWidth && baseFontSize > minFontSize) {
+                    baseFontSize = Math.max(minFontSize, baseFontSize - 0.5 / this.scale);
+                    context.font = `${baseFontSize}px sans-serif`;
+                    measured = context.measureText(hint).width;
+                }
+
+                if (measured > maxWidth) {
+                    const avgChar = measured / hint.length;
+                    const maxChars = Math.max(3, Math.floor(maxWidth / avgChar) - 1);
+                    hint = hint.slice(0, maxChars) + '…';
+                    measured = context.measureText(hint).width;
+                }
+
+                const padX = 8 / this.scale;
+                const padY = 4 / this.scale;
+                const btnW = measured + padX * 2;
+                const btnH = baseFontSize + padY * 2;
+                const btnX = n.x - btnW / 2;
+                const btnY = firstLineY + lines.length * lineHeight + (fileName ? lineHeight : 0) + (6 / this.scale);
+
+                const accent = this._cachedThemeColors?.accent || '#2f7ae0';
+
+                const radius = Math.min(btnH / 2, 6 / this.scale);
+                context.beginPath();
+                context.moveTo(btnX + radius, btnY);
+                context.lineTo(btnX + btnW - radius, btnY);
+                context.arcTo(btnX + btnW, btnY, btnX + btnW, btnY + radius, radius);
+                context.lineTo(btnX + btnW, btnY + btnH - radius);
+                context.arcTo(btnX + btnW, btnY + btnH, btnX + btnW - radius, btnY + btnH, radius);
+                context.lineTo(btnX + radius, btnY + btnH);
+                context.arcTo(btnX, btnY + btnH, btnX, btnY + btnH - radius, radius);
+                context.lineTo(btnX, btnY + radius);
+                context.arcTo(btnX, btnY, btnX + radius, btnY, radius);
+                context.closePath();
+
+                context.fillStyle = accent;
+                context.globalAlpha = 0.95;
+                context.fill();
+                context.globalAlpha = 1.0;
+
+                context.strokeStyle = 'rgba(0,0,0,0.12)';
+                context.lineWidth = 1 / this.scale;
+                context.stroke();
+
+                context.fillStyle = '#fff';
+                context.textBaseline = 'middle';
+                const textX = n.x;
+                const textY = btnY + btnH / 2;
+                context.fillText(hint, textX, textY);
+
+                context.fillStyle = labelTextColor;
+                context.textBaseline = 'alphabetic';
+            } catch (e) { }
+        }
+
+        if (n.checkpoint) {
+            try {
+                const iconScreenSize = 30;
+                const iconSize = iconScreenSize / this.scale;
+                const iconX = n.x;
+                const iconY = firstLineY + lines.length * lineHeight + (iconSize * 0.9);
+
+                context.save();
+                let bgColor = '#ffffff';
+                let strokeColor = '#000';
+                try {
+                    if (styleDef && styleDef.nodeColors && (styleDef.nodeColors as any).optional) {
+                        bgColor = (styleDef.nodeColors as any).optional.fill || bgColor;
+                    }
+                } catch (e) { }
+
+                context.beginPath();
+                context.fillStyle = bgColor;
+                context.strokeStyle = strokeColor;
+                context.lineWidth = 3 / this.scale;
+                context.arc(iconX, iconY, iconSize / 2, 0, Math.PI * 2);
+                context.fill();
+                context.stroke();
+
+                const flagTextColor = '#111';
+
+                context.fillStyle = flagTextColor;
+                context.font = `${Math.max(18 / this.scale, 14 / this.scale)}px sans-serif`;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText('🚩', iconX, iconY + (1 / this.scale));
+                context.restore();
+            } catch (e) { }
+        }
+
+        context.shadowBlur = 0;
+        context.shadowOffsetX = 0;
+        context.shadowOffsetY = 0;
+
+        const actualState = n.state || 'in-progress';
+        const nodeTasks = this._tasksCache.get(n.id) || [];
+        const hasTasks = nodeTasks.length > 0;
+
+        let textBottomY = firstLineY + (lines.length - 1) * lineHeight;
+        if (fileName) textBottomY += lineHeight;
+        if (isUnlinked) textBottomY += lineHeight;
+
+        const isManualCompletionNode = n.optional || n.checkpoint || n.treeLink;
+
+        if ((actualState === 'in-progress' || actualState === 'complete') && !hasTasks && !isManualCompletionNode) {
+            const minScreenSize = 14;
+            const maxScreenSize = 24;
+            const baseScreenSize = Math.min(maxScreenSize, Math.max(minScreenSize, r * 0.25));
+            const checkboxSize = baseScreenSize / this.scale;
+
+            const nodeBottomEdge = n.y + r * 0.9;
+            let checkboxY = textBottomY + 6 / this.scale;
+
+            const checkboxBottomY = checkboxY + checkboxSize;
+            if (checkboxBottomY > nodeBottomEdge) {
+                checkboxY = nodeBottomEdge - checkboxSize;
+            }
+
+            const checkboxX = n.x - checkboxSize / 2;
+
+            context.strokeStyle = '#333';
+            context.lineWidth = 2 / this.scale;
+            context.beginPath();
+            const checkboxRadius = checkboxSize * 0.15;
+            context.moveTo(checkboxX + checkboxRadius, checkboxY);
+            context.lineTo(checkboxX + checkboxSize - checkboxRadius, checkboxY);
+            context.arcTo(checkboxX + checkboxSize, checkboxY, checkboxX + checkboxSize, checkboxY + checkboxRadius, checkboxRadius);
+            context.lineTo(checkboxX + checkboxSize, checkboxY + checkboxSize - checkboxRadius);
+            context.arcTo(checkboxX + checkboxSize, checkboxY + checkboxSize, checkboxX + checkboxSize - checkboxRadius, checkboxY + checkboxSize, checkboxRadius);
+            context.lineTo(checkboxX + checkboxRadius, checkboxY + checkboxSize);
+            context.arcTo(checkboxX, checkboxY + checkboxSize, checkboxX, checkboxY + checkboxSize - checkboxRadius, checkboxRadius);
+            context.lineTo(checkboxX, checkboxY + checkboxRadius);
+            context.arcTo(checkboxX, checkboxY, checkboxX + checkboxRadius, checkboxY, checkboxRadius);
+            context.stroke();
+
+            if (actualState === 'complete') {
+                context.strokeStyle = '#2e7d32';
+                context.lineWidth = 2.5 / this.scale;
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.beginPath();
+                context.moveTo(checkboxX + checkboxSize * 0.25, checkboxY + checkboxSize * 0.5);
+                context.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.7);
+                context.lineTo(checkboxX + checkboxSize * 0.75, checkboxY + checkboxSize * 0.3);
+                context.stroke();
+                context.lineCap = 'butt';
+                context.lineJoin = 'miter';
+            }
+
+            if (actualState === 'complete') {
+                const iconSize = 18 / this.scale;
+                const iconX = n.x + r - iconSize - 4 / this.scale;
+                const iconY = n.y - r + 4 / this.scale;
+
+                context.save();
+                context.translate(iconX, iconY);
+                context.fillStyle = '#4caf50';
+                context.beginPath();
+                context.arc(iconSize / 2, iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+                context.fill();
+                context.strokeStyle = '#fff';
+                context.fillStyle = '#fff';
+                context.lineWidth = 2.5 / this.scale;
+                context.lineCap = 'round';
+                context.lineJoin = 'round';
+                context.beginPath();
+                context.moveTo(iconSize * 0.25, iconSize * 0.5);
+                context.lineTo(iconSize * 0.45, iconSize * 0.7);
+                context.lineTo(iconSize * 0.75, iconSize * 0.3);
+                context.stroke();
+                context.restore();
+            }
+        }
+
+        if (editMode || selectedNodeId === n.id) {
+            const used = new Set<string>();
+            for (const ee of this.edges) {
+                if (ee.from === n.id && ee.fromSide) used.add(ee.fromSide);
+                if (ee.to === n.id && ee.toSide) used.add(ee.toSide);
+            }
+            const hs = 18 / this.scale;
+            context.strokeStyle = '#2563eb';
+            context.lineWidth = 2.5 / this.scale;
+            context.fillStyle = '#ffffff';
+            if (!used.has('top')) { context.beginPath(); context.arc(n.x, n.y - r, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+            if (!used.has('right')) { context.beginPath(); context.arc(n.x + r, n.y, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+            if (!used.has('bottom')) { context.beginPath(); context.arc(n.x, n.y + r, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+            if (!used.has('left')) { context.beginPath(); context.arc(n.x - r, n.y, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+        }
+    }
+
+    function RenderNodes() {
+
+        for (const n of visibleNodes) {
+            const r = allNodeRadii.get(n.id) as number;
+
+            context.beginPath();
+
+            const hasFileLinkIssue = n.fileLink && !this.nodeFileHasCorrectId(n);
+
+            const nodeState = n.state || 'in-progress';
+
+            if (hasFileLinkIssue) {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.error.fill;
+                    context.strokeStyle = styleDef.nodeColors.error.stroke;
+                } else {
+                    context.fillStyle = '#f44336';
+                    context.strokeStyle = '#c62828';
+                }
+            } else if (n.optional) {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.optional.fill;
+                    context.strokeStyle = styleDef.nodeColors.optional.stroke;
+                } else {
+                    context.fillStyle = '#87ceeb';
+                    context.strokeStyle = '#5fb0db';
+                }
+            } else if (n.checkpoint) {
+                if (nodeState === 'complete') {
+                    context.fillStyle = '#4caf50';
+                    context.strokeStyle = '#2e7d32';
+                } else {
+                    if (styleDef && styleDef.nodeColors) {
+                        context.fillStyle = styleDef.nodeColors.inProgress.fill;
+                        context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+                    } else {
+                        context.fillStyle = '#ff9800';
+                        context.strokeStyle = '#e65100';
+                    }
+                }
+            } else if (nodeState === 'complete') {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.complete.fill;
+                    context.strokeStyle = styleDef.nodeColors.complete.stroke;
+                } else {
+                    context.fillStyle = '#FFD700';
+                    context.strokeStyle = '#b8860b';
+                }
+            } else if (nodeState === 'on-hold') {
+                if (styleDef && styleDef.nodeColors && styleDef.nodeColors.onHold) {
+                    context.fillStyle = styleDef.nodeColors.onHold.fill;
+                    context.strokeStyle = styleDef.nodeColors.onHold.stroke;
+                } else {
+                    context.fillStyle = '#ff6b6b';
+                    context.strokeStyle = '#c92a2a';
+                }
+            } else if (nodeState === 'unavailable') {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.unavailable.fill;
+                    context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
+                } else {
+                    context.fillStyle = this._unavailableNodeColors!.fill;
+                    context.strokeStyle = this._unavailableNodeColors!.stroke;
+                }
+            } else {
+                if (styleDef && styleDef.nodeColors) {
+                    context.fillStyle = styleDef.nodeColors.inProgress.fill;
+                    context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+                } else {
+                    context.fillStyle = '#2b6';
+                    context.strokeStyle = '#173';
+                }
+            }
+            context.lineWidth = 4 / this.scale;
+
+            const validShapes = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
+            const effectiveShape = (n.shape && validShapes.includes(n.shape)) ? n.shape : defaultShape;
+            const isAnimated = false;
+            const isAnimating = false;
+
+            context.beginPath();
+            this.drawNodeShape(context, n.x, n.y, r, effectiveShape);
+            context.fill();
+
+            if (effectiveShape === 'repeat') {
+                let centerColor = '#ffffff';
+                if (nodeState === 'complete') {
+                    centerColor = '#4caf50';
+                } else if (nodeState === 'in-progress') {
+                    centerColor = '#ffcc80';
+                } else if (nodeState === 'on-hold') {
+                    centerColor = '#e1bee7';
+                } else {
+                    centerColor = '#e0e0e0';
+                }
+                context.beginPath();
+                context.arc(n.x, n.y, r * 0.55, 0, Math.PI * 2);
+                context.fillStyle = centerColor;
+                context.fill();
+            }
+
+            context.stroke();
+
+            if (isAnimated && nodeState === 'in-progress' && !hasFileLinkIssue) {
+                context.restore();
+            }
+
+            if (selectedNodeId === n.id) {
+                const pulseAmount = 8;
+                context.beginPath();
+                context.lineWidth = 4 / this.scale;
+                context.strokeStyle = 'rgba(255,165,0,0.95)';
+                const expandedR = r + (pulseAmount / this.scale);
+                this.drawNodeShape(context, n.x, n.y, expandedR, effectiveShape);
+                context.stroke();
+            }
+
+            if (n.repeating && n.showRepeatCount && n.repeatCount > 0) {
+                const badgeRadius = r * 0.35;
+                const badgeX = n.x + r * 0.7;
+                const badgeY = n.y - r * 0.7;
+
+                context.beginPath();
+                context.arc(badgeX, badgeY, badgeRadius, 0, Math.PI * 2);
+                context.fillStyle = '#ffd700';
+                context.fill();
+                context.lineWidth = 2 / this.scale;
+                context.strokeStyle = '#cc9900';
+                context.stroke();
+
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.font = `bold ${10 / this.scale}px sans-serif`;
+                context.fillStyle = '#000';
+                const displayCount = n.repeatMax && n.repeatCount >= n.repeatMax
+                    ? `${n.repeatCount}✓`
+                    : `×${n.repeatCount}`;
+                context.fillText(displayCount, badgeX, badgeY);
+            }
+
+            if (n.repeating && nodeState === 'complete') {
+                const tempNode = n as any;
+                let cooldownText = '';
+
+                if (tempNode.getResetDisplayText) {
+                    cooldownText = tempNode.getResetDisplayText();
+                }
+
+                if (!cooldownText && n.repeatCooldownHours) {
+                    const now = Date.now();
+                    if (!n.repeatLastCompleted) {
+                        n.repeatLastCompleted = now;
+                        n.repeatCount = 1;
+                    }
+                    const remaining = (n.repeatCooldownHours * 60 * 60 * 1000) - (now - n.repeatLastCompleted);
+                    if (remaining > 0) {
+                        const hours = Math.floor(remaining / (60 * 60 * 1000));
+                        const mins = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+                        const secs = Math.floor((remaining % (60 * 1000)) / 1000);
+                        if (hours > 0) {
+                            cooldownText = `Resets in: ${hours}h ${mins}m`;
+                        } else if (mins > 0) {
+                            cooldownText = `Resets in: ${mins}m`;
+                        } else {
+                            cooldownText = `Resets in: ${secs}s`;
+                        }
+                    } else {
+                        n.repeatLastCompleted = now;
+                        n.repeatCount++;
+                        const hrs = n.repeatCooldownHours;
+                        if (hrs >= 24) {
+                            const days = Math.floor(hrs / 24);
+                            const remainingHours = hrs % 24;
+                            if (remainingHours > 0) {
+                                cooldownText = `Resets in: ${days}d ${remainingHours}h`;
+                            } else {
+                                cooldownText = `Resets in: ${days}d`;
+                            }
+                        } else if (hrs >= 1) {
+                            const mins = Math.round((hrs % 1) * 60);
+                            if (mins > 0) {
+                                cooldownText = `Resets in: ${Math.floor(hrs)}h ${mins}m`;
+                            } else {
+                                cooldownText = `Resets in: ${Math.floor(hrs)}h`;
+                            }
+                        } else {
+                            cooldownText = `Resets in: ${Math.round(hrs * 60)}m`;
+                        }
+                    }
+                }
+
+                if (cooldownText) {
+                    context.textAlign = 'center';
+                    context.textBaseline = 'top';
+                    context.font = `${9 / this.scale}px sans-serif`;
+                    context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    context.fillText(cooldownText, n.x, n.y + r + (4 / this.scale));
+                }
+            }
+
+            if (fastMode) {
+                continue;
+            }
+
+            context.textAlign = 'center';
+            context.font = `${14 / this.scale}px sans-serif`;
+
+            let labelTextColor = cachedTextColor;
+
+            if (n.checkpoint) {
+                labelTextColor = '#000';
+            }
+
+            let lines: string[] = [];
+            if (n.optional) {
+                lines = ['Optional Path'];
+            } else if (n.treeLink) {
+                lines = ['Tree Link', n.treeLink];
+            } else {
+                const exp = n.exp !== undefined ? n.exp : 0;
+                const words = (this.getNodeDisplayLabel(n) || '').split(/\s+/).filter(Boolean);
+                for (let i = 0; i < words.length; i += 4) {
+                    lines.push(words.slice(i, i + 4).join(' '));
+                }
+                if (lines.length === 0) lines.push('');
+                if (exp > 0 || showExpAsFraction) {
+                    lines[lines.length - 1] = `${lines[lines.length - 1]}`.trim();
+                }
+            }
+
+            let fileName = '';
+            let isUnlinked = false;
+            if (!n.optional && !n.checkpoint && !n.treeLink) {
+                if (n.fileLink) {
+                    fileName = this.getNodeFileName(n);
+                    isUnlinked = !this.isNodeFileLinked(n);
+                } else {
+                    fileName = 'Right click to add note';
+                    isUnlinked = true;
+                }
+            } else if (n.treeLink && n.fileLink) {
+                isUnlinked = !this.isNodeFileLinked(n);
+            }
+
+            const lineHeight = 16 / this.scale;
+            const totalLines = lines.length + (fileName ? 1 : 0) + (isUnlinked ? 1 : 0);
+            let firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
+
+            const taskListForHint = this._tasksCache.get(n.id) || [];
+            const incompleteCount = taskListForHint.filter((t: any) => !t.completed).length;
+            const hintHasTasks = taskListForHint.length > 0;
+            let showTaskHint = hintHasTasks && incompleteCount > 0;
+            if (n.optional || n.checkpoint) showTaskHint = false;
+            if (showTaskHint) {
+                firstLineY -= (lineHeight * 0.35);
+            }
+
+            const isGamifiedUnavailable = (selectedStyle === 'gamified' && nodeState === 'unavailable');
+
+            if (isGamifiedUnavailable) {
+                context.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                context.shadowBlur = 0;
+                context.shadowOffsetX = 1 / this.scale;
+                context.shadowOffsetY = 1 / this.scale;
+                context.fillStyle = 'rgba(200, 200, 200, 0.4)';
+            } else {
+                context.fillStyle = labelTextColor;
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                const text = lines[i];
+                const y = firstLineY + i * lineHeight;
+
+                if (isGamifiedUnavailable) {
+                    context.save();
+                    context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                    context.shadowBlur = 2 / this.scale;
+                    context.shadowOffsetX = 1 / this.scale;
+                    context.shadowOffsetY = 1 / this.scale;
+                    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    context.fillText(text, n.x, y);
+                    context.restore();
+
+                    context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    context.fillText(text, n.x, y);
+                } else {
+                    context.fillText(text, n.x, y);
+                }
+            }
+
+            if (n.optional) {
+                try {
+                    const iconScreenSize = 30;
+                    const iconSize = iconScreenSize / this.scale;
+                    const iconX = n.x;
+                    const iconY = firstLineY + lines.length * lineHeight + (iconSize * 0.9);
+
+                    context.save();
+                    let bgColor = '#ffffff';
+                    let strokeColor = labelTextColor;
+                    try {
+                        if (styleDef && styleDef.nodeColors && (styleDef.nodeColors as any).optional) {
+                            bgColor = (styleDef.nodeColors as any).optional.fill || bgColor;
+                            strokeColor = (styleDef.nodeColors as any).optional.stroke || strokeColor;
+                        }
+                    } catch (e) { }
+
+                    context.beginPath();
+                    context.fillStyle = bgColor;
+                    context.strokeStyle = strokeColor;
+                    context.lineWidth = 3 / this.scale;
+                    context.arc(iconX, iconY, iconSize / 2, 0, Math.PI * 2);
+                    context.fill();
+                    context.stroke();
+
+                    let textColor = '#fff';
+                    try {
+                        const parsed = parseCSSColor(bgColor);
+                        if (parsed) {
+                            const lum = (0.299 * parsed.r + 0.587 * parsed.g + 0.114 * parsed.b) / 255;
+                            textColor = lum > 0.55 ? '#111' : '#fff';
+                        }
+                    } catch (e) { }
+
+                    context.fillStyle = textColor;
+                    context.font = `${Math.max(18 / this.scale, 14 / this.scale)}px sans-serif`;
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    context.fillText('?', iconX, iconY + (1 / this.scale));
+                    context.restore();
+                } catch (e) { }
+            }
+
+            if (fileName) {
+                context.font = `${12 / this.scale}px sans-serif`;
+
+                if (isGamifiedUnavailable) {
+                    context.save();
+                    context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                    context.shadowBlur = 2 / this.scale;
+                    context.shadowOffsetX = 1 / this.scale;
+                    context.shadowOffsetY = 1 / this.scale;
+                    context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    const y = firstLineY + lines.length * lineHeight;
+                    context.fillText(fileName, n.x, y);
+                    context.restore();
+
+                    context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    context.fillText(fileName, n.x, y);
+
+                    if (isUnlinked) {
+                        const unlinkedY = y + lineHeight;
+                        context.save();
+                        context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                        context.shadowBlur = 2 / this.scale;
+                        context.shadowOffsetX = 1 / this.scale;
+                        context.shadowOffsetY = 1 / this.scale;
+                        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                        context.fillText('[unlinked]', n.x, unlinkedY);
+                        context.restore();
+                        context.fillStyle = 'rgba(255, 180, 100, 0.9)';
+                        context.fillText('[unlinked]', n.x, unlinkedY);
+                    }
+                } else {
+                    context.fillStyle = labelTextColor;
+                    const y = firstLineY + lines.length * lineHeight;
+                    context.fillText(fileName, n.x, y);
+
+                    if (isUnlinked) {
+                        const unlinkedY = y + lineHeight;
+                        context.fillStyle = '#e67e22';
+                        context.fillText('[unlinked]', n.x, unlinkedY);
+                    }
+                }
+
+                context.font = `${14 / this.scale}px sans-serif`;
+            }
+
+            if (showTaskHint) {
+                try {
+                    let hint = 'Incomplete Tasks.';
+                    let baseFontSize = 11 / this.scale;
+                    const minFontSize = 8 / this.scale;
+                    context.font = `${baseFontSize}px sans-serif`;
+
+                    const maxWidth = Math.max((r * 2) - (12 / this.scale), 40 / this.scale);
+                    let measured = context.measureText(hint).width;
+
+                    while (measured > maxWidth && baseFontSize > minFontSize) {
+                        baseFontSize = Math.max(minFontSize, baseFontSize - 0.5 / this.scale);
+                        context.font = `${baseFontSize}px sans-serif`;
+                        measured = context.measureText(hint).width;
+                    }
+
+                    if (measured > maxWidth) {
+                        const avgChar = measured / hint.length;
+                        const maxChars = Math.max(3, Math.floor(maxWidth / avgChar) - 1);
+                        hint = hint.slice(0, maxChars) + '…';
+                        measured = context.measureText(hint).width;
+                    }
+
+                    const padX = 8 / this.scale;
+                    const padY = 4 / this.scale;
+                    const btnW = measured + padX * 2;
+                    const btnH = baseFontSize + padY * 2;
+                    const btnX = n.x - btnW / 2;
+                    const btnY = firstLineY + lines.length * lineHeight + (fileName ? lineHeight : 0) + (6 / this.scale);
+
+                    const accent = this._cachedThemeColors?.accent || '#2f7ae0';
+
+                    const radius = Math.min(btnH / 2, 6 / this.scale);
+                    context.beginPath();
+                    context.moveTo(btnX + radius, btnY);
+                    context.lineTo(btnX + btnW - radius, btnY);
+                    context.arcTo(btnX + btnW, btnY, btnX + btnW, btnY + radius, radius);
+                    context.lineTo(btnX + btnW, btnY + btnH - radius);
+                    context.arcTo(btnX + btnW, btnY + btnH, btnX + btnW - radius, btnY + btnH, radius);
+                    context.lineTo(btnX + radius, btnY + btnH);
+                    context.arcTo(btnX, btnY + btnH, btnX, btnY + btnH - radius, radius);
+                    context.lineTo(btnX, btnY + radius);
+                    context.arcTo(btnX, btnY, btnX + radius, btnY, radius);
+                    context.closePath();
+
+                    context.fillStyle = accent;
+                    context.globalAlpha = 0.95;
+                    context.fill();
+                    context.globalAlpha = 1.0;
+
+                    context.strokeStyle = 'rgba(0,0,0,0.12)';
+                    context.lineWidth = 1 / this.scale;
+                    context.stroke();
+
+                    context.fillStyle = '#fff';
+                    context.textBaseline = 'middle';
+                    const textX = n.x;
+                    const textY = btnY + btnH / 2;
+                    context.fillText(hint, textX, textY);
+
+                    context.fillStyle = labelTextColor;
+                    context.textBaseline = 'alphabetic';
+                } catch (e) { }
+            }
+
+            if (n.checkpoint) {
+                try {
+                    const iconScreenSize = 30;
+                    const iconSize = iconScreenSize / this.scale;
+                    const iconX = n.x;
+                    const iconY = firstLineY + lines.length * lineHeight + (iconSize * 0.9);
+
+                    context.save();
+                    let bgColor = '#ffffff';
+                    let strokeColor = '#000';
+                    try {
+                        if (styleDef && styleDef.nodeColors && (styleDef.nodeColors as any).optional) {
+                            bgColor = (styleDef.nodeColors as any).optional.fill || bgColor;
+                        }
+                    } catch (e) { }
+
+                    context.beginPath();
+                    context.fillStyle = bgColor;
+                    context.strokeStyle = strokeColor;
+                    context.lineWidth = 3 / this.scale;
+                    context.arc(iconX, iconY, iconSize / 2, 0, Math.PI * 2);
+                    context.fill();
+                    context.stroke();
+
+                    const flagTextColor = '#111';
+
+                    context.fillStyle = flagTextColor;
+                    context.font = `${Math.max(18 / this.scale, 14 / this.scale)}px sans-serif`;
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    context.fillText('🚩', iconX, iconY + (1 / this.scale));
+                    context.restore();
+                } catch (e) { }
+            }
+
+            context.shadowBlur = 0;
+            context.shadowOffsetX = 0;
+            context.shadowOffsetY = 0;
+
+            const actualState = n.state || 'in-progress';
+            const nodeTasks = this._tasksCache.get(n.id) || [];
+            const hasTasks = nodeTasks.length > 0;
+
+            let textBottomY = firstLineY + (lines.length - 1) * lineHeight;
+            if (fileName) textBottomY += lineHeight;
+            if (isUnlinked) textBottomY += lineHeight;
+
+            const isManualCompletionNode = n.optional || n.checkpoint || n.treeLink;
+
+            if ((actualState === 'in-progress' || actualState === 'complete') && !hasTasks && !isManualCompletionNode) {
+                const minScreenSize = 14;
+                const maxScreenSize = 24;
+                const baseScreenSize = Math.min(maxScreenSize, Math.max(minScreenSize, r * 0.25));
+                const checkboxSize = baseScreenSize / this.scale;
+
+                const nodeBottomEdge = n.y + r * 0.9;
+                let checkboxY = textBottomY + 6 / this.scale;
+
+                const checkboxBottomY = checkboxY + checkboxSize;
+                if (checkboxBottomY > nodeBottomEdge) {
+                    checkboxY = nodeBottomEdge - checkboxSize;
+                }
+
+                const checkboxX = n.x - checkboxSize / 2;
+
+                context.strokeStyle = '#333';
+                context.lineWidth = 2 / this.scale;
+                context.beginPath();
+                const checkboxRadius = checkboxSize * 0.15;
+                context.moveTo(checkboxX + checkboxRadius, checkboxY);
+                context.lineTo(checkboxX + checkboxSize - checkboxRadius, checkboxY);
+                context.arcTo(checkboxX + checkboxSize, checkboxY, checkboxX + checkboxSize, checkboxY + checkboxRadius, checkboxRadius);
+                context.lineTo(checkboxX + checkboxSize, checkboxY + checkboxSize - checkboxRadius);
+                context.arcTo(checkboxX + checkboxSize, checkboxY + checkboxSize, checkboxX + checkboxSize - checkboxRadius, checkboxY + checkboxSize, checkboxRadius);
+                context.lineTo(checkboxX + checkboxRadius, checkboxY + checkboxSize);
+                context.arcTo(checkboxX, checkboxY + checkboxSize, checkboxX, checkboxY + checkboxSize - checkboxRadius, checkboxRadius);
+                context.lineTo(checkboxX, checkboxY + checkboxRadius);
+                context.arcTo(checkboxX, checkboxY, checkboxX + checkboxRadius, checkboxY, checkboxRadius);
+                context.stroke();
+
+                if (actualState === 'complete') {
+                    context.strokeStyle = '#2e7d32';
+                    context.lineWidth = 2.5 / this.scale;
+                    context.lineCap = 'round';
+                    context.lineJoin = 'round';
+                    context.beginPath();
+                    context.moveTo(checkboxX + checkboxSize * 0.25, checkboxY + checkboxSize * 0.5);
+                    context.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.7);
+                    context.lineTo(checkboxX + checkboxSize * 0.75, checkboxY + checkboxSize * 0.3);
+                    context.stroke();
+                    context.lineCap = 'butt';
+                    context.lineJoin = 'miter';
+                }
+
+                if (actualState === 'complete') {
+                    const iconSize = 18 / this.scale;
+                    const iconX = n.x + r - iconSize - 4 / this.scale;
+                    const iconY = n.y - r + 4 / this.scale;
+
+                    context.save();
+                    context.translate(iconX, iconY);
+                    context.fillStyle = '#4caf50';
+                    context.beginPath();
+                    context.arc(iconSize / 2, iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+                    context.fill();
+                    context.strokeStyle = '#fff';
+                    context.fillStyle = '#fff';
+                    context.lineWidth = 2.5 / this.scale;
+                    context.lineCap = 'round';
+                    context.lineJoin = 'round';
+                    context.beginPath();
+                    context.moveTo(iconSize * 0.25, iconSize * 0.5);
+                    context.lineTo(iconSize * 0.45, iconSize * 0.7);
+                    context.lineTo(iconSize * 0.75, iconSize * 0.3);
+                    context.stroke();
+                    context.restore();
+                }
+            }
+
+            if (editMode || selectedNodeId === n.id) {
+                const used = new Set<string>();
+                for (const ee of this.edges) {
+                    if (ee.from === n.id && ee.fromSide) used.add(ee.fromSide);
+                    if (ee.to === n.id && ee.toSide) used.add(ee.toSide);
+                }
+                const hs = 18 / this.scale;
+                context.strokeStyle = '#2563eb';
+                context.lineWidth = 2.5 / this.scale;
+                context.fillStyle = '#ffffff';
+                if (!used.has('top')) { context.beginPath(); context.arc(n.x, n.y - r, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+                if (!used.has('right')) { context.beginPath(); context.arc(n.x + r, n.y, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+                if (!used.has('bottom')) { context.beginPath(); context.arc(n.x, n.y + r, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+                if (!used.has('left')) { context.beginPath(); context.arc(n.x - r, n.y, hs / 2, 0, Math.PI * 2); context.fill(); context.stroke(); }
+            }
+        }
+    }
 }
