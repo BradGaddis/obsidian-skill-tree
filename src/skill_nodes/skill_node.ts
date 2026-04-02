@@ -101,7 +101,7 @@ export class SkillNode implements ISkillNode {
         }
 
         if (nodeType !== 'root' && this.children.length > 0) {
-            // TODO
+            // TODO:
             // const allNonOptionalComplete = this.children.every(c => c.optional || c.state === 'complete');
             // if (allNonOptionalComplete && this.state === 'unavailable') {
             //     this.state = 'in-progress';
@@ -188,6 +188,7 @@ export class SkillNode implements ISkillNode {
     }
 
     static fromJSON(data: any): SkillNode {
+
         return new SkillNode(data)
     }
 

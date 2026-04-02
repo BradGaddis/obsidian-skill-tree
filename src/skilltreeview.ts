@@ -7,7 +7,7 @@ import { SkillTreeSettings } from "./main";
 import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SkillNode } from './skill_nodes/skill_node'
 import { InitRecorder, RecordSnapshot, SaveNodes, Undo } from "./recorder";
-import { InitRenderer, Render, UpdateToolbarUI } from "./renderer";
+import { InitRenderer, Recenter, Render, UpdateToolbarUI } from "./renderer";
 import { InitTreeManager, UpdateTreeSelector, GetNodes, GetEdges } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
@@ -25,10 +25,10 @@ export class SkillTreeView extends ItemView {
     scale = 1;
     // graph: Graph = new Graph();
     plugin: SkillTreePlugin;
-    _modeToggleButton: HTMLButtonElement | null = null;
-    _goToLinkedBtn: HTMLButtonElement | null = null;
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
+
+    // TODO: implement
     _fileWatchers: Map<string, () => void> = new Map();
     _tasksCache: Map<string, any[]> = new Map();
     selectedNodeId: string | null = null;
@@ -51,7 +51,7 @@ export class SkillTreeView extends ItemView {
     }
 
 
-    async onOpen(): Promise<void> {
+    protected async onOpen(): Promise<void> {
         InitRecorder(this)
         await InitTreeManager(this) // this must be called before InitToolBar
         InitToolBar(this)
@@ -62,20 +62,13 @@ export class SkillTreeView extends ItemView {
         InitRenderer(this)
 
         await this.loadSettings();
-        const nodes = Array.from(GetNodes().values());
 
-        if (nodes.length > 0) {
-            // Calculate center of all nodes
-            const xs = nodes.map(n => n.x);
-            const ys = nodes.map(n => n.y);
-            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+        Recenter()
 
-            // Offset to center (assuming canvas is ~800px wide)
-            this.offset = { x: 400 - centerX, y: 300 - centerY };
-        }
+    }
 
-        Render();
+    protected async onClose(): Promise<void> {
+        this.resizeObserver?.disconnect()
     }
 
     async loadSettings() {
@@ -107,6 +100,7 @@ export class SkillTreeView extends ItemView {
         Render();
     }
 
+    // TODO move into tree manager
     addNodeAt(x: number, y: number, extras?: Record<string, any>) /*: SkillNode */ {
         // Find a non-overlapping position for the new node
         //     const newPos = this.findNonOverlappingPositionForNewNode(x, y);
@@ -135,6 +129,7 @@ export class SkillTreeView extends ItemView {
         // }
     }
 
+    //TODO move into Modal(manager?)
     closeAllModals() {
         // Remove any modal elements from the container or the document body
         try {
@@ -159,7 +154,7 @@ export class SkillTreeView extends ItemView {
         }
     }
 
-
+    // TODO does this make sense  to be here?
     isTasksPluginInstalled(): boolean {
         try {
             const tasksPlugin = (this.app as any).plugins?.plugins?.['obsidian-tasks-plugin'];

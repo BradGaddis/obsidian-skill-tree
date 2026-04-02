@@ -1,4 +1,4 @@
-// TODO refactor view nightmare
+// TODO: refactor view nightmare
 import { SkillTreeView } from "./skilltreeview";
 
 let view: SkillTreeView

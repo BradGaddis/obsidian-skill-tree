@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { NodeShape } from "./skill_nodes/types";
+import { NodeShape, NodeState } from "./skill_nodes/types";
 import { OptionalNode } from "./skill_nodes/optional_node";
 
 
@@ -23,11 +23,27 @@ let rightWorld: number = 0
 let topWorld: number = 0
 let bottomWorld: number = 0
 let cullMargin: number = 0
+let canvasWidth: number = 0
+let canvasHeight: number = 0
+let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
+// TODO Make it an adjustable setting
+const fontSize = 16
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
     view = skillTreeView
     SetupCanvas()
+    const canvas = view.canvas;
+    if (!canvas) return
+    view.resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+            const { width, height } = entry.contentRect;
+            canvas.width = Math.round(width * dpr);
+            canvas.height = Math.round(height * dpr);
+            Render();
+        }
+    });
+    view.resizeObserver.observe(canvas);
 }
 
 function SetupCanvas() {
@@ -78,6 +94,24 @@ export function UpdateToolbarUI(): void {
     };
 }
 
+// TODO factor in world origin, update all of the node coordinates
+export function Recenter() {
+    const nodes = Array.from(GetNodes().values());
+    canvasWidth = (view.canvas?.width || 0) / dpr
+    canvasHeight = (view.canvas?.height || 0) / dpr
+    console.log("canvas dims ", canvasWidth, canvasHeight)
+    if (nodes.length > 0) {
+        // Calculate center of all nodes
+        const xs = nodes.map(n => n.x);
+        const ys = nodes.map(n => n.y);
+        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+        // Offset to center (assuming canvas is ~800px wide)
+        view.offset = { x: canvasWidth / 2 - centerX, y: canvasHeight / 2 - centerY };
+    }
+    Render();
+}
+
 export function Render(): void {
     if (!view.context || !view.canvas) return;
     const context = view.context;
@@ -103,11 +137,18 @@ export function Render(): void {
 
     nodeRadius = view.settings.nodeRadius || 36;
 
-    const nodeMap = GetNodes()
+    const nodes = GetNodes()
 
-    RenderEdgeLines(nodeMap)
 
-    RenderNodes(nodeMap)
+    styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
+
+    allNodeRadii = new Map(
+        [...nodes.values()].map(n => [n.id, nodeRadii[n.id] || nodeRadius])
+    );
+
+    RenderNodes(nodes)
+
+    RenderEdgeLines(nodes)
 
     context.restore();
 }
@@ -145,20 +186,18 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
     const edgeLineWidth = 24 / Math.max(0.3, view.scale);
     const nodes = GetNodes()
 
-    allNodeRadii = new Map(
-        [...nodes.values()].map(n => [n.id, nodeRadii[n.id] || nodeRadius])
-    );
 
-    const selectedStyle: string = view.settings.style
 
-    const styleDef = SKILL_TREE_STYLES[selectedStyle as keyof typeof SKILL_TREE_STYLES];
 
-    const defaultShape = styleDef?.nodeShape || 'circle';
 
     const context = view.context
     if (!context) {
         return;
     }
+
+    console.log(`
+                Node ID's:
+                ${Array.from(nodes.values()).map(n => n.id)}`)
 
     for (const e of GetEdges()) {
         console.log(e)
@@ -166,9 +205,17 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
             continue;
         }
 
-        const a = nodeMap.get(e.from) || null;
+        const a = nodeMap.get(String(e.from)) || null;
+        console.log(a)
         const b = nodeMap.get(e.to) || null;
-        if (!a || !b) continue;
+        console.log(b)
+
+        if (!a || !b) {
+            console.log("no connections found | TODO clear to's and from's | ID mismatchs likely")
+            continue;
+        }
+
+        console.log("found node from edge")
 
         const rFrom = allNodeRadii.get(a.id) as number;
         const rTo = allNodeRadii.get(b.id) as number;
@@ -207,19 +254,22 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
         context.save();
 
         let edgeColor: string;
-        let edgeGlow = false;
-        const edgeStyle = styleDef?.edgeStyle || 'straight';
 
-        edgeGlow = false;
-        const isGamified = selectedStyle === 'gamified';
+        // TODO refactor and remove view non-sense
+        // let edgeGlow = false;
+        // const edgeStyle = styleDef?.edgeStyle || 'straight';
 
-        const showBezier = view.settings.showBezier;
-        const useBezier = isGamified || showBezier;
+        // edgeGlow = false;
 
-        const nodeStateColorKeys = new Map<string | number, string>();
+        // const isGamified = true //selectedStyle === 'gamified';
 
-        const aState = a.state || 'in-progress';
-        const bState = b.state || 'in-progress';
+        // const showBezier = view.settings.showBezier;
+        // const useBezier = isGamified || showBezier;
+
+        // const nodeStateColorKeys = new Map<string | number, string>();
+
+        // const aState = a.state || 'in-progress';
+        // const bState = b.state || 'in-progress';
 
         if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
             edgeColor = styleDef.edgeColor;
@@ -248,17 +298,17 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
     }
 }
 
-// TODO implement culling. Not a problem while debugging very small trees
+// TODO check culling. Not a problem while debugging very small trees
 function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
     const context = view.context
     if (!context) return
-    console.log("context exists")
+
     const allNodes = Array.from(nodeMap.values())
-    const visibleNodes = allNodes//.filter(n => {
-    //     const r = nodeRadii[n.id] || nodeRadius
-    //     return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
-    //         n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
-    // })
+    const visibleNodes = allNodes.filter(n => {
+        const r = nodeRadii[n.id] || nodeRadius
+        return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
+            n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
+    })
 
     console.log(`visibleNodes: ${visibleNodes}`)
 
@@ -267,98 +317,21 @@ function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
 
 
     for (const n of visibleNodes) {
-
-        console.log(`${n.x} ${n.y}`)
-        context.beginPath();
-        const nodeState = n.state
-        if (nodeState === 'complete') {
-            console.log("is complete?")
-            if (styleDef && styleDef.nodeColors) {
-                context.fillStyle = styleDef.nodeColors.complete.fill;
-                context.strokeStyle = styleDef.nodeColors.complete.stroke;
-            } else {
-                context.fillStyle = '#FFD700';
-                context.strokeStyle = '#b8860b';
-            }
-        }
-        else if (nodeState === 'on-hold') {
-            if (styleDef && styleDef.nodeColors && styleDef.nodeColors.onHold) {
-                context.fillStyle = styleDef.nodeColors.onHold.fill;
-                context.strokeStyle = styleDef.nodeColors.onHold.stroke;
-            } else {
-                context.fillStyle = '#ff6b6b';
-                context.strokeStyle = '#c92a2a';
-            }
-        } else if (nodeState === 'unavailable') {
-            if (styleDef && styleDef.nodeColors) {
-                context.fillStyle = styleDef.nodeColors.unavailable.fill;
-                context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
-            } else {
-                // context.fillStyle = this._unavailableNodeColors!.fill;
-                // context.strokeStyle = this._unavailableNodeColors!.stroke;
-            }
-        }
-
-        const r = allNodeRadii.get(n.id) as number;
-        const defaultShape = styleDef?.nodeShape || 'circle';
-        // TODO validate magic number is correct
-        context.lineWidth = 4 / view.scale;
-
         const validShapes = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
-        // const effectiveShape = (n.shape && validShapes.includes(n.shape)) ? n.shape : defaultShape;
+        const r = allNodeRadii.get(n.id) as number;
 
+        FillNodeState(n);
+
+        // TODO refactor path and stroke into the draw
         context.beginPath();
         drawNodeShape(context, n.x, n.y, r, n.shape);
         context.fill();
-
         context.stroke();
 
-        context.textAlign = 'center';
-        context.font = `${14 / view.scale}px sans-serif`;
-        let labelTextColor// = cachedTextColor;
-        labelTextColor = '#000';
-        let lines: string[] = [];
-
-        // if (n.optional) {
-        //     lines = ['Optional Path'];
-        // } else if (n.treeLink) {
-        //     lines = ['Tree Link', n.treeLink];
-        // } else {
-        //     const exp = n.exp !== undefined ? n.exp : 0;
-        //     const words = (this.getNodeDisplayLabel(n) || '').split(/\s+/).filter(Boolean);
-        //     for (let i = 0; i < words.length; i += 4) {
-        //         lines.push(words.slice(i, i + 4).join(' '));
-        //     }
-        //     if (lines.length === 0) lines.push('');
-        //     if (exp > 0 || showExpAsFraction) {
-        //         lines[lines.length - 1] = `${lines[lines.length - 1]}`.trim();
-        //     }
-        // }
-        //
-        let fileName = n.fileLink
-        let isUnlinked = false;
-
-        if (!n.fileLink) {
-            fileName = 'Right click to add note';
-            isUnlinked = true;
-        }
-        const lineHeight = 16 / view.scale;
-        const totalLines = lines.length + (fileName ? 1 : 0) + (isUnlinked ? 1 : 0);
-        let firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
-
-        // const taskListForHint = this._tasksCache.get(n.id) || [];
-        // const incompleteCount = taskListForHint.filter((t: any) => !t.completed).length;
-        // const hintHasTasks = taskListForHint.length > 0;
-        // let showTaskHint = hintHasTasks && incompleteCount > 0;
-        // if (n.optional || n.checkpoint) showTaskHint = false;
-        // if (showTaskHint) {
-        //     firstLineY -= (lineHeight * 0.35);
-        // }
-
-        if (n instanceof OptionalNode) {
-            const iconScreenSize = 30;
-            const iconSize = iconScreenSize / view.scale;
-        }
+        // TODO fix this logic to determine if a file is ACTUALLY linked
+        let isUnlinked: boolean = n.fileLink == '';
+        const lines = SetupLabelLines(n, isUnlinked)
+        RenderNodeLabel(n, lines, isUnlinked)
     }
 }
 
@@ -369,7 +342,6 @@ function drawNodeShape(
     radius: number,
     shape: NodeShape
 ): void {
-    console.log("drawing it working?")
     switch (shape) {
         case 'hexagon':
             drawHexagon(ctx, x, y, radius);
@@ -441,3 +413,84 @@ export function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, ra
     }
     ctx.closePath();
 }
+
+function FillNodeState(n: SkillNode) {
+
+    const context = view.context
+    if (!context || !styleDef) return
+
+    const nodeState = n.state
+    // TODO handle extra-type cases
+    switch (nodeState) {
+        case "complete":
+            context.fillStyle = styleDef.nodeColors.complete.fill;
+            context.strokeStyle = styleDef.nodeColors.complete.stroke;
+            break;
+        case "in-progress":
+            context.fillStyle = styleDef.nodeColors.inProgress.fill;
+            context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+            break;
+        case "on-hold":
+            context.fillStyle = styleDef.nodeColors.onHold.fill;
+            context.strokeStyle = styleDef.nodeColors.onHold.stroke;
+            break;
+        default:
+            context.fillStyle = styleDef.nodeColors.unavailable.fill;
+            context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
+            break;
+    }
+
+}
+
+function SetupLabelLines(n: SkillNode, isUnlinked: boolean): string[] {
+    const context = view.context
+    if (!context) return []
+
+    // TODO test this when I can actuall add a link again
+    let label = isUnlinked ? n.fileLink : n.fileLink || '' + ' [Unlinked]';
+
+
+
+    let lines: string[] = [];
+    const words = (label || '').split(/\s+/).filter(Boolean);
+
+    for (let i = 0; i < words.length; i += 4) {
+        lines.push(words.slice(i, i + 4).join(' '));
+    }
+    return lines
+}
+
+function RenderNodeLabel(n: SkillNode, lines: string[], isUnlinked: boolean) {
+    const context = view.context
+    if (!context) return
+
+
+    const lineHeight = fontSize / view.scale;
+    const totalLines = lines.length + (isUnlinked ? 1 : 0);
+
+    // The lines starts drawing here
+    let firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
+
+    for (let i = 0; i < lines.length; i++) {
+        const text = lines[i];
+        const y = firstLineY + i * lineHeight;
+
+        context.save();
+        context.font = `${fontSize / view.scale}px sans-serif`;
+        context.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        context.shadowBlur = 2 / view.scale;
+        context.shadowOffsetX = 1 / view.scale;
+        context.shadowOffsetY = 1 / view.scale;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        // context.fillText(text, n.x, n.y);
+        // context.restore();
+
+
+        context.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        context.fillText(text, n.x, y);
+    }
+
+    context.textAlign = 'center';
+}
+

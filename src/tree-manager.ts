@@ -251,9 +251,10 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
         if (!node) {
             return
         }
-        if (!node.id) {
-            node.id = crypto.randomUUID()
-        }
+        // TODO implement
+        // if (!node.id) {
+        //     node.id = crypto.randomUUID()
+        // }
         nodes.set(node.id, node);
         console.dir(`${node} loaded to map`)
     }
