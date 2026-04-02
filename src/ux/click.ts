@@ -1,8 +1,12 @@
 import { Render, CenterOnNode } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt } from "../tree-manager";
+import { SkillNode } from "src/skill_nodes/skill_node";
 
 let view: SkillTreeView;
+
+// prevents node from opening on first click
+let nodeWasSelected: SkillNode | null
 
 // Need to handle node radii - maybe pass from renderer or recalculate
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
@@ -18,14 +22,19 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         // Hit detection - check if click is on any node
         const hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
-        if (hitNode) {
-            SetSelectedNodeID(hitNode.id)
-            CenterOnNode(hitNode)
-        } else {
+        if (!hitNode) {
             SetSelectedNodeID(null)
+            return
         }
 
-        Render();
+        if (nodeWasSelected?.id === hitNode.id) {
+            // Open Stats Modal
+        }
+
+        SetSelectedNodeID(hitNode.id)
+        nodeWasSelected = hitNode
+
+        CenterOnNode(hitNode)
     };
     canvas.addEventListener('click', onClick);
     return {
