@@ -2,22 +2,23 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodes } from "./tree-manager";
+import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { NodeShape, NodeState } from "./skill_nodes/types";
 import { OptionalNode } from "./skill_nodes/optional_node";
+import { Coordinate } from "./types";
 
 
 let view: SkillTreeView
 const dpr = window.devicePixelRatio || 1;
 
-let nodeRadius: number = 36
-let nodeRadii: Record<string | number, number> = {}
+export let nodeRadius: number
+export let nodeRadii: Record<string | number, number> = {}
 let allNodeRadii: Map<string | number, number> = new Map()
 
-let clientW: number = 0
-let clientH: number = 0
+// let clientW: number = 0
+// let clientH: number = 0
 let leftWorld: number = 0
 let rightWorld: number = 0
 let topWorld: number = 0
@@ -25,6 +26,8 @@ let bottomWorld: number = 0
 let cullMargin: number = 0
 let canvasWidth: number = 0
 let canvasHeight: number = 0
+let worldCoordinates: Coordinate
+
 let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
 // TODO: Make it an adjustable setting
@@ -32,6 +35,7 @@ const fontSize = 16
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
     view = skillTreeView
+    nodeRadius = view.settings.nodeRadius
     SetupCanvas()
     const canvas = view.canvas;
     if (!canvas) return
@@ -99,7 +103,6 @@ export function Recenter() {
     const nodes = Array.from(GetNodes().values());
     canvasWidth = (view.canvas?.width || 0) / dpr
     canvasHeight = (view.canvas?.height || 0) / dpr
-    console.log("canvas dims ", canvasWidth, canvasHeight)
     if (nodes.length > 0) {
         // Calculate center of all nodes
         const xs = nodes.map(n => n.x);
@@ -117,6 +120,7 @@ export function Render(): void {
     const context = view.context;
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, view.canvas.width, view.canvas.height);
+
     RenderWarningBanner();
 
     context.save();
@@ -137,7 +141,7 @@ export function Render(): void {
     bottomWorld = (clientH - view.offset.y) / view.scale;
     cullMargin = 120 / view.scale;
 
-    nodeRadius = view.settings.nodeRadius || 36;
+    nodeRadius = view.settings.nodeRadius
 
     const nodes = GetNodes()
 
@@ -196,10 +200,6 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
     if (!context) {
         return;
     }
-
-    console.log(`
-                Node ID's:
-                ${Array.from(nodes.values()).map(n => n.id)}`)
 
     for (const e of GetEdges()) {
         console.log(e)
@@ -312,29 +312,52 @@ function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
             n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
     })
 
-    console.log(`visibleNodes: ${visibleNodes}`)
 
     const selectedStyle = view.settings.style || 'default'
     const styleDef = SKILL_TREE_STYLES[selectedStyle as keyof typeof SKILL_TREE_STYLES]
 
 
     for (const n of visibleNodes) {
-        const validShapes = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
         const r = allNodeRadii.get(n.id) as number;
 
-        FillNodeState(n);
-
-        // TODO: refactor path and stroke into the draw
-        context.beginPath();
-        drawNodeShape(context, n.x, n.y, r, n.shape);
-        context.fill();
-        context.stroke();
+        DrawNode(n, r);
 
         // TODO: fix this logic to determine if a file is ACTUALLY linked
         let isUnlinked: boolean = n.fileLink == '';
         const lines = SetupLabelLines(n, isUnlinked)
         RenderNodeLabel(n, lines, isUnlinked)
     }
+}
+
+function DrawNode(node: SkillNode, radius: number) {
+
+    const context = view.context
+    if (!context) return
+
+    FillNodeState(node);
+    context.beginPath();
+    drawNodeShape(context, node.x, node.y, radius, node.shape);
+    DrawSelectedNode(node)
+    context.fill();
+    context.stroke();
+}
+
+function DrawSelectedNode(node: SkillNode) {
+    const context = view.context
+    if (!context) return
+
+    if (GetSelectedNodeId() === node.id) {
+        // TODO: fill out with specific states | add settings so users can change
+        switch (node.state) {
+            case "complete":
+            case "in-progress":
+            case "on-hold":
+            default:
+                context.strokeStyle = 'rgba(255,165,0,0.95)';
+                break;
+        }
+    }
+
 }
 
 function drawNodeShape(
@@ -344,6 +367,7 @@ function drawNodeShape(
     radius: number,
     shape: NodeShape
 ): void {
+    radius = radius <= nodeRadius ? nodeRadius + 30 : radius
     switch (shape) {
         case 'hexagon':
             drawHexagon(ctx, x, y, radius);
@@ -496,3 +520,14 @@ function RenderNodeLabel(n: SkillNode, lines: string[], isUnlinked: boolean) {
     context.textAlign = 'center';
 }
 
+export function CenterOnNode(node: SkillNode) {
+    if (!view.canvas) return;
+    const canvasWidth = view.canvas.width / dpr;
+    const canvasHeight = view.canvas.height / dpr;
+
+    // Calculate offset to center the node
+    view.offset.x = canvasWidth / 2 - node.x * view.scale;
+    view.offset.y = canvasHeight / 2 - node.y * view.scale;
+
+    Render();
+}

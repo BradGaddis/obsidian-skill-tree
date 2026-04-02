@@ -16,23 +16,27 @@ import { InitJSONEditor } from "./json_editor";
 
 import { modeToggleBtn } from "./toolbar";
 import { InitPanHandler } from "./ux/panning";
+import { InitZoomHandler } from "./ux/zoom";
+import { InitClickHandler } from "./ux/click";
 
 export class SkillTreeView extends ItemView {
     private panCleanup: (() => void) | null = null;
+    private zoomCleanup: (() => void) | null = null;
+    private clickCleanup: (() => void) | null = null;
+
+    private _scale: number = 1
+    get scale(): number { return this._scale }
+    set scale(val: number) { this._scale = val <= 1 ? 1 : val }
+    offset: Coordinate = { x: 0, y: 0 };
+
     canvas: HTMLCanvasElement | null = null;
     context: CanvasRenderingContext2D | null = null;
     canvasWrap: HTMLDivElement | null = null;
     resizeObserver: ResizeObserver | null = null;
-    offset: Coordinate = { x: 0, y: 0 };
-    private _scale: number = 1
 
-    get scale(): number {
-        return this._scale
-    }
-    set scale(val: number) {
-        this._scale = val <= 1 ? 1 : val
-    }
     plugin: SkillTreePlugin;
+    get settings(): SkillTreeSettings { return this.plugin.settings; }
+
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
 
@@ -41,9 +45,6 @@ export class SkillTreeView extends ItemView {
     _tasksCache: Map<string, any[]> = new Map();
     selectedNodeId: string | null = null;
 
-    get settings(): SkillTreeSettings {
-        return this.plugin.settings;
-    }
 
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
@@ -52,6 +53,10 @@ export class SkillTreeView extends ItemView {
         plugin: SkillTreePlugin) {
         super(leaf);
         this.plugin = plugin;
+    }
+
+    worldToScreen(wx: number, wy: number) {
+        return { x: wx * this.scale + this.offset.x, y: wy * this.scale + this.offset.y };
     }
 
     screenToWorld(sx: number, sy: number) {
@@ -66,22 +71,24 @@ export class SkillTreeView extends ItemView {
         InitDialog(this)
         InitSkillModal(this)
         InitJSONEditor(this)
-
         InitRenderer(this)
-
         Recenter()
-
         this.panCleanup = InitPanHandler(this, {
             shouldStartPan: (worldCoordinate) => { return true; }
         }).cleanup;
+        this.zoomCleanup = InitZoomHandler(this, {
+            minScale: 0.3,
+            maxScale: 3
+        }).cleanup;
+        this.clickCleanup = InitClickHandler(this).cleanup
 
         await this.loadSettings();
-
-
     }
 
     protected async onClose(): Promise<void> {
         this.panCleanup?.();
+        this.zoomCleanup?.();
+        this.clickCleanup?.();
         this.resizeObserver?.disconnect();
     }
 
@@ -112,35 +119,6 @@ export class SkillTreeView extends ItemView {
         await this.plugin.saveSettings();
         UpdateToolbarUI();
         Render();
-    }
-
-    // TODO: move into tree manager
-    addNodeAt(x: number, y: number, extras?: Record<string, any>) /*: SkillNode */ {
-        // Find a non-overlapping position for the new node
-        //     const newPos = this.findNonOverlappingPositionForNewNode(x, y);
-        //
-        //     // Get default shape based on current style
-        //     const selectedStyle = this.settings.style || 'default';
-        //     const styleDef = SKILL_TREE_STYLES[selectedStyle];
-        //     let defaultShape = styleDef?.nodeShape || 'circle';
-        //     // Filter out 'star' as it's not a valid node shape (only style shape)
-        //     if (defaultShape === 'star') {
-        //         defaultShape = 'circle';
-        //     }
-        //
-        //     return this.graph.addNode({
-        //         id: Date.now() + Math.random(),
-        //         x: newPos.x,
-        //         y: newPos.y,
-        //         state: 'unavailable',
-        //         exp: 10,
-        //         optional: false,
-        //         checkpoint: false,
-        //         treeLink: null,
-        //         shape: defaultShape as 'circle' | 'square' | 'hexagon' | 'diamond',
-        //         ...extras,
-        //     });
-        // }
     }
 
     // TODO: move into Modal(manager?)

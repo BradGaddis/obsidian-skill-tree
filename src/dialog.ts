@@ -185,7 +185,6 @@ export function ShowNewTreeDialog(): Promise<string | null> {
 
 
 export function OpenAddNodeDialog() {
-    console.log("TODO");
     //     const container = view.canvasWrap || view.containerEl;
     //     if (!container) return;
     //

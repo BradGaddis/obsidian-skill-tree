@@ -1,5 +1,6 @@
 import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SaveNodes } from "./recorder";
+import { nodeRadii, nodeRadius as defaultRadius } from "src/renderer";
 import { CheckpointNode } from "./skill_nodes/checkpoint_node";
 import { OptionalNode } from "./skill_nodes/optional_node";
 import { RepeatingNode } from "./skill_nodes/repeating_node";
@@ -10,12 +11,14 @@ import { SkillTreeView } from "./skilltreeview";
 
 
 // TODO: Try exporting nodes as a uniform `SkillNode`
-// TODO: refactor | cleanup
 
 let view: SkillTreeView
 let currentTree: SkillTreeData
+
 let nodes: Map<string | number, SkillNode> = new Map();
 let edges: SkillEdge[] = [];
+
+let selectedNodeId: string | null
 
 export function GetNodes(): Map<string | number, SkillNode> {
     return nodes;
@@ -225,11 +228,9 @@ async function LoadNodes() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
     if (currentTree) {
-        console.log(`Loading current tree`)
 
         loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
     } else {
-        console.log("initializing tree")
         // Initialize if tree doesn't exist
         view.settings.trees[view.settings.currentTreeName] = {
             name: view.settings.currentTreeName,
@@ -241,14 +242,11 @@ async function LoadNodes() {
 }
 
 function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
-    console.log(`Node data: ${nodesData}`)
     nodes.clear();
     edges = [...edgesData];
 
     for (const data of nodesData) {
-        console.log(`${data} being converted to JSON`)
         const node = NodeFromJSON(data);
-        console.dir(`${node} loaded from`)
         if (!node) {
             return
         }
@@ -257,7 +255,6 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
         //     node.id = crypto.randomUUID()
         // }
         nodes.set(node.id, node);
-        console.dir(`${node} loaded to map`)
     }
 
     rebuildRelationships();
@@ -265,9 +262,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
 
 
 function NodeFromJSON(data: any): any {
-    console.log(`Attempting to load ${data}`)
     if (data.nodeType) {
-        console.log(data.nodeType)
         switch (data.nodeType) {
             case "BaseNode":
             case "RegularNode": // TODO: remove before release. This is old AI slop version. That refused to listen to me when I said other nodes should inherit
@@ -283,7 +278,7 @@ function NodeFromJSON(data: any): any {
             case 'OptionalNode':
                 return OptionalNode.fromJSON(data);
             default:
-                console.log("missed")
+                console.log("Trying to load a type not accounted for")
         }
     }
 }
@@ -312,4 +307,47 @@ function buildRelationshipsFromEdges(): void {
             parentNode.children.push(childNode);
         }
     }
+}
+export function GetNodeAtWorld(x: number, y: number): SkillNode | null {
+    for (const node of nodes.values()) {
+        const dx = x - node.x;
+        const dy = y - node.y;
+        const radius = nodeRadii[node.id] || view.settings.nodeRadius;
+        if (dx * dx + dy * dy <= radius * radius) {
+            return node;
+        }
+    }
+    return null;
+}
+
+export function GetNodeByID(id: string): SkillNode | null {
+    const node = nodes.get(id);
+    if (!node) return null;
+    return node;
+}
+
+export function SetSelectedNodeID(ID: string | null): void {
+    selectedNodeId = ID
+}
+
+export function GetSelectedNodeId(): string | null {
+    return selectedNodeId;
+}
+
+
+// TODO: limit to visible nodes
+export function FindNodeAt(x: number, y: number): SkillNode | null {
+    const defaultRadius = 36;
+
+    for (const node of nodes.values()) {
+        const dx = x - node.x;
+        const dy = y - node.y;
+        const radius = defaultRadius; // or get from renderer
+        if (dx * dx + dy * dy <= radius * radius) {
+            console.log(`Found node ${node.id}`)
+            return node;
+        }
+    }
+    console.log("No found node on click")
+    return null;
 }
