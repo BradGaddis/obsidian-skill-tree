@@ -248,7 +248,7 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   async switchTree(name: string): Promise<void> {
-    // TODO
+    // TODO:
     // const view = this.getActiveView();
     // if (view && view.switchTree) {
     //   await view.switchTree(name);

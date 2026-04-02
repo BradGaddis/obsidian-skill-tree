@@ -27,7 +27,7 @@ let canvasWidth: number = 0
 let canvasHeight: number = 0
 let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
-// TODO Make it an adjustable setting
+// TODO: Make it an adjustable setting
 const fontSize = 16
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
@@ -94,7 +94,7 @@ export function UpdateToolbarUI(): void {
     };
 }
 
-// TODO factor in world origin, update all of the node coordinates
+// TODO: factor in world origin, update all of the node coordinates
 export function Recenter() {
     const nodes = Array.from(GetNodes().values());
     canvasWidth = (view.canvas?.width || 0) / dpr
@@ -255,7 +255,7 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
 
         let edgeColor: string;
 
-        // TODO refactor and remove view non-sense
+        // TODO: refactor and remove view non-sense
         // let edgeGlow = false;
         // const edgeStyle = styleDef?.edgeStyle || 'straight';
 
@@ -298,7 +298,7 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
     }
 }
 
-// TODO check culling. Not a problem while debugging very small trees
+// TODO: check culling. Not a problem while debugging very small trees
 function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
     const context = view.context
     if (!context) return
@@ -322,13 +322,13 @@ function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
 
         FillNodeState(n);
 
-        // TODO refactor path and stroke into the draw
+        // TODO: refactor path and stroke into the draw
         context.beginPath();
         drawNodeShape(context, n.x, n.y, r, n.shape);
         context.fill();
         context.stroke();
 
-        // TODO fix this logic to determine if a file is ACTUALLY linked
+        // TODO: fix this logic to determine if a file is ACTUALLY linked
         let isUnlinked: boolean = n.fileLink == '';
         const lines = SetupLabelLines(n, isUnlinked)
         RenderNodeLabel(n, lines, isUnlinked)
@@ -420,7 +420,7 @@ function FillNodeState(n: SkillNode) {
     if (!context || !styleDef) return
 
     const nodeState = n.state
-    // TODO handle extra-type cases
+    // TODO: handle extra-type cases
     switch (nodeState) {
         case "complete":
             context.fillStyle = styleDef.nodeColors.complete.fill;
@@ -446,7 +446,7 @@ function SetupLabelLines(n: SkillNode, isUnlinked: boolean): string[] {
     const context = view.context
     if (!context) return []
 
-    // TODO test this when I can actuall add a link again
+    // TODO: test this when I can actuall add a link again
     let label = isUnlinked ? n.fileLink : n.fileLink || '' + ' [Unlinked]';
 
 

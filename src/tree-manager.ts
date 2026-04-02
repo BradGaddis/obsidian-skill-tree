@@ -10,7 +10,7 @@ import { SkillTreeView } from "./skilltreeview";
 
 
 
-// TODO refactor | cleanup
+// TODO: refactor | cleanup
 
 let view: SkillTreeView
 let currentTree: SkillTreeData
@@ -251,7 +251,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
         if (!node) {
             return
         }
-        // TODO implement
+        // TODO: implement
         // if (!node.id) {
         //     node.id = crypto.randomUUID()
         // }
@@ -269,7 +269,7 @@ function NodeFromJSON(data: any): any {
         console.log(data.nodeType)
         switch (data.nodeType) {
             case "BaseNode":
-            case "RegularNode": // TODO remove before release. This is old AI slop version. That refused to listen to me when I said other nodes should inherit
+            case "RegularNode": // TODO: remove before release. This is old AI slop version. That refused to listen to me when I said other nodes should inherit
                 return SkillNode.fromJSON(data)
             case 'CheckpointNode':
                 return CheckpointNode.fromJSON(data);

@@ -1,4 +1,4 @@
-// TODO Refactor the hell out of this... | Cleanup
+// TODO: Refactor the hell out of this... | Cleanup
 
 import { SkillTreeData } from "./interfaces";
 import { RecordSnapshot, SaveNodes, Undo } from "./recorder";
@@ -47,7 +47,7 @@ export async function OpenJsonEditor() {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     `;
 
-    // TODO make a method in the modal class. Maybe define an SkillTreeModal object there?
+    // TODO: make a method in the modal class. Maybe define an SkillTreeModal object there?
     // view.makeModalDraggable(container, 'jsonEditorModal');
 
     const header = container.createDiv({ cls: 'st-json-header' });

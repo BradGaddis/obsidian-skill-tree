@@ -23,7 +23,7 @@ import { RecordSnapshot, SaveNodes } from "./recorder";
 import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor as RefreshJSONEditor } from "./json_editor";
 import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal";
 
-// TODO bulletproof these later
+// TODO: bulletproof these later
 export let modeToggleBtn: HTMLButtonElement
 
 let view: SkillTreeView
@@ -105,7 +105,7 @@ function SetupToolbarButtons(): void {
 
     SetupModeToggleButton();
 
-    // TODO add wrapper for these two buttons after I get the thing working
+    // TODO: add wrapper for these two buttons after I get the thing working
     SetupUndoButton();
     SetupRedoButton();
 
@@ -168,7 +168,7 @@ function SetupAddEmptyButton() {
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
             const worldPos = view.screenToWorld(centerX, centerY);
-            // TODO Refactor into Graph or something?
+            // TODO: Refactor into Graph or something?
             view.addNodeAt(worldPos.x, worldPos.y);
         } else {
             view.addNodeAt(200, 150);
@@ -307,7 +307,7 @@ function SetupEditAsJSONButton() {
     };
 }
 
-// TODO refactor
+// TODO: refactor
 async function SetupDeleteTreeButton() {
     AddEditModeButton('Delete Tree', 'Delete Current Tree')
     GetLastIndex(editModeOnlyButtons).style.color = '#dc3545';
@@ -486,7 +486,7 @@ function SetupFloatingExpandBtn() {
     floatingExpandBtn.onclick = ToggleToolbar
 }
 
-// TODO rename to better name when understanding wtf it was used for
+// TODO: rename to better name when understanding wtf it was used for
 function updateGoToLinkedBtnVisibility(): void {
     if (!goToLinkedBtn) return;
 

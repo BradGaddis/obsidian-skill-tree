@@ -100,7 +100,7 @@ export class SkillTreeView extends ItemView {
         Render();
     }
 
-    // TODO move into tree manager
+    // TODO: move into tree manager
     addNodeAt(x: number, y: number, extras?: Record<string, any>) /*: SkillNode */ {
         // Find a non-overlapping position for the new node
         //     const newPos = this.findNonOverlappingPositionForNewNode(x, y);
@@ -129,7 +129,7 @@ export class SkillTreeView extends ItemView {
         // }
     }
 
-    //TODO move into Modal(manager?)
+    // TODO: move into Modal(manager?)
     closeAllModals() {
         // Remove any modal elements from the container or the document body
         try {
@@ -154,7 +154,7 @@ export class SkillTreeView extends ItemView {
         }
     }
 
-    // TODO does this make sense  to be here?
+    // TODO: does this make sense  to be here?
     isTasksPluginInstalled(): boolean {
         try {
             const tasksPlugin = (this.app as any).plugins?.plugins?.['obsidian-tasks-plugin'];
