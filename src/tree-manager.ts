@@ -224,7 +224,8 @@ async function LoadNodes() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
     if (currentTree) {
-        console.log(`Loading current tree: ${currentTree}`)
+        console.log(`Loading current tree`)
+
         loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
     } else {
         console.log("initializing tree")
@@ -239,11 +240,14 @@ async function LoadNodes() {
 }
 
 function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
+    console.log(`Node data: ${nodesData}`)
     nodes.clear();
     edges = [...edgesData];
 
     for (const data of nodesData) {
+        console.log(`${data} being converted to JSON`)
         const node = NodeFromJSON(data);
+        console.dir(`${node} loaded from`)
         if (!node) {
             return
         }
@@ -251,7 +255,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
             node.id = crypto.randomUUID()
         }
         nodes.set(node.id, node);
-        console.log(`${node} loaded`)
+        console.dir(`${node} loaded to map`)
     }
 
     rebuildRelationships();
@@ -259,8 +263,13 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
 
 
 function NodeFromJSON(data: any): any {
+    console.log(`Attempting to load ${data}`)
     if (data.nodeType) {
+        console.log(data.nodeType)
         switch (data.nodeType) {
+            case "BaseNode":
+            case "RegularNode": // TODO remove before release. This is old AI slop version. That refused to listen to me when I said other nodes should inherit
+                return SkillNode.fromJSON(data)
             case 'CheckpointNode':
                 return CheckpointNode.fromJSON(data);
             case 'TreeLinkNode':
@@ -271,6 +280,8 @@ function NodeFromJSON(data: any): any {
                 return TaskNode.fromJSON(data);
             case 'OptionalNode':
                 return OptionalNode.fromJSON(data);
+            default:
+                console.log("missed")
         }
     }
 }

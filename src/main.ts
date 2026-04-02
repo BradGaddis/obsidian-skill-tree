@@ -24,7 +24,6 @@ export function defaultSettings(): SkillTreeSettings {
     expDisplayMode: 'current',
     showStatusBar: true,
     themes: {},
-    editMode: false,
     suppressNodeTypeWarning: false,
   };
 }
@@ -154,32 +153,18 @@ export default class SkillTreePlugin extends Plugin {
     this.statusBarItem.textContent = 'Skill Tree';
   }
 
-  /**
-   * Called when the plugin is unloaded. Cleans up views.
-   */
   onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_SKILLTREE);
   }
 
-  /**
-   * Loads settings from persistent storage and merges with defaults.
-   */
   async loadSettings() {
     this.settings = Object.assign(defaultSettings(), await this.loadData());
-    // Sync editMode instance variable with settings
-    this.editMode = this.settings.editMode || false;
   }
 
-  /**
-   * Saves current settings to persistent storage.
-   */
   async saveSettings() {
     await this.saveData(this.settings);
   }
 
-  /**
-   * Activates (opens) the Skill Tree view in the workspace.
-   */
   async activateView() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_SKILLTREE);
     const leaf = this.app.workspace.getLeaf(true);
@@ -187,9 +172,6 @@ export default class SkillTreePlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  /**
-   * Forces all Skill Tree views to re-render.
-   */
   updateViews() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(leaf => {
       // const view = leaf.view as SkillTreeView;
@@ -199,9 +181,6 @@ export default class SkillTreePlugin extends Plugin {
     });
   }
 
-  /**
-   * Updates the visibility of the level pane in all views.
-   */
   updateLevelPaneVisibility() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(leaf => {
       // const view = leaf.view as SkillTreeView;
@@ -211,10 +190,6 @@ export default class SkillTreePlugin extends Plugin {
     });
   }
 
-  /**
-   * Updates the status bar text.
-   * @param text - The text to display in the status bar
-   */
   updateStatusBar(text: string) {
     if (this.statusBarItem) {
       if (this.settings.showStatusBar !== false) {
@@ -225,10 +200,6 @@ export default class SkillTreePlugin extends Plugin {
     }
   }
 
-  /**
-   * Gets the currently active Skill Tree view, if any.
-   * @returns The active SkillTreeView or null if none is open
-   */
   getActiveView(): SkillTreeView | null {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE);
     if (leaves.length > 0) {
@@ -237,10 +208,6 @@ export default class SkillTreePlugin extends Plugin {
     return null;
   }
 
-  /**
-   * Imports a skill tree from JSON data.
-   * @param data - The JSON data to import
-   */
   async importTree(data: any): Promise<void> {
     // const view = this.getActiveView();
     // if (view && view.importTree) {
@@ -249,10 +216,6 @@ export default class SkillTreePlugin extends Plugin {
     // }
   }
 
-  /**
-   * Exports the current skill tree to JSON.
-   * @returns Object containing nodes and edges arrays
-   */
   exportTree(): any {
     // const view = this.getActiveView();
     // if (view && view.exportTree) {
@@ -261,9 +224,6 @@ export default class SkillTreePlugin extends Plugin {
     // return { nodes: [], edges: [] };
   }
 
-  /**
-   * Opens the modal for creating a new skill tree.
-   */
   async openNewTreeModal(): Promise<void> {
     // const view = this.getActiveView();
     // if (view && view.openNewTreeModal) {
@@ -271,10 +231,6 @@ export default class SkillTreePlugin extends Plugin {
     // }
   }
 
-  /**
-   * Deletes a skill tree by name.
-   * @param name - The name of the tree to delete
-   */
   async deleteTree(name: string): Promise<void> {
     // const view = this.getActiveView();
     // if (view && view.deleteTree) {
@@ -283,27 +239,16 @@ export default class SkillTreePlugin extends Plugin {
     // }
   }
 
-  /**
-   * Gets all available skill tree names.
-   * @returns Array of tree names
-   */
   getTreeNames(): string[] {
     return Object.keys(this.settings.trees);
   }
 
-  /**
-   * Gets the name of the currently active tree.
-   * @returns The current tree name
-   */
   getCurrentTreeName(): string {
     return this.settings.currentTreeName;
   }
 
-  /**
-   * Switches to a different skill tree.
-   * @param name - The name of the tree to switch to
-   */
   async switchTree(name: string): Promise<void> {
+    // TODO
     // const view = this.getActiveView();
     // if (view && view.switchTree) {
     //   await view.switchTree(name);
@@ -312,19 +257,10 @@ export default class SkillTreePlugin extends Plugin {
   }
 }
 
-/**
- * Folder suggestion modal for selecting directories with fuzzy search
- */
 class FolderSuggestionModal extends FuzzySuggestModal<string> {
   folders: string[];
   onChoose: (value: string) => void;
 
-  /**
-   * Creates a new folder suggestion modal.
-   * @param app - The Obsidian app instance
-   * @param folders - List of folder paths to suggest
-   * @param onChoose - Callback when a folder is selected
-   */
   constructor(app: App, folders: string[], onChoose: (value: string) => void) {
     super(app);
     this.folders = folders;
@@ -354,9 +290,6 @@ class FolderSuggestionModal extends FuzzySuggestModal<string> {
   }
 }
 
-/**
- * Settings tab displayed in Obsidian's settings dialog for the plugin.
- */
 class SkillTreeSettingTab extends PluginSettingTab {
   plugin: SkillTreePlugin;
 
@@ -365,9 +298,6 @@ class SkillTreeSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  /**
-   * Renders the settings UI.
-   */
   display(): void {
     const { containerEl } = this;
 
@@ -969,8 +899,6 @@ export interface SkillTreeSettings {
   themes: Record<string, CustomTheme>;
   /** Active custom theme ID (undefined = use default style) */
   activeThemeId?: string;
-  /** Whether edit mode is enabled (default: false) */
-  editMode?: boolean;
   /** Whether to suppress the node type change warning in JSON editor */
   suppressNodeTypeWarning?: boolean;
 }

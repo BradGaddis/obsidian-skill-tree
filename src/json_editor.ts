@@ -1,8 +1,9 @@
 // TODO Refactor the hell out of this... | Cleanup
-//
+
 import { SkillTreeData } from "./interfaces";
 import { RecordSnapshot, SaveNodes, Undo } from "./recorder";
-import { } from "./renderer";
+import { GetNodes, GetEdges } from "./tree-manager";
+import { Render } from "./renderer";
 import { SkillTreeView } from "./skilltreeview";
 import { UpdateTreeSelector } from "./tree-manager";
 
@@ -16,8 +17,8 @@ export function RefreshJsonEditor(): void {
     if (view._jsonTextarea) {
         const treeData: SkillTreeData = {
             name: view.settings.currentTreeName,
-            nodes: view.nodes,
-            edges: view.edges
+            nodes: Array.from(GetNodes().values()),
+            edges: GetEdges()
         };
         view._jsonTextarea.value = JSON.stringify(treeData, null, 2);
     }
@@ -336,12 +337,8 @@ export async function OpenJsonEditor() {
         try {
             // Handle empty/whitespace-only content as empty tree
             if (!textarea.value.trim()) {
-                view.nodes = [];
-                view.edges = [];
-                // view.computeAllNodeRadii();
-                view.graph.loadFromJSON([], []);
                 await SaveNodes()
-                RequestRender()
+                Render()
                 errorDiv.style.display = 'none';
                 warningDiv.style.display = 'none';
                 return true;
@@ -386,10 +383,8 @@ export async function OpenJsonEditor() {
 
             view.nodes = parsed.nodes || [];
             view.edges = parsed.edges || [];
-            // view.computeAllNodeRadii();
-            view.graph.loadFromJSON(view.nodes, view.edges);
             await SaveNodes()
-            RequestRender()
+            Render()
             errorDiv.style.display = 'none';
 
             // const nodesWithTasks = new Set(view._tasksCache.keys());

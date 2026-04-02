@@ -8,7 +8,7 @@ import { SkillEdge, SkillTreeData } from "./interfaces";
 import { SkillNode } from './skill_nodes/skill_node'
 import { InitRecorder, RecordSnapshot, SaveNodes, Undo } from "./recorder";
 import { InitRenderer, Render, UpdateToolbarUI } from "./renderer";
-import { InitTreeManager, UpdateTreeSelector } from "./tree-manager";
+import { InitTreeManager, UpdateTreeSelector, GetNodes, GetEdges } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
 import { InitSkillModal } from "./modal";
@@ -29,30 +29,17 @@ export class SkillTreeView extends ItemView {
     _goToLinkedBtn: HTMLButtonElement | null = null;
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
+    _fileWatchers: Map<string, () => void> = new Map();
+    _tasksCache: Map<string, any[]> = new Map();
+    selectedNodeId: string | null = null;
 
     get settings(): SkillTreeSettings {
         return this.plugin.settings;
     }
 
-    // get nodes(): SkillNode[] {
-    // return this.graph.getAllNodes() as SkillNode[];
-    // }
-    // set nodes(val: SkillNode[]) {
-    // this.graph.nodes.clear();
-    // for (const n of val) {
-    //     this.graph.nodes.set(n.id, SkillNode.fromJSON(n));
-    // }
-    // }
-
-    // get edges(): SkillEdge[] {
-    // return this.graph.edges as SkillEdge[];
-    // }
-    // set edges(val: SkillEdge[]) {
-    // this.graph.edges = val;
-    // }
-
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
+
     constructor(leaf: WorkspaceLeaf,
         plugin: SkillTreePlugin) {
         super(leaf);
@@ -75,6 +62,19 @@ export class SkillTreeView extends ItemView {
         InitRenderer(this)
 
         await this.loadSettings();
+        const nodes = Array.from(GetNodes().values());
+
+        if (nodes.length > 0) {
+            // Calculate center of all nodes
+            const xs = nodes.map(n => n.x);
+            const ys = nodes.map(n => n.y);
+            const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+            const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+
+            // Offset to center (assuming canvas is ~800px wide)
+            this.offset = { x: 400 - centerX, y: 300 - centerY };
+        }
+
         Render();
     }
 

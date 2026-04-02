@@ -101,12 +101,13 @@ export class SkillNode implements ISkillNode {
         }
 
         if (nodeType !== 'root' && this.children.length > 0) {
-            const allNonOptionalComplete = this.children.every(c => c.optional || c.state === 'complete');
-            if (allNonOptionalComplete && this.state === 'unavailable') {
-                this.state = 'in-progress';
-                this.cascadeToParents();
-                return;
-            }
+            // TODO
+            // const allNonOptionalComplete = this.children.every(c => c.optional || c.state === 'complete');
+            // if (allNonOptionalComplete && this.state === 'unavailable') {
+            //     this.state = 'in-progress';
+            //     this.cascadeToParents();
+            //     return;
+            // }
         }
         if (this.hasIncompleteChild()) {
             console.log("found at least one in-progress child")
@@ -198,23 +199,5 @@ export class SkillNode implements ISkillNode {
         this.parents.push(node);
     }
 
-    printStats() {
-        console.log(`Stats for ${this.id}: Position (${this.x}, ${this.y})
-                Current state: ${this.state}
-                Current exp: ${this.exp}
-                Linked file: ${this.fileLink}
-                Shape: ${this.shape}
-                Node Type: ${this.nodeTypeName}
-                Is Optional: ${this.optional}
-                Is Checkpoint: ${this.checkpoint}
-                Is Repeating: ${this.repeating}
-                Has Tasks: ${this.hasTasks}
-                Tree Link: ${this.treeLink}
-                Is User Completable: ${this.userCompletable}
-                Has Held State: ${this.heldState}
-                Parents: ${this.parents.map(parent => parent.id)}
-                Children: ${this.children.map(child => child.id)}
-            `)
-    }
 }
 

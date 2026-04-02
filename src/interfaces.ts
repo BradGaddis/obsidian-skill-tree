@@ -1,4 +1,4 @@
-
+import { SkillNode } from "./skill_nodes/skill_node";
 
 export interface CustomTheme {
     /** Unique identifier for this theme */

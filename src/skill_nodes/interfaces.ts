@@ -15,7 +15,7 @@ export interface ISkillNode {
     fileLink?: string;
     /** Experience points awarded when this node is completed */
     exp?: number;
-    /** Whether this node represents an optional path */
+    /** Shape of the node */
     shape?: NodeShape
     /** Whether user can manually complete this node (only regular nodes) */
     userCompletable?: boolean;
@@ -27,4 +27,16 @@ export interface ISkillNode {
     parents?: ISkillNode[];
     /** Validates its own state */
     validate?: () => void;
+    /** Whether this node represents an optional path */
+    optional?: boolean;
+    /** Whether this node is a checkpoint */
+    checkpoint?: boolean;
+    /** Whether this node is a repeating node */
+    repeating?: boolean;
+    /** Tree link target */
+    treeLink?: string;
+    /** Whether this node has tasks */
+    hasTasks?: boolean;
+    /** Label for display */
+    label?: string;
 }

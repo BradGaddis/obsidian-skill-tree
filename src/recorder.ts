@@ -1,9 +1,7 @@
 import { SkillTreeView } from "./skilltreeview";
-import { } from "./renderer";
+import { Render } from "./renderer";
+import { GetNodes, GetEdges } from "./tree-manager";
 import { HISTORY_UPPER_BOUNDS } from "./constants";
-
-
-
 
 let view: SkillTreeView
 let historyPast: any[] = [];
@@ -40,36 +38,33 @@ export function Redo() {
 
 function GetSnapshot() {
     return {
-        nodes: JSON.parse(JSON.stringify(view.nodes)),
-        edges: JSON.parse(JSON.stringify(view.edges)),
+        nodes: JSON.parse(JSON.stringify(Array.from(GetNodes().values()))),
+        edges: JSON.parse(JSON.stringify(GetEdges())),
     };
 }
 
 function ApplySnapshot(snap: any) {
     _suppressHistory = true;
     try {
-        view.nodes = JSON.parse(JSON.stringify(snap.nodes || []));
-        view.edges = JSON.parse(JSON.stringify(snap.edges || []));
-
-        ComputeAllNodeRadii(); // TODO define to Renderer
-
-        RequestRender();
+        // Apply snapshot to tree manager - for now just render
+        Render();
     } finally { _suppressHistory = false; }
 }
 
 
 export async function SaveNodes() {
     try {
-        const json = view.graph.toJSON();
         const currentTree = view.settings.trees[view.settings.currentTreeName];
+        const nodes = Array.from(GetNodes().values());
+        const edges = GetEdges();
         if (currentTree) {
-            currentTree.nodes = JSON.parse(JSON.stringify(json.nodes));
-            currentTree.edges = JSON.parse(JSON.stringify(json.edges));
+            currentTree.nodes = JSON.parse(JSON.stringify(nodes));
+            currentTree.edges = JSON.parse(JSON.stringify(edges));
         } else {
             view.settings.trees[view.settings.currentTreeName] = {
                 name: view.settings.currentTreeName,
-                nodes: JSON.parse(JSON.stringify(json.nodes)),
-                edges: JSON.parse(JSON.stringify(json.edges))
+                nodes: JSON.parse(JSON.stringify(nodes)),
+                edges: JSON.parse(JSON.stringify(edges))
             };
         }
         await view.plugin.saveSettings();
