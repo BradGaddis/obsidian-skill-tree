@@ -115,6 +115,8 @@ export function Recenter() {
 export function Render(): void {
     if (!view.context || !view.canvas) return;
     const context = view.context;
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, view.canvas.width, view.canvas.height);
     RenderWarningBanner();
 
     context.save();

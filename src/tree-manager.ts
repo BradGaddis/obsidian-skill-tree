@@ -9,7 +9,7 @@ import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
 
 
-
+// TODO: Try exporting nodes as a uniform `SkillNode`
 // TODO: refactor | cleanup
 
 let view: SkillTreeView
@@ -35,20 +35,21 @@ export function GetTreesLinkingToCurrent(): string[] {
     const currentTreeName = view.settings.currentTreeName;
     const linkingTrees: string[] = [];
 
-    for (const [treeName, tree] of Object.entries(view.settings.trees)) {
-        if (treeName === currentTreeName) continue;
-
-        const hasLinkToCurrent = tree.nodes?.some(n =>
-            n.treeLink && (
-                n.treeLink === currentTreeName ||
-                (n.treeLink === '' && view.settings.currentTreeName === currentTreeName)
-            )
-        );
-
-        if (hasLinkToCurrent) {
-            linkingTrees.push(treeName);
-        }
-    }
+    // TODO:
+    // for (const [treeName, tree] of Object.entries(view.settings.trees)) {
+    //     if (treeName === currentTreeName) continue;
+    //
+    //     const hasLinkToCurrent = tree.nodes?.some(n =>
+    //         n.treeLink && (
+    //             n.treeLink === currentTreeName ||
+    //             (n.treeLink === '' && view.settings.currentTreeName === currentTreeName)
+    //         )
+    //     );
+    //
+    //     if (hasLinkToCurrent) {
+    //         linkingTrees.push(treeName);
+    //     }
+    // }
 
     return linkingTrees;
 }
@@ -66,72 +67,72 @@ export function GetTreeCount(): number {
 }
 
 export async function DeleteTree(name: string) {
-    const wasCurrentTree = view.settings.currentTreeName === name;
-
-    // Delete the tree from settings - ensure it's actually removed
-    if (view.settings.trees[name]) {
-        delete view.settings.trees[name];
-    }
-
-    // Verify deletion
-    if (view.settings.trees[name]) {
-        console.error('Failed to delete tree:', name);
-        return;
-    }
-
-    if (wasCurrentTree) {
-        // Switch to first available tree (but don't save the deleted tree first)
-        const remainingTrees = Object.keys(view.settings.trees);
-        if (remainingTrees.length > 0) {
-            const firstTree = remainingTrees[0];
-            // Switch without saving the deleted tree
-            view.settings.currentTreeName = firstTree;
-            if (!view.settings.trees[firstTree]) {
-                view.settings.trees[firstTree] = {
-                    name: firstTree,
-                    nodes: [],
-                    edges: []
-                };
-            }
-            // Load new tree
-            await view.loadNodes();
-
-            // Clean up file watchers for old nodes
-            view._fileWatchers.forEach((watcher) => {
-                view.app.vault.off('modify', watcher);
-            });
-            view._fileWatchers.clear();
-            view._tasksCache.clear();
-
-            // Reload tasks for new tree
-            await view.loadAllNodeTasks();
-        } else {
-            // No trees left - create a default one
-            view.settings.trees['default'] = {
-                name: 'default',
-                nodes: [],
-                edges: []
-            };
-            view.settings.currentTreeName = 'default';
-            await view.loadNodes();
-
-            // Clean up file watchers
-            view._fileWatchers.forEach((watcher) => {
-                view.app.vault.off('modify', watcher);
-            });
-            view._fileWatchers.clear();
-            view._tasksCache.clear();
-
-            // Reload tasks
-            await view.loadAllNodeTasks();
-        }
-
-        await view.plugin.saveSettings();
-        view.requestRender();
-    } else {
-        // Not the current tree, just save settings
-        await view.plugin.saveSettings();
-    }
+    // const wasCurrentTree = view.settings.currentTreeName === name;
+    //
+    // // Delete the tree from settings - ensure it's actually removed
+    // if (view.settings.trees[name]) {
+    //     delete view.settings.trees[name];
+    // }
+    //
+    // // Verify deletion
+    // if (view.settings.trees[name]) {
+    //     console.error('Failed to delete tree:', name);
+    //     return;
+    // }
+    //
+    // if (wasCurrentTree) {
+    //     // Switch to first available tree (but don't save the deleted tree first)
+    //     const remainingTrees = Object.keys(view.settings.trees);
+    //     if (remainingTrees.length > 0) {
+    //         const firstTree = remainingTrees[0];
+    //         // Switch without saving the deleted tree
+    //         view.settings.currentTreeName = firstTree;
+    //         if (!view.settings.trees[firstTree]) {
+    //             view.settings.trees[firstTree] = {
+    //                 name: firstTree,
+    //                 nodes: [],
+    //                 edges: []
+    //             };
+    //         }
+    //         // Load new tree
+    //         await view.loadNodes();
+    //
+    //         // Clean up file watchers for old nodes
+    //         view._fileWatchers.forEach((watcher) => {
+    //             view.app.vault.off('modify', watcher);
+    //         });
+    //         view._fileWatchers.clear();
+    //         view._tasksCache.clear();
+    //
+    //         // Reload tasks for new tree
+    //         await view.loadAllNodeTasks();
+    //     } else {
+    //         // No trees left - create a default one
+    //         view.settings.trees['default'] = {
+    //             name: 'default',
+    //             nodes: [],
+    //             edges: []
+    //         };
+    //         view.settings.currentTreeName = 'default';
+    //         await view.loadNodes();
+    //
+    //         // Clean up file watchers
+    //         view._fileWatchers.forEach((watcher) => {
+    //             view.app.vault.off('modify', watcher);
+    //         });
+    //         view._fileWatchers.clear();
+    //         view._tasksCache.clear();
+    //
+    //         // Reload tasks
+    //         await view.loadAllNodeTasks();
+    //     }
+    //
+    //     await view.plugin.saveSettings();
+    //     view.requestRender();
+    // } else {
+    //     // Not the current tree, just save settings
+    //     await view.plugin.saveSettings();
+    // }
 }
 
 

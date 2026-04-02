@@ -15,15 +15,23 @@ import { InitSkillModal } from "./modal";
 import { InitJSONEditor } from "./json_editor";
 
 import { modeToggleBtn } from "./toolbar";
+import { InitPanHandler } from "./ux/panning";
 
 export class SkillTreeView extends ItemView {
+    private panCleanup: (() => void) | null = null;
     canvas: HTMLCanvasElement | null = null;
     context: CanvasRenderingContext2D | null = null;
     canvasWrap: HTMLDivElement | null = null;
     resizeObserver: ResizeObserver | null = null;
     offset: Coordinate = { x: 0, y: 0 };
-    scale = 1;
-    // graph: Graph = new Graph();
+    private _scale: number = 1
+
+    get scale(): number {
+        return this._scale
+    }
+    set scale(val: number) {
+        this._scale = val <= 1 ? 1 : val
+    }
     plugin: SkillTreePlugin;
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
@@ -61,14 +69,20 @@ export class SkillTreeView extends ItemView {
 
         InitRenderer(this)
 
+        Recenter()
+
+        this.panCleanup = InitPanHandler(this, {
+            shouldStartPan: (worldCoordinate) => { return true; }
+        }).cleanup;
+
         await this.loadSettings();
 
-        Recenter()
 
     }
 
     protected async onClose(): Promise<void> {
-        this.resizeObserver?.disconnect()
+        this.panCleanup?.();
+        this.resizeObserver?.disconnect();
     }
 
     async loadSettings() {
