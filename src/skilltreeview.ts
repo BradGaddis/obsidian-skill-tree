@@ -146,6 +146,25 @@ export class SkillTreeView extends ItemView {
         }
     }
 
+    installOutsideClickHandler(modalEl: HTMLElement) {
+        if (this.modalOutsideListener) return;
+        const listener = (ev: Event) => {
+            try {
+                const target = ev.target as Node | null;
+                if (!target) return;
+                const openModals = Array.from(document.querySelectorAll('.skill-tree-node-modal')) as HTMLElement[];
+                if (openModals.length === 0) return;
+                for (const m of openModals) {
+                    if (m.contains(target)) return;
+                }
+                this.closeAllModals();
+                this.removeOutsideClickHandler();
+            } catch (e) { }
+        };
+        this.modalOutsideListener = listener;
+        document.addEventListener('pointerdown', listener);
+    }
+
     // TODO: does this make sense  to be here?
     isTasksPluginInstalled(): boolean {
         try {

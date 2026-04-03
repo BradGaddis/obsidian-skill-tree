@@ -3,6 +3,33 @@ import { DEFAULT_MODAL_STYLES } from "src/constants";
 import { SkillTreeView } from "src/skilltreeview";
 
 
+export function createSkillModal(view: SkillTreeView): HTMLElement {
+    const container = view.canvasWrap || view.containerEl;
+    return container.createEl('div', { cls: 'skill-tree-node-modal' });
+}
+
+export function openSkillModal(view: SkillTreeView, modal: HTMLElement, options: ModalStyleOptions = {}): void {
+    // view.closeAllModals();
+    Object.assign(modal.style, {
+        display: 'flex',
+        ...DEFAULT_MODAL_STYLES,
+        ...options,
+    });
+    modal.style.position = 'fixed';
+    modal.style.zIndex = '9999';
+}
+
+export function closeSkillModal(view: SkillTreeView, modal: HTMLElement): void {
+    modal.remove();
+    view.removeOutsideClickHandler();
+}
+
+export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key: string): void {
+    const modalManager = new SkillTreeModal(view, false);
+    modalManager.makeModalDraggable(key);
+}
+
+
 export class SkillTreeModal {
     view: SkillTreeView
     container: HTMLElement

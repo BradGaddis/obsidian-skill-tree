@@ -1,7 +1,8 @@
-import { Render, CenterOnNode } from "src/renderer";
+import { CenterOnNode } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt } from "../tree-manager";
 import { SkillNode } from "src/skill_nodes/skill_node";
+import { createStatsModal } from "../modal/stilltree-stats-modal";
 
 let view: SkillTreeView;
 
@@ -28,7 +29,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         }
 
         if (nodeWasSelected?.id === hitNode.id) {
-            // Open Stats Modal
+            createStatsModal(view, hitNode);
         }
 
         SetSelectedNodeID(hitNode.id)

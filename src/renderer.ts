@@ -124,6 +124,7 @@ export function Render(): void {
     RenderWarningBanner();
 
     context.save();
+
     try {
         context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, view.offset.x * dpr, view.offset.y * dpr);
     } catch (e) {
@@ -307,6 +308,8 @@ function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
 
     const allNodes = Array.from(nodeMap.values())
     const visibleNodes = allNodes.filter(n => {
+
+        // TODO: Handle radius globally to align shape with text
         const r = nodeRadii[n.id] || nodeRadius
         return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
             n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
@@ -367,7 +370,6 @@ function drawNodeShape(
     radius: number,
     shape: NodeShape
 ): void {
-    radius = radius <= nodeRadius ? nodeRadius + 30 : radius
     switch (shape) {
         case 'hexagon':
             drawHexagon(ctx, x, y, radius);
