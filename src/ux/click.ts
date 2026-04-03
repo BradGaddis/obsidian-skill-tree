@@ -1,9 +1,12 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { SetSelectedNodeID, FindNodeAt, GetNodes } from "../tree-manager";
+import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge } from "../tree-manager";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
 import { Coordinate } from "src/types";
+import { InitPanHandler } from "./panning";
+import { InitZoomHandler } from "./zoom";
+import { SkillEdge } from "src/interfaces";
 
 let view: SkillTreeView;
 
@@ -15,12 +18,13 @@ let nodeWasSelected: SkillNode | null
 export let edgeDragFrom: EdgeDrag | null
 export let edgeDragTarget: Coordinate | null
 export let hitNode: SkillNode | null
-let mousePosition: Coordinate
 
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
     const canvas = view.canvas;
     if (!canvas) return { cleanup: () => { } };
+
+
 
     const onMouseDown = (e: MouseEvent) => {
         console.log('[click] mousedown', { mode: view.settings.mode, x: e.clientX, y: e.clientY })
@@ -66,6 +70,9 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     };
 
     const onMouseUp = () => {
+        if (edgeDragFrom && edgeDragTarget) {
+            completeEdgeCreation(edgeDragTarget)
+        }
         hitNode = null
         if (edgeDragFrom) {
             edgeDragFrom = null
@@ -98,8 +105,23 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('click', onClick);
+
+
+
+    const panCleanup = InitPanHandler(view,
+        () => {
+            return hitNode == null && edgeDragFrom == null
+        }
+    ).cleanup;
+    const zoomCleanup = InitZoomHandler(view, {
+        minScale: 0.3,
+        maxScale: 3
+    }).cleanup;
+
     return {
         cleanup: () => {
+            panCleanup();
+            zoomCleanup();
             canvas.removeEventListener('mousedown', onMouseDown);
             canvas.removeEventListener('mousemove', onMouseMove);
             canvas.removeEventListener('mouseup', onMouseUp);
@@ -152,4 +174,43 @@ export function setEdgeDragTarget(target: Coordinate): void {
 
 export function getEdgeDragTarget(): typeof edgeDragTarget | null {
     return edgeDragTarget
+}
+
+
+
+function completeEdgeCreation(worldPos: Coordinate): boolean {
+    if (!edgeDragFrom) return false
+
+    const sourceNode = edgeDragFrom.handle.node
+
+    // Find target node at drop position
+    const targetNode = FindNodeAt(worldPos.x, worldPos.y)
+    if (!targetNode || targetNode.id === sourceNode.id) return false
+
+    // Check for duplicate edge
+    const edges = GetEdges()
+    const duplicate = edges.some(e => e.from === sourceNode.id && e.to === targetNode.id)
+    if (duplicate) return false
+
+    // Get source and target sides
+    const fromSide = edgeDragFrom.handle.side
+    const targetHandle = getHandleAtWorld(worldPos)
+    const toSide = targetHandle?.side || 'top'  // fallback
+
+    console.log("sanity check")
+    // Create new edge
+    const newEdge: SkillEdge = {
+        id: Date.now(),
+        from: sourceNode.id,
+        to: targetNode.id,
+        fromSide: fromSide as any,
+        toSide: toSide as any
+    }
+
+    // Add to edges
+    // Note: Need to use AddEdge from tree-manager or direct push
+    CreateEdge(newEdge)
+
+    Render()
+    return true
 }

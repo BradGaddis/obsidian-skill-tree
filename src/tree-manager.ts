@@ -29,6 +29,14 @@ let selectedNodeId: string | null
  */
 export let tasksCache: Map<string | number, any[]> = new Map();
 
+
+export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
+    view = skillTreeView
+    await LoadNodes()
+    CleanUpEdges()
+}
+
+
 export function GetNodes(): Map<string | number, SkillNode> {
     return nodes;
 }
@@ -37,11 +45,25 @@ export function GetEdges(): SkillEdge[] {
     return edges;
 }
 
-export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
-    view = skillTreeView
-    console.log("initializing tree manager")
-    await LoadNodes()
+export function RemoveEdge() {
+
 }
+
+export function CreateEdge(edge: SkillEdge) {
+    console.log("creating an edge")
+    edges.push(edge)
+}
+
+function CleanUpEdges() {
+    let cleaned: SkillEdge[] = []
+    for (let edge of GetEdges()) {
+        if (nodes.get(edge.from) && nodes.get(edge.to)) {
+            cleaned.push(edge)
+        }
+    }
+    edges = cleaned
+}
+
 
 export function GetTreesLinkingToCurrent(): string[] {
     const currentTreeName = view.settings.currentTreeName;

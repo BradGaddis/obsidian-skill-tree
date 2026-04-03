@@ -190,7 +190,6 @@ function RenderWarningBanner(padding: number = 2) {
 
 }
 
-// TODO: find the mouse target. refactor this 
 function RenderTemporaryEdgeLine() {
     const from = edgeDragFrom  // import from click.ts
     const target = edgeDragTarget
@@ -200,6 +199,7 @@ function RenderTemporaryEdgeLine() {
     if (!context) return
 
     context.save()
+
     // TODO: deal with these magic numbers
     context.setLineDash([4 / view.scale, 4 / view.scale])
     context.strokeStyle = '#2563eb'
@@ -231,7 +231,6 @@ function RenderEdgeLines() {
         console.log(a)
         const b = nodeMap.get(e.to) || null;
         console.log(b)
-
         if (!a || !b) {
             console.log("no connections found | TODO clear to's and from's | ID mismatchs likely")
             continue;

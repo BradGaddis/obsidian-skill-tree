@@ -16,9 +16,9 @@ export interface SkillEdge {
     /** Unique identifier for this edge */
     id: number;
     /** Source node ID (child/prerequisite), or null during editing */
-    from: string | number | null;
+    from: string | number;
     /** Target node ID (parent/dependent), or null during editing */
-    to: string | number | null;
+    to: string | number;
     /** Override X position for the source point */
     fromX?: number;
     /** Override Y position for the source point */

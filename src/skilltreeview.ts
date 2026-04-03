@@ -13,13 +13,13 @@ import { InitJSONEditor } from "./json_editor";
 
 import { modeToggleBtn } from "./toolbar";
 
-import { InitPanHandler } from "./ux/panning";
-import { InitZoomHandler } from "./ux/zoom";
+// import { InitPanHandler } from "./ux/panning";
+// import { InitZoomHandler } from "./ux/zoom";
 import { edgeDragFrom, hitNode, InitClickHandler } from "./ux/click";
 
 export class SkillTreeView extends ItemView {
-    private panCleanup: (() => void) | null = null;
-    private zoomCleanup: (() => void) | null = null;
+    // private panCleanup: (() => void) | null = null;
+    // private zoomCleanup: (() => void) | null = null;
     private clickCleanup: (() => void) | null = null;
 
     private _scale: number = 1
@@ -73,22 +73,11 @@ export class SkillTreeView extends ItemView {
         InitRenderer(this)
         Recenter()
         this.clickCleanup = InitClickHandler(this).cleanup
-        this.panCleanup = InitPanHandler(this,
-            () => {
-                return hitNode == null && edgeDragFrom == null
-            }
-        ).cleanup;
-        this.zoomCleanup = InitZoomHandler(this, {
-            minScale: 0.3,
-            maxScale: 3
-        }).cleanup;
 
         await this.loadSettings();
     }
 
     protected async onClose(): Promise<void> {
-        this.panCleanup?.();
-        this.zoomCleanup?.();
         this.clickCleanup?.();
         this.resizeObserver?.disconnect();
     }
