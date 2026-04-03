@@ -8,6 +8,7 @@ import { SKILL_TREE_STYLES } from "./styles";
 import { NodeShape, NodeState } from "./skill_nodes/types";
 import { OptionalNode } from "./skill_nodes/optional_node";
 import { Coordinate } from "./types";
+import { edgeDragFrom, edgeDragTarget } from "./ux/click";
 
 
 let view: SkillTreeView
@@ -156,6 +157,7 @@ export function Render(): void {
     RenderNodes(nodes)
 
     RenderEdgeLines()
+    RenderTemporaryEdgeLine()
 
     if (view.settings.mode == "edit") {
         RenderNodeHandles(nodes);
@@ -188,7 +190,7 @@ function RenderWarningBanner(padding: number = 2) {
 
 }
 
-
+// TODO: find the mouse target. refactor this 
 function RenderTemporaryEdgeLine() {
     const from = edgeDragFrom  // import from click.ts
     const target = edgeDragTarget
@@ -203,7 +205,7 @@ function RenderTemporaryEdgeLine() {
     context.strokeStyle = '#2563eb'
     context.lineWidth = 2 / view.scale
     context.beginPath()
-    context.moveTo(from.hx, from.hy)
+    context.moveTo(from.handle.hx, from.handle.hy)
     context.lineTo(target.x, target.y)
     context.stroke()
     context.restore()

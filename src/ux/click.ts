@@ -13,8 +13,9 @@ type EdgeDrag = { handle: Handle }
 // prevents node from opening on first click
 let nodeWasSelected: SkillNode | null
 export let edgeDragFrom: EdgeDrag | null
-let edgeDragTarget: Coordinate | null
+export let edgeDragTarget: Coordinate | null
 export let hitNode: SkillNode | null
+let mousePosition: Coordinate
 
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
@@ -53,12 +54,13 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         }
     };
 
+    // TODO: fix for node dragging
     const onMouseMove = (e: MouseEvent) => {
         if (!edgeDragFrom) return
 
         const rect = canvas.getBoundingClientRect();
         const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-        console.log('[click] setting target', worldPos)
+        // mousePosition = worldPos
         setEdgeDragTarget(worldPos)
         Render()
     };
