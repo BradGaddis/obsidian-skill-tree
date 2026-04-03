@@ -12,6 +12,7 @@ export function createStatsModal(view: SkillTreeView, node: SkillNode): HTMLElem
     view.closeAllModals();
     const modal = createSkillModal(view);
 
+    // TODO: rethink this flow
     if (node instanceof OptionalNode || node instanceof CheckpointNode) {
         return modal;
     }
@@ -44,9 +45,9 @@ function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement, node: Skill
     closeBtn.onclick = () => closeSkillModal(view, modal);
 
     const content = modal.createEl('div');
-    content.style.cssText = 'padding:12px 16px;overflow-y:auto;flex:1;';
+    content.style.cssText = 'padding:12px 16px;overflow-y:auto;';
 
-    node.setStatsModalContents(view, modal, node)
+    node.setStatsModalContents(view, modal)
 
     openSkillModal(modal)
     makeModalDraggable(view, modal, 'stats');

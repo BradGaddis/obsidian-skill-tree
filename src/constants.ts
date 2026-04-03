@@ -1,7 +1,5 @@
 import { ModalStyleOptions } from "./types";
-
 export const VIEW_TYPE_SKILLTREE = 'skill-tree-view';
-
 export const DEFAULT_MODAL_STYLES: ModalStyleOptions = {
     position: "absolute",
     top: "60px",
@@ -21,6 +19,10 @@ export const TOOLBAR_DOM_EL_INFO = { cls: 'skill-tree-toolbar' }
 export const TOOL_BAR_WRAPPER_DOM_EL_INFO = { cls: 'skill-tree-toolbar-wrapper' }
 export const COLLAPSE_DOM_EL_INFO = { text: '▼', cls: 'skill-tree-collapse-btn' }
 export const TOOLBAR_BUTTON_DOM_EL_INFO = { cls: 'skill-tree-toolbar-buttons' }
+
+
+export const STATS_MODAL_ROW_DOM_EL_INFO = { cls: 'gamified-stats-row' }
+export const STATS_MODAL_EXP_BADGE_DOM_EL_INFO = { cls: 'gamified-exp-badge' }
 
 export const SKILLTREE_CANVAS_WRAP = { cls: 'skill-tree-canvas-wrap' };
 

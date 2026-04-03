@@ -3,21 +3,19 @@ import SkillTreePlugin, { defaultSettings } from "./main";
 import { VIEW_TYPE_SKILLTREE } from "./constants";
 import { Coordinate, Mode } from "./types";
 import { SkillTreeSettings } from "./main";
-// import { Graph } from "./graph";
-import { SkillEdge, SkillTreeData } from "./interfaces";
-import { SkillNode } from './skill_nodes/skill_node'
-import { InitRecorder, RecordSnapshot, SaveNodes, Undo } from "./recorder";
+import { InitRecorder } from "./recorder";
 import { InitRenderer, Recenter, Render, UpdateToolbarUI } from "./renderer";
-import { InitTreeManager, UpdateTreeSelector, GetNodes, GetEdges } from "./tree-manager";
+import { InitTreeManager } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
 import { InitSkillModal } from "./modal";
 import { InitJSONEditor } from "./json_editor";
 
 import { modeToggleBtn } from "./toolbar";
+
 import { InitPanHandler } from "./ux/panning";
 import { InitZoomHandler } from "./ux/zoom";
-import { InitClickHandler } from "./ux/click";
+import { edgeDragFrom, hitNode, InitClickHandler } from "./ux/click";
 
 export class SkillTreeView extends ItemView {
     private panCleanup: (() => void) | null = null;
@@ -42,9 +40,8 @@ export class SkillTreeView extends ItemView {
 
     // TODO: implement
     _fileWatchers: Map<string, () => void> = new Map();
-    _tasksCache: Map<string, any[]> = new Map();
-    selectedNodeId: string | null = null;
 
+    selectedNodeId: string | null = null;
 
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
@@ -55,12 +52,14 @@ export class SkillTreeView extends ItemView {
         this.plugin = plugin;
     }
 
-    worldToScreen(wx: number, wy: number) {
-        return { x: wx * this.scale + this.offset.x, y: wy * this.scale + this.offset.y };
+    // TODO: maybe move into render module
+    worldToScreen(worldCoords: Coordinate) {
+        return { x: worldCoords.x * this.scale + this.offset.x, y: worldCoords.y * this.scale + this.offset.y };
     }
 
-    screenToWorld(sx: number, sy: number) {
-        return { x: (sx - this.offset.x) / this.scale, y: (sy - this.offset.y) / this.scale };
+    // TODO: maybe move into render module
+    screenToWorld(screenCoords: Coordinate) {
+        return { x: (screenCoords.x - this.offset.x) / this.scale, y: (screenCoords.y - this.offset.y) / this.scale };
     }
 
 
@@ -73,9 +72,11 @@ export class SkillTreeView extends ItemView {
         InitJSONEditor(this)
         InitRenderer(this)
         Recenter()
-        this.panCleanup = InitPanHandler(this, {
-            shouldStartPan: (worldCoordinate) => { return true; }
-        }).cleanup;
+        this.panCleanup = InitPanHandler(this,
+            () => {
+                return hitNode == null && edgeDragFrom == null
+            }
+        ).cleanup;
         this.zoomCleanup = InitZoomHandler(this, {
             minScale: 0.3,
             maxScale: 3
@@ -121,7 +122,7 @@ export class SkillTreeView extends ItemView {
         Render();
     }
 
-    // TODO: move into Modal(manager?)
+    // TODO: maybe move into modal module
     closeAllModals() {
         // Remove any modal elements from the container or the document body
         try {
@@ -138,7 +139,7 @@ export class SkillTreeView extends ItemView {
         this.removeOutsideClickHandler();
     }
 
-
+    // TODO: maybe move into modal module
     removeOutsideClickHandler() {
         if (this.modalOutsideListener) {
             document.removeEventListener('pointerdown', this.modalOutsideListener);
@@ -146,6 +147,7 @@ export class SkillTreeView extends ItemView {
         }
     }
 
+    // TODO: maybe move into modal module
     installOutsideClickHandler(modalEl: HTMLElement) {
         if (this.modalOutsideListener) return;
         const listener = (ev: Event) => {
@@ -165,7 +167,6 @@ export class SkillTreeView extends ItemView {
         document.addEventListener('pointerdown', listener);
     }
 
-    // TODO: does this make sense  to be here?
     isTasksPluginInstalled(): boolean {
         try {
             const tasksPlugin = (this.app as any).plugins?.plugins?.['obsidian-tasks-plugin'];

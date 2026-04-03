@@ -144,18 +144,22 @@ export function Render(): void {
 
     nodeRadius = view.settings.nodeRadius
 
-    const nodes = GetNodes()
+    const nodes = Array.from(GetNodes().values())
 
 
     styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
 
     allNodeRadii = new Map(
-        [...nodes.values()].map(n => [n.id, nodeRadii[n.id] || nodeRadius])
+        nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
     RenderNodes(nodes)
 
-    RenderEdgeLines(nodes)
+    RenderEdgeLines()
+
+    if (view.settings.mode == "edit") {
+        RenderNodeHandles(nodes);
+    }
 
     context.restore();
 }
@@ -186,16 +190,29 @@ function RenderWarningBanner(padding: number = 2) {
 
 
 function RenderTemporaryEdgeLine() {
+    const from = edgeDragFrom  // import from click.ts
+    const target = edgeDragTarget
+    if (!from || !target) return
 
+    const context = view.context
+    if (!context) return
+
+    context.save()
+    // TODO: deal with these magic numbers
+    context.setLineDash([4 / view.scale, 4 / view.scale])
+    context.strokeStyle = '#2563eb'
+    context.lineWidth = 2 / view.scale
+    context.beginPath()
+    context.moveTo(from.hx, from.hy)
+    context.lineTo(target.x, target.y)
+    context.stroke()
+    context.restore()
 }
 
-function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
+function RenderEdgeLines() {
     const edgeLineWidth = 24 / Math.max(0.3, view.scale);
-    const nodes = GetNodes()
 
-
-
-
+    const nodeMap = GetNodes()
 
     const context = view.context
     if (!context) {
@@ -302,14 +319,14 @@ function RenderEdgeLines(nodeMap: Map<string | number, SkillNode>) {
 }
 
 // TODO: check culling. Not a problem while debugging very small trees
-function RenderNodes(nodeMap: Map<string | number, SkillNode>) {
+function RenderNodes(nodes: SkillNode[]) {
     const context = view.context
     if (!context) return
 
-    const allNodes = Array.from(nodeMap.values())
-    const visibleNodes = allNodes.filter(n => {
+    const visibleNodes = nodes.filter(n => {
 
         // TODO: Handle radius globally to align shape with text
+        //
         const r = nodeRadii[n.id] || nodeRadius
         return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
             n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
@@ -522,6 +539,37 @@ function RenderNodeLabel(n: SkillNode, lines: string[], isUnlinked: boolean) {
     context.textAlign = 'center';
 }
 
+
+function RenderNodeHandles(nodes: SkillNode[]) {
+    const context = view.context
+    if (!context) return
+
+    const handleRadius = view.settings.handleRadius / view.scale / dpr
+
+    // TODO: allow the user to change the css of the handles
+    for (let node of nodes) {
+        context.strokeStyle = '#2563eb';
+        context.lineWidth = 2.5 / view.scale;
+        context.fillStyle = '#ffffff';
+        context.beginPath();
+        context.arc(node.x, node.y - nodeRadius, handleRadius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        context.beginPath();
+        context.arc(node.x + nodeRadius, node.y, handleRadius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        context.beginPath();
+        context.arc(node.x, node.y + nodeRadius, handleRadius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        context.beginPath();
+        context.arc(node.x - nodeRadius, node.y, handleRadius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+    }
+}
+
 export function CenterOnNode(node: SkillNode) {
     if (!view.canvas) return;
     const canvasWidth = view.canvas.width / dpr;
@@ -533,3 +581,4 @@ export function CenterOnNode(node: SkillNode) {
 
     Render();
 }
+

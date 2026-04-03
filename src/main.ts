@@ -16,6 +16,7 @@ export function defaultSettings(): SkillTreeSettings {
     trees: { 'default': { name: 'default', nodes: [], edges: [] } },
     defaultFilePath: '',
     style: 'gamified',
+    handleRadius: 8,
     modalPositions: {},
     suppressDeleteConfirmation: false,
     showLevelPane: true,
@@ -881,6 +882,8 @@ export interface SkillTreeSettings {
   defaultFilePath: string;
   /** Visual style name (key from SKILL_TREE_STYLES) */
   style: string;
+
+  handleRadius: number
   /** Persisted positions for draggable modals (keys like 'statsModal', 'editorModal') */
   modalPositions?: Record<string, { left: number; top: number }>;
   /** Whether to suppress the delete confirmation dialog */

@@ -1,26 +1,82 @@
-import { CenterOnNode } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { SetSelectedNodeID, FindNodeAt } from "../tree-manager";
+import { SetSelectedNodeID, FindNodeAt, GetNodes } from "../tree-manager";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
+import { Coordinate } from "src/types";
 
 let view: SkillTreeView;
 
+type Handle = { node: SkillNode, side: string, hx: number, hy: number }
+type EdgeDrag = { handle: Handle }
+
 // prevents node from opening on first click
 let nodeWasSelected: SkillNode | null
+export let edgeDragFrom: EdgeDrag | null
+let edgeDragTarget: Coordinate | null
+export let hitNode: SkillNode | null
 
-// Need to handle node radii - maybe pass from renderer or recalculate
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
     const canvas = view.canvas;
     if (!canvas) return { cleanup: () => { } };
+
+    const onMouseDown = (e: MouseEvent) => {
+        console.log('[click] mousedown', { mode: view.settings.mode, x: e.clientX, y: e.clientY })
+        if (view.settings.mode !== "edit") return
+
+        const rect = canvas.getBoundingClientRect();
+        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+
+        console.log('[click] worldPos', worldPos)
+
+        hitNode = FindNodeAt(worldPos.x, worldPos.y);
+        console.log('[click] hitNode', hitNode?.id)
+
+        if (!hitNode) return
+
+        const r = nodeRadii[hitNode.id] || nodeRadius
+
+        const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
+        const edgeThreshold = 15 / view.scale
+
+        console.log('[click] dist, r, edgeThreshold', dist, r, edgeThreshold)
+
+        if (Math.abs(dist - r) <= edgeThreshold) {
+            console.log('[click] near edge, getting handle')
+            const handle = getHandleAtWorld(worldPos)
+            console.log('[click] handle', handle)
+            if (handle) {
+                setEdgeDragFrom({ handle })
+                setEdgeDragTarget(worldPos)
+                Render()
+            }
+        }
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+        if (!edgeDragFrom) return
+
+        const rect = canvas.getBoundingClientRect();
+        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        console.log('[click] setting target', worldPos)
+        setEdgeDragTarget(worldPos)
+        Render()
+    };
+
+    const onMouseUp = () => {
+        console.log('[click] mouseup', { edgeDragFrom: !!edgeDragFrom })
+        hitNode = null
+        if (edgeDragFrom) {
+            edgeDragFrom = null
+            edgeDragTarget = null
+            Render()
+        }
+    };
+
     const onClick = (e: MouseEvent) => {
         const rect = canvas.getBoundingClientRect();
-        const worldPos = view.screenToWorld(
-            e.clientX - rect.left,
-            e.clientY - rect.top
-        );
-        // Hit detection - check if click is on any node
+        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         const hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
         if (!hitNode) {
@@ -34,14 +90,67 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         SetSelectedNodeID(hitNode.id)
         nodeWasSelected = hitNode
-
         CenterOnNode(hitNode)
+
     };
+
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('click', onClick);
     return {
         cleanup: () => {
+            canvas.removeEventListener('mousedown', onMouseDown);
+            canvas.removeEventListener('mousemove', onMouseMove);
+            canvas.removeEventListener('mouseup', onMouseUp);
             canvas.removeEventListener('click', onClick);
         }
     };
 }
 
+// TODO: move all of these functions into seperate module?
+//
+
+function getHandleAtWorld(coords: Coordinate): Handle | null {
+    const nodes = GetNodes()
+    console.log('[getHandleAtWorld] checking', nodes.size, 'nodes')
+    for (const node of nodes.values()) {
+        const r = nodeRadii[node.id] || nodeRadius
+        const handles = [
+            { side: 'top', hx: node.x, hy: node.y - r },
+            { side: 'right', hx: node.x + r, hy: node.y },
+            { side: 'bottom', hx: node.x, hy: node.y + r },
+            { side: 'left', hx: node.x - r, hy: node.y },
+        ]
+        const handleThreshold = 20 / view.scale
+        console.log('[getHandleAtWorld] node', node.id, 'r', r, 'threshold', handleThreshold)
+        for (const h of handles) {
+            const dx = coords.x - h.hx
+            const dy = coords.y - h.hy
+            const dist2 = dx * dx + dy * dy
+            console.log('[getHandleAtWorld] checking handle', h.side, { dx, dy, dist2, threshold2: handleThreshold * handleThreshold })
+            if (dist2 <= handleThreshold * handleThreshold) {
+                console.log('[getHandleAtWorld] FOUND handle', h.side)
+                return { node, side: h.side, hx: h.hx, hy: h.hy }
+            }
+        }
+    }
+    return null
+}
+
+export function setEdgeDragFrom(edgeDrag: EdgeDrag): void {
+    edgeDragFrom = edgeDrag
+
+}
+
+export function getEdgeDragFrom(): EdgeDrag | null {
+    return edgeDragFrom
+}
+
+export function setEdgeDragTarget(target: Coordinate): void {
+    edgeDragTarget = target
+}
+
+export function getEdgeDragTarget(): typeof edgeDragTarget | null {
+    return edgeDragTarget
+}

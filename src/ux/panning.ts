@@ -3,29 +3,25 @@ import { SkillTreeView } from "src/skilltreeview";
 import { Coordinate } from "src/types";
 
 
-export interface PanConfig {
-    shouldStartPan: (worldCoordinate: Coordinate) => boolean;
-}
 
 let view: SkillTreeView;
-let shouldStartPan: (wordCoordinate: Coordinate) => boolean;
 let isPanning = false;
 
 
-export function InitPanHandler(skillTreeView: SkillTreeView, config: PanConfig): { cleanup: () => void } {
+export function InitPanHandler(skillTreeView: SkillTreeView, shouldStartPan: (...args: unknown[]) => boolean): { cleanup: () => void } {
     view = skillTreeView;
     const canvas = view.canvas;
+
     if (!canvas) return { cleanup: () => { } };
 
-    shouldStartPan = config.shouldStartPan;
+
     // Event handlers
     const onMouseDown = (e: MouseEvent) => {
         if (e.button !== 0) return;  // only left click
+        // const rect = canvas.getBoundingClientRect();
+        // const w = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });;
 
-        const rect = canvas.getBoundingClientRect();
-        const w = view.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);;
-
-        if (shouldStartPan(w)) {
+        if (shouldStartPan()) {
             isPanning = true;
         }
     };

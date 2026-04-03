@@ -25,18 +25,10 @@ export interface ISkillNode {
     children?: ISkillNode[];
     /** Parent nodes (transient) */
     parents?: ISkillNode[];
-    /** Validates its own state */
-    validate?: () => void;
-    /** Whether this node represents an optional path */
-    optional?: boolean;
-    /** Whether this node is a checkpoint */
-    checkpoint?: boolean;
-    /** Whether this node is a repeating node */
-    repeating?: boolean;
-    /** Tree link target */
-    treeLink?: string;
     /** Whether this node has tasks */
     hasTasks?: boolean;
     /** Label for display */
     label?: string;
+    /** Validates its own state */
+    validate?: () => void;
 }

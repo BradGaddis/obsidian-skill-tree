@@ -20,6 +20,15 @@ let edges: SkillEdge[] = [];
 
 let selectedNodeId: string | null
 
+// Cache for tasks per node
+/**
+ * Cached tasks for each node, loaded from linked files.
+ *
+ * Maps node ID to an array of task objects. Avoids re-reading files
+ * on every render. Cleared when files change.
+ */
+export let tasksCache: Map<string | number, any[]> = new Map();
+
 export function GetNodes(): Map<string | number, SkillNode> {
     return nodes;
 }
@@ -337,12 +346,11 @@ export function GetSelectedNodeId(): string | null {
 
 // TODO: limit to visible nodes
 export function FindNodeAt(x: number, y: number): SkillNode | null {
-    const defaultRadius = 36;
 
     for (const node of nodes.values()) {
         const dx = x - node.x;
         const dy = y - node.y;
-        const radius = defaultRadius; // or get from renderer
+        const radius = view.settings.nodeRadius; // or get from renderer
         if (dx * dx + dy * dy <= radius * radius) {
             console.log(`Found node ${node.id}`)
             return node;
