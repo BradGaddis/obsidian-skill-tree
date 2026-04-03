@@ -23,13 +23,12 @@ export function createStatsModal(view: SkillTreeView, node: SkillNode): HTMLElem
         // TODO:
     }
 
-    openBaseStatsModal(view, modal)
+    openBaseStatsModal(view, modal, node)
 
     return modal;
 }
 
-function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement) {
-
+function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement, node: SkillNode) {
     console.log("opening stats modal")
 
     modal.style.cssText = 'position:fixed;width:340px;max-height:80vh;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;display:flex;flex-direction:column;';
@@ -46,6 +45,8 @@ function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement) {
 
     const content = modal.createEl('div');
     content.style.cssText = 'padding:12px 16px;overflow-y:auto;flex:1;';
+
+    node.setStatsModalContents(view, modal, node)
 
     openSkillModal(modal)
     makeModalDraggable(view, modal, 'stats');
