@@ -47,7 +47,7 @@ function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement) {
     const content = modal.createEl('div');
     content.style.cssText = 'padding:12px 16px;overflow-y:auto;flex:1;';
 
-    openSkillModal(view, modal)
+    openSkillModal(modal)
     makeModalDraggable(view, modal, 'stats');
 
     view.installOutsideClickHandler(modal);
