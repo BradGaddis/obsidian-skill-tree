@@ -72,6 +72,7 @@ export class SkillTreeView extends ItemView {
         InitJSONEditor(this)
         InitRenderer(this)
         Recenter()
+        this.clickCleanup = InitClickHandler(this).cleanup
         this.panCleanup = InitPanHandler(this,
             () => {
                 return hitNode == null && edgeDragFrom == null
@@ -81,7 +82,6 @@ export class SkillTreeView extends ItemView {
             minScale: 0.3,
             maxScale: 3
         }).cleanup;
-        this.clickCleanup = InitClickHandler(this).cleanup
 
         await this.loadSettings();
     }

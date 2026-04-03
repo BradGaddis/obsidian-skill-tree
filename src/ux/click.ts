@@ -39,7 +39,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
         const edgeThreshold = 15 / view.scale
-
         console.log('[click] dist, r, edgeThreshold', dist, r, edgeThreshold)
 
         if (Math.abs(dist - r) <= edgeThreshold) {
@@ -65,7 +64,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     };
 
     const onMouseUp = () => {
-        console.log('[click] mouseup', { edgeDragFrom: !!edgeDragFrom })
         hitNode = null
         if (edgeDragFrom) {
             edgeDragFrom = null
@@ -109,7 +107,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 }
 
 // TODO: move all of these functions into seperate module?
-//
 
 function getHandleAtWorld(coords: Coordinate): Handle | null {
     const nodes = GetNodes()
