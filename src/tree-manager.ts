@@ -381,7 +381,11 @@ export function FindNodeAt(x: number, y: number): SkillNode | null {
 
 export function FindEdgeAtHandle(handle: Handle): SkillEdge | null {
     const id = handle.node.id
-    return edges.find(e => e.from === id || e.to === id) ?? null
+    const side = handle.side
+    return edges.find(e => 
+        (e.from === id && e.fromSide === side) || 
+        (e.to === id && e.toSide === side)
+    ) ?? null
 }
 
 

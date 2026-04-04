@@ -152,7 +152,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
                     const nearest = findNearestHandle(targetNode, refX, refY)
 
                     floatingEdge.to = targetNode.id
-                    floatingEdge.toSide = nearest?.side ?? 'left'
+                    floatingEdge.toSide = (nearest?.side ?? 'left') as "left" | "top" | "bottom" | "right"
                     // Also set position to snap to handle
                     if (nearest) {
                         floatingEdge.toX = nearest.hx
@@ -170,7 +170,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
                     const nearest = findNearestHandle(targetNode, refX, refY)
 
                     floatingEdge.from = targetNode.id
-                    floatingEdge.fromSide = nearest?.side ?? 'left'
+                    floatingEdge.fromSide = (nearest?.side ?? 'left') as "left" | "top" | "bottom" | "right"
                     // Also set position to snap to handle
                     if (nearest) {
                         floatingEdge.fromX = nearest.hx
