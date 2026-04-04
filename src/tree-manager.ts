@@ -8,6 +8,8 @@ import { SkillNode } from "./skill_nodes/skill_node";
 import { TaskNode } from "./skill_nodes/task_node";
 import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
+import { Handle } from "./types";
+import { Direction } from "./enums";
 
 
 // TODO: Try exporting nodes as a uniform `SkillNode`
@@ -365,9 +367,7 @@ export function GetSelectedNodeId(): string | null {
 }
 
 
-// TODO: limit to visible nodes
 export function FindNodeAt(x: number, y: number): SkillNode | null {
-
     for (const node of nodes.values()) {
         const dx = x - node.x;
         const dy = y - node.y;
@@ -377,4 +377,21 @@ export function FindNodeAt(x: number, y: number): SkillNode | null {
         }
     }
     return null;
+}
+
+export function FindEdgeAtHandle(handle: Handle): SkillEdge | null {
+    const id = handle.node.id
+    return edges.find(e => e.from === id || e.to === id) ?? null
+}
+
+
+export function GetEdgeDirection(edge: SkillEdge, node: SkillNode): Direction {
+    const id = node.id
+    if (edge.from === id) {
+        return Direction.from
+    }
+    if (edge.to === id) {
+        return Direction.to
+    }
+    return Direction.none
 }

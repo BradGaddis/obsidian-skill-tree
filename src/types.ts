@@ -1,3 +1,5 @@
+import { SkillNode } from "./skill_nodes/skill_node";
+
 /**
  * 2D coordinate with numeric `x` and `y` properties.
  */
@@ -23,3 +25,9 @@ export type ModalStyleOptions = Partial<{
     minHeight: string;
     boxShadow: string;
 }>;
+
+
+
+export type Handle = { node: SkillNode, side: string, hx: number, hy: number }
+export type EdgeDrag = { handle: Handle }
+

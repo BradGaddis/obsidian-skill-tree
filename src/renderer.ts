@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, floatingEdge } from "./ux/click";
 import { SaveNodes } from "./recorder";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
 
@@ -60,6 +60,7 @@ export function DrawNode(node: SkillNode, radius: number) {
     context.fill();
     context.stroke();
 }
+
 function SetupCanvas() {
     view.containerEl.style.display = 'flex';
     view.containerEl.style.flexDirection = 'column';
@@ -221,7 +222,7 @@ function RenderTemporaryEdgeLine() {
     context.strokeStyle = '#2563eb'
     context.lineWidth = 2 / view.scale
     context.beginPath()
-    context.moveTo(from.handle.hx, from.handle.hy)
+    context.moveTo(from.hx, from.hy)
     context.lineTo(target.x, target.y)
     context.stroke()
     context.restore()
@@ -238,50 +239,50 @@ function RenderEdgeLines() {
     }
 
     for (const e of GetEdges()) {
-        if (!e.from || !e.to) {
-            continue;
+        // Determine sx1, sy1 (start position)
+        let sx1: number, sy1: number;
+
+        // Priority 1: Use coordinate overrides if present
+        if (e.fromX !== undefined && e.fromY !== undefined) {
+            sx1 = e.fromX;
+            sy1 = e.fromY;
+        }
+        // Priority 2: Use from node
+        else if (e.from) {
+            const a = nodeMap.get(e.from as string | number);
+            if (!a) continue;
+            sx1 = a.x;
+            sy1 = a.y;
+            if (e.fromSide === 'top') sy1 -= nodeRadius;
+            else if (e.fromSide === 'right') sx1 += nodeRadius;
+            else if (e.fromSide === 'bottom') sy1 += nodeRadius;
+            else if (e.fromSide === 'left') sx1 -= nodeRadius;
+        }
+        else {
+            continue; // No start position available
         }
 
-        const a = nodeMap.get(String(e.from)) || null;
-        const b = nodeMap.get(e.to) || null;
+        // Determine sx2, sy2 (end position)
+        let sx2: number, sy2: number;
 
-        if (!a || !b) {
-            continue;
+        // Priority 1: Use coordinate overrides if present
+        if (e.toX !== undefined && e.toY !== undefined) {
+            sx2 = e.toX;
+            sy2 = e.toY;
         }
-
-
-        const rFrom = allNodeRadii.get(a.id) as number;
-        const rTo = allNodeRadii.get(b.id) as number;
-        let sx1 = a.x;
-        let sy1 = a.y;
-
-        if (e.fromSide) {
-            if (e.fromSide === 'top') { sx1 = a.x; sy1 = a.y - rFrom; }
-            if (e.fromSide === 'right') { sx1 = a.x + rFrom; sy1 = a.y; }
-            if (e.fromSide === 'bottom') { sx1 = a.x; sy1 = a.y + rFrom; }
-            if (e.fromSide === 'left') { sx1 = a.x - rFrom; sy1 = a.y; }
+        // Priority 2: Use to node
+        else if (e.to) {
+            const b = nodeMap.get(e.to as string | number);
+            if (!b) continue;
+            sx2 = b.x;
+            sy2 = b.y;
+            if (e.toSide === 'top') sy2 -= nodeRadius;
+            else if (e.toSide === 'right') sx2 += nodeRadius;
+            else if (e.toSide === 'bottom') sy2 += nodeRadius;
+            else if (e.toSide === 'left') sx2 -= nodeRadius;
         }
-        let sx2 = b.x;
-        let sy2 = b.y;
-        if (e.toSide) {
-            if (e.toSide === 'top') { sx2 = b.x; sy2 = b.y - rTo; }
-            if (e.toSide === 'right') { sx2 = b.x + rTo; sy2 = b.y; }
-            if (e.toSide === 'bottom') { sx2 = b.x; sy2 = b.y + rTo; }
-            if (e.toSide === 'left') { sx2 = b.x - rTo; sy2 = b.y; }
-        }
-
-        if (!e.fromSide || !e.toSide) {
-            const dx = sx2 - sx1;
-            const dy = sy2 - sy1;
-            const d = Math.hypot(dx, dy) || 1;
-            if (!e.fromSide) {
-                sx1 = a.x + (dx / d) * rFrom;
-                sy1 = a.y + (dy / d) * rFrom;
-            }
-            if (!e.toSide) {
-                sx2 = b.x - (dx / d) * rTo;
-                sy2 = b.y - (dy / d) * rTo;
-            }
+        else {
+            continue; // No end position available
         }
 
         // Override endpoint position if this edge is being dragged
@@ -310,6 +311,7 @@ function RenderEdgeLines() {
         context.strokeStyle = edgeColor;
         context.lineWidth = edgeLineWidth;
 
+        // TODO: add settings so user can choose to draw straight or Orthogonal
         drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth);
 
         // context.moveTo(sx1, sy1);
@@ -328,6 +330,40 @@ function RenderEdgeLines() {
 
         context.restore();
     }
+    //
+    // // Render floating edge (one end follows mouse)
+    // if (floatingEdge && edgeDragSourcePos) {
+    //     const nodes = GetNodes()
+    //
+    //     // Get the node that the edge is from (if it exists)
+    //     let sx1 = edgeDragSourcePos.x
+    //     let sy1 = edgeDragSourcePos.y
+    //     let sx2 = edgeDragSourcePos.x
+    //     let sy2 = edgeDragSourcePos.y
+    //
+    //     if (floatingEdge.from) {
+    //         const fromNode = nodes.get(floatingEdge.from as string | number)
+    //         if (fromNode) {
+    //             const rFrom = nodeRadii[fromNode.id] || nodeRadius
+    //             sx1 = fromNode.x
+    //             sy1 = fromNode.y
+    //             if (floatingEdge.fromSide === 'top') sy1 -= rFrom
+    //             else if (floatingEdge.fromSide === 'right') sx1 += rFrom
+    //             else if (floatingEdge.fromSide === 'bottom') sy1 += rFrom
+    //             else if (floatingEdge.fromSide === 'left') sx1 -= rFrom
+    //         }
+    //     }
+    //
+    //     // The other end follows mouse
+    //     sx2 = edgeDragSourcePos.x
+    //     sy2 = edgeDragSourcePos.y
+    //
+    //     context.save()
+    //     context.strokeStyle = '#2563eb'
+    //     context.lineWidth = edgeLineWidth
+    //     drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth)
+    //     context.restore()
+    // }
 }
 
 // TODO: check culling. Not a problem while debugging very small trees
