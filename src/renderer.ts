@@ -5,10 +5,9 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { NodeShape, NodeState } from "./skill_nodes/types";
-import { OptionalNode } from "./skill_nodes/optional_node";
-import { Coordinate } from "./types";
 import { edgeDragFrom, edgeDragTarget } from "./ux/click";
+import { SaveNodes } from "./recorder";
+import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
 
 
 let view: SkillTreeView
@@ -18,21 +17,19 @@ export let nodeRadius: number
 export let nodeRadii: Record<string | number, number> = {}
 let allNodeRadii: Map<string | number, number> = new Map()
 
-// let clientW: number = 0
-// let clientH: number = 0
-let leftWorld: number = 0
-let rightWorld: number = 0
-let topWorld: number = 0
-let bottomWorld: number = 0
-let cullMargin: number = 0
-let canvasWidth: number = 0
-let canvasHeight: number = 0
-let worldCoordinates: Coordinate
+export let leftWorld: number = 0
+export let rightWorld: number = 0
+export let topWorld: number = 0
+export let bottomWorld: number = 0
+export let canvasWidth: number = 0
+export let canvasHeight: number = 0
 
 let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
 // TODO: Make it an adjustable setting
 const fontSize = 16
+
+let rafId: number | null = null;
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
     view = skillTreeView
@@ -49,8 +46,20 @@ export function InitRenderer(skillTreeView: SkillTreeView) {
         }
     });
     view.resizeObserver.observe(canvas);
+    InitDrawing(view)
 }
 
+export function DrawNode(node: SkillNode, radius: number) {
+    const context = view.context
+    if (!context) return
+
+    FillNodeState(node);
+    context.beginPath();
+    DrawNodeShape(context, node.x, node.y, radius, node.shape);
+    DrawSelectedNode(node)
+    context.fill();
+    context.stroke();
+}
 function SetupCanvas() {
     view.containerEl.style.display = 'flex';
     view.containerEl.style.flexDirection = 'column';
@@ -117,53 +126,60 @@ export function Recenter() {
 }
 
 export function Render(): void {
-    if (!view.context || !view.canvas) return;
-    const context = view.context;
-    context.setTransform(1, 0, 0, 1, 0, 0);
-    context.clearRect(0, 0, view.canvas.width, view.canvas.height);
+    if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+            if (!view.context || !view.canvas) return;
+            const context = view.context;
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.clearRect(0, 0, view.canvas.width, view.canvas.height);
 
-    RenderWarningBanner();
+            RenderWarningBanner();
 
-    context.save();
+            context.save();
 
-    try {
-        context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, view.offset.x * dpr, view.offset.y * dpr);
-    } catch (e) {
-        context.setTransform(dpr, 0, 0, dpr, 0, 0);
-        context.translate(view.offset.x, view.offset.y);
-        context.scale(view.scale, view.scale);
+            try {
+                context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, view.offset.x * dpr, view.offset.y * dpr);
+            } catch (e) {
+                context.setTransform(dpr, 0, 0, dpr, 0, 0);
+                context.translate(view.offset.x, view.offset.y);
+                context.scale(view.scale, view.scale);
+            }
+
+
+            const clientW = view.canvas.width / dpr;
+            const clientH = view.canvas.height / dpr;
+            leftWorld = (-view.offset.x) / view.scale;
+            rightWorld = (clientW - view.offset.x) / view.scale;
+            topWorld = (-view.offset.y) / view.scale;
+            bottomWorld = (clientH - view.offset.y) / view.scale;
+
+            nodeRadius = view.settings.nodeRadius
+
+            const nodes = Array.from(GetNodes().values())
+
+
+            styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
+
+            allNodeRadii = new Map(
+                nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
+            );
+
+
+            RenderNodes(nodes)
+            RenderEdgeLines()
+            RenderTemporaryEdgeLine()
+
+            if (view.settings.mode == "edit") {
+                RenderNodeHandles(nodes);
+            }
+
+
+            // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
+            context.restore();
+        });
+        // SaveNodes() // TODO: check if this is still valid/implement
     }
-
-
-    const clientW = view.canvas.width / dpr;
-    const clientH = view.canvas.height / dpr;
-    leftWorld = (-view.offset.x) / view.scale;
-    rightWorld = (clientW - view.offset.x) / view.scale;
-    topWorld = (-view.offset.y) / view.scale;
-    bottomWorld = (clientH - view.offset.y) / view.scale;
-    cullMargin = 120 / view.scale;
-
-    nodeRadius = view.settings.nodeRadius
-
-    const nodes = Array.from(GetNodes().values())
-
-
-    styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
-
-    allNodeRadii = new Map(
-        nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
-    );
-
-    RenderNodes(nodes)
-
-    RenderEdgeLines()
-    RenderTemporaryEdgeLine()
-
-    if (view.settings.mode == "edit") {
-        RenderNodeHandles(nodes);
-    }
-
-    context.restore();
+    rafId = null
 }
 
 
@@ -222,21 +238,17 @@ function RenderEdgeLines() {
     }
 
     for (const e of GetEdges()) {
-        console.log(e)
         if (!e.from || !e.to) {
             continue;
         }
 
         const a = nodeMap.get(String(e.from)) || null;
-        console.log(a)
         const b = nodeMap.get(e.to) || null;
-        console.log(b)
+
         if (!a || !b) {
-            console.log("no connections found | TODO clear to's and from's | ID mismatchs likely")
             continue;
         }
 
-        console.log("found node from edge")
 
         const rFrom = allNodeRadii.get(a.id) as number;
         const rTo = allNodeRadii.get(b.id) as number;
@@ -276,21 +288,6 @@ function RenderEdgeLines() {
 
         let edgeColor: string;
 
-        // TODO: refactor and remove view non-sense
-        // let edgeGlow = false;
-        // const edgeStyle = styleDef?.edgeStyle || 'straight';
-
-        // edgeGlow = false;
-
-        // const isGamified = true //selectedStyle === 'gamified';
-
-        // const showBezier = view.settings.showBezier;
-        // const useBezier = isGamified || showBezier;
-
-        // const nodeStateColorKeys = new Map<string | number, string>();
-
-        // const aState = a.state || 'in-progress';
-        // const bState = b.state || 'in-progress';
 
         if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
             edgeColor = styleDef.edgeColor;
@@ -301,19 +298,22 @@ function RenderEdgeLines() {
         context.beginPath();
         context.strokeStyle = edgeColor;
         context.lineWidth = edgeLineWidth;
-        context.moveTo(sx1, sy1);
-        context.lineTo(sx2, sy2);
+
+        drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth);
+
+        // context.moveTo(sx1, sy1);
+        // context.lineTo(sx2, sy2);
         context.stroke();
 
-        const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
-        const headLen = edgeLineWidth * 2;
-        context.beginPath();
-        context.moveTo(sx2, sy2);
-        context.lineTo(sx2 - headLen * Math.cos(angle - Math.PI / 6), sy2 - headLen * Math.sin(angle - Math.PI / 6));
-        context.lineTo(sx2 - headLen * Math.cos(angle + Math.PI / 6), sy2 - headLen * Math.sin(angle + Math.PI / 6));
-        context.closePath();
-        context.fillStyle = edgeColor;
-        context.fill();
+        // const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
+        // const headLen = edgeLineWidth * 2;
+        // context.beginPath();
+        // context.moveTo(sx2, sy2);
+        // context.lineTo(sx2 - headLen * Math.cos(angle - Math.PI / 6), sy2 - headLen * Math.sin(angle - Math.PI / 6));
+        // context.lineTo(sx2 - headLen * Math.cos(angle + Math.PI / 6), sy2 - headLen * Math.sin(angle + Math.PI / 6));
+        // context.closePath();
+        // context.fillStyle = edgeColor;
+        // context.fill();
 
         context.restore();
     }
@@ -327,18 +327,18 @@ function RenderNodes(nodes: SkillNode[]) {
     const visibleNodes = nodes.filter(n => {
 
         // TODO: Handle radius globally to align shape with text
-        //
         const r = nodeRadii[n.id] || nodeRadius
-        return !(n.x + r < leftWorld - cullMargin || n.x - r > rightWorld + cullMargin ||
-            n.y + r < topWorld - cullMargin || n.y - r > bottomWorld + cullMargin)
+        return !(n.x + r < leftWorld || n.x - r > rightWorld ||
+            n.y + r < topWorld || n.y - r > bottomWorld)
     })
 
 
     const selectedStyle = view.settings.style || 'default'
-    const styleDef = SKILL_TREE_STYLES[selectedStyle as keyof typeof SKILL_TREE_STYLES]
+    styleDef = SKILL_TREE_STYLES[selectedStyle as keyof typeof SKILL_TREE_STYLES]
 
 
     for (const n of visibleNodes) {
+        // n.validate() // TODO: fix and implement
         const r = allNodeRadii.get(n.id) as number;
 
         DrawNode(n, r);
@@ -348,116 +348,6 @@ function RenderNodes(nodes: SkillNode[]) {
         const lines = SetupLabelLines(n, isUnlinked)
         RenderNodeLabel(n, lines, isUnlinked)
     }
-}
-
-function DrawNode(node: SkillNode, radius: number) {
-
-    const context = view.context
-    if (!context) return
-
-    FillNodeState(node);
-    context.beginPath();
-    drawNodeShape(context, node.x, node.y, radius, node.shape);
-    DrawSelectedNode(node)
-    context.fill();
-    context.stroke();
-}
-
-function DrawSelectedNode(node: SkillNode) {
-    const context = view.context
-    if (!context) return
-
-    if (GetSelectedNodeId() === node.id) {
-        // TODO: fill out with specific states | add settings so users can change
-        switch (node.state) {
-            case "complete":
-            case "in-progress":
-            case "on-hold":
-            default:
-                context.strokeStyle = 'rgba(255,165,0,0.95)';
-                break;
-        }
-    }
-
-}
-
-function drawNodeShape(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    radius: number,
-    shape: NodeShape
-): void {
-    switch (shape) {
-        case 'hexagon':
-            drawHexagon(ctx, x, y, radius);
-            break;
-        case 'star':
-            drawStar(ctx, x, y, radius);
-            break;
-        case 'diamond':
-            drawDiamond(ctx, x, y, radius);
-            break;
-        // case 'square':
-        //     drawSquare(ctx, x, y, radius);
-        //     break;
-        // case 'repeat':
-        //     drawRepeat(ctx, x, y, radius);
-        //     break;
-        case 'circle':
-        default:
-            ctx.beginPath();
-            ctx.arc(x, y, radius, 0, Math.PI * 2);
-            ctx.closePath();
-            break;
-    }
-}
-
-
-
-export function drawHexagon(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        const px = x + radius * Math.cos(angle);
-        const py = y + radius * Math.sin(angle);
-        if (i === 0) {
-            ctx.moveTo(px, py);
-        } else {
-            ctx.lineTo(px, py);
-        }
-
-    }
-    ctx.closePath();
-}
-
-
-export function drawDiamond(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
-    ctx.beginPath();
-    ctx.moveTo(x, y - radius);
-    ctx.lineTo(x + radius, y);
-    ctx.lineTo(x, y + radius);
-    ctx.lineTo(x - radius, y);
-    ctx.closePath();
-}
-
-
-export function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, points: number = 5): void {
-    ctx.beginPath();
-    const outerRadius = radius;
-    const innerRadius = radius * 0.5;
-    for (let i = 0; i < points * 2; i++) {
-        const angle = (Math.PI / points) * i - Math.PI / 2;
-        const r = i % 2 === 0 ? outerRadius : innerRadius;
-        const px = x + r * Math.cos(angle);
-        const py = y + r * Math.sin(angle);
-        if (i === 0) {
-            ctx.moveTo(px, py);
-        } else {
-            ctx.lineTo(px, py);
-        }
-    }
-    ctx.closePath();
 }
 
 function FillNodeState(n: SkillNode) {
@@ -582,4 +472,5 @@ export function CenterOnNode(node: SkillNode) {
 
     Render();
 }
+
 
