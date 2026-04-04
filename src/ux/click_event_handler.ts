@@ -54,21 +54,19 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (!hitNode) return
 
-        const r = nodeRadii[hitNode.id] || nodeRadius
+        const handle = getHandleAtWorld(worldPos)
+        if (!handle) {
+            isDragging = true
+            return
+        }
 
+        const r = nodeRadii[hitNode.id] || nodeRadius
         const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
         const edgeThreshold = 15 / view.scale
-
 
         if (Math.abs(dist - r) >= edgeThreshold) {
             return
         }
-        const handle = getHandleAtWorld(worldPos)
-
-        if (!handle) {
-            return
-        }
-
 
         floatingEdge = FindEdgeAtHandle(handle)
 
@@ -105,6 +103,13 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             return
         }
 
+        if (isDragging && hitNode) {
+            hitNode.x = worldPos.x
+            hitNode.y = worldPos.y
+            Render()
+            return
+        }
+
         if (draggingEdgeEndpoint) {
             edgeDragSourcePos = worldPos
             edgeDragTarget = worldPos
@@ -112,7 +117,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             return
         }
 
-        if (!edgeDragFrom) return //TODO: add node dragging check
+        if (!edgeDragFrom) return
 
 
         setEdgeDragTarget(worldPos)
