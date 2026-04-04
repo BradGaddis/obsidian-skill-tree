@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget } from "./ux/click";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click";
 import { SaveNodes } from "./recorder";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
 
@@ -281,6 +281,17 @@ function RenderEdgeLines() {
             if (!e.toSide) {
                 sx2 = b.x - (dx / d) * rTo;
                 sy2 = b.y - (dy / d) * rTo;
+            }
+        }
+
+        // Override endpoint position if this edge is being dragged
+        if (draggingEdgeEndpoint && draggingEdgeEndpoint.edgeId === e.id && edgeDragSourcePos) {
+            if (draggingEdgeEndpoint.which === 'from') {
+                sx1 = edgeDragSourcePos.x;
+                sy1 = edgeDragSourcePos.y;
+            } else {
+                sx2 = edgeDragSourcePos.x;
+                sy2 = edgeDragSourcePos.y;
             }
         }
 

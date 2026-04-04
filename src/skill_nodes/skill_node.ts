@@ -48,13 +48,8 @@ export class SkillNode implements ISkillNode {
         const originalState = this.state;
         const nodeType = this.getStructuralType();
 
-        console.log(`Validating ${this.id}: ${this.nodeTypeName} which is a ${nodeType} node. Current state is ${originalState}
-                children: ${this.children.map(child => String(child.id) + ": " + String(child.state))}
-                parents: ${this.parents.map(parent => String(parent.id) + ": " + String(parent.state))}`)
-
         if (nodeType === 'orphaned') {
             if (this.state !== 'unavailable') {
-                console.log("Updating state to unavailable")
                 this.state = 'unavailable';
                 this.cascadeToParents();
                 return;
@@ -63,7 +58,6 @@ export class SkillNode implements ISkillNode {
         }
         if (this.hasUnavailableChild()) {
             if (this.state !== 'unavailable') {
-                console.log("updating state to unavailable")
                 this.state = 'unavailable';
                 this.cascadeToParents();
                 return;
@@ -74,15 +68,12 @@ export class SkillNode implements ISkillNode {
         const hasRepeatingInProgressChild = this.hasRepeatingInProgressChild();
 
         if (this.state === 'on-hold') {
-            console.log('looking for reasons to come off hold...');
             if (hasOnHoldChild || hasRepeatingInProgressChild) {
                 return
             }
             if (!this.heldState) {
-                console.log("held state should never be null if we are on-hold")
                 return
             }
-            console.log("restoring state. then revalidating...")
             this.state = this.heldState;
             this.heldState = null;
             this.validate()
@@ -115,7 +106,6 @@ export class SkillNode implements ISkillNode {
             // }
         }
         if (this.hasIncompleteChild()) {
-            console.log("found at least one in-progress child")
             this.state = 'unavailable'
             this.cascadeToParents();
             return;
@@ -143,8 +133,6 @@ export class SkillNode implements ISkillNode {
             return
         }
         for (const parent of this.parents) {
-            console.log(`${this.id} is cascading to parent ${parent.id} which is a ${parent.getStructuralType()} node. Current state is ${parent.state}
-                  Parent ${parent.id} has children ${parent.children.map(child => String(child.id) + ": " + String(child.state))}`)
             parent.validate();
         }
     }

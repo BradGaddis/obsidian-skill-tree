@@ -30,8 +30,6 @@ export function createStatsModal(view: SkillTreeView, node: SkillNode): HTMLElem
 }
 
 function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement, node: SkillNode) {
-    console.log("opening stats modal")
-
     modal.style.cssText = 'position:fixed;width:340px;max-height:80vh;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;display:flex;flex-direction:column;';
 
     const header = modal.createEl('div');

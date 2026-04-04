@@ -45,12 +45,11 @@ export function GetEdges(): SkillEdge[] {
     return edges;
 }
 
-export function RemoveEdge() {
-
+export function RemoveEdge(edgeId: number) {
+    edges = edges.filter(e => e.id !== edgeId)
 }
 
 export function CreateEdge(edge: SkillEdge) {
-    console.log("creating an edge")
     edges.push(edge)
 }
 
@@ -309,7 +308,7 @@ function NodeFromJSON(data: any): any {
             case 'OptionalNode':
                 return OptionalNode.fromJSON(data);
             default:
-                console.log("Trying to load a type not accounted for")
+                return null
         }
     }
 }
@@ -372,12 +371,10 @@ export function FindNodeAt(x: number, y: number): SkillNode | null {
     for (const node of nodes.values()) {
         const dx = x - node.x;
         const dy = y - node.y;
-        const radius = view.settings.nodeRadius; // or get from renderer
+        const radius = view.settings.nodeRadius;
         if (dx * dx + dy * dy <= radius * radius) {
-            console.log(`Found node ${node.id}`)
             return node;
         }
     }
-    console.log("No found node on click")
     return null;
 }
