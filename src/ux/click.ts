@@ -91,7 +91,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (floatingEdge) {
             floatingEdgeDirection = GetEdgeDirection(floatingEdge, handle.node)
-            previousEdgeFromFloating = Object.assign(floatingEdge)
+            previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
             return // remove
         }
 
@@ -137,60 +137,18 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const rect = canvas.getBoundingClientRect();
         const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
-        if (floatingEdge) {
-            const targetNode = FindNodeAt(worldPos.x, worldPos.y)
-            if (!targetNode) {
-                RemoveEdge(floatingEdge.id)
-            }
-            else if (floatingEdgeDirection === Direction.to) {
-                if (targetNode.id === previousEdgeFromFloating.from) {
-                    RemoveEdge(floatingEdge.id)
-                } else {
-                    // Get reference coords from the other end
-                    const refX = floatingEdge.fromX ?? 0
-                    const refY = floatingEdge.fromY ?? 0
-                    const nearest = findNearestHandle(targetNode, refX, refY)
+        HandleFloatingEdge(worldPos)
 
-                    floatingEdge.to = targetNode.id
-                    floatingEdge.toSide = (nearest?.side ?? 'left') as "left" | "top" | "bottom" | "right"
-                    // Also set position to snap to handle
-                    if (nearest) {
-                        floatingEdge.toX = nearest.hx
-                        floatingEdge.toY = nearest.hy
-                    }
-                }
-            }
-            else if (floatingEdgeDirection === Direction.from) {
-                if (targetNode.id === previousEdgeFromFloating.to) {
-                    RemoveEdge(floatingEdge.id)
-                } else {
-                    // Get reference coords from the other end  
-                    const refX = floatingEdge.toX ?? 0
-                    const refY = floatingEdge.toY ?? 0
-                    const nearest = findNearestHandle(targetNode, refX, refY)
-
-                    floatingEdge.from = targetNode.id
-                    floatingEdge.fromSide = (nearest?.side ?? 'left') as "left" | "top" | "bottom" | "right"
-                    // Also set position to snap to handle
-                    if (nearest) {
-                        floatingEdge.fromX = nearest.hx
-                        floatingEdge.fromY = nearest.hy
-                    }
-                }
-            }
-
-        }
-        hitNode = null
-        floatingEdge = null
-        previousEdgeFromFloating = null
 
         if (edgeDragFrom && edgeDragTarget) {
             completeEdgeCreation(edgeDragTarget)
         }
-        if (edgeDragFrom) {
-            edgeDragFrom = null
-            edgeDragTarget = null
-        }
+
+        hitNode = null
+        floatingEdge = null
+        previousEdgeFromFloating = null
+        edgeDragFrom = null
+        edgeDragTarget = null
         Render()
     };
 
@@ -446,3 +404,41 @@ function getEdgeEndpointAtWorld(x: number, y: number): { edge: SkillEdge, which:
 //     edgeDragTarget = null
 //     Render()
 // }
+//
+
+
+function HandleFloatingEdge(worldPos: Coordinate) {
+    if (!floatingEdge || !previousEdgeFromFloating) {
+        return
+    }
+    const targetNode = FindNodeAt(worldPos.x, worldPos.y)
+    if (!targetNode) {
+        RemoveEdge(floatingEdge.id)
+        return
+    }
+
+    // Delete the floating edge
+    RemoveEdge(floatingEdge.id)
+    // If dropping on original node(s), recreate original edge
+    if (floatingEdgeDirection === Direction.to && targetNode.id === previousEdgeFromFloating.to) {
+        CreateEdge(previousEdgeFromFloating)
+        return
+    }
+    if (floatingEdgeDirection === Direction.from && targetNode.id === previousEdgeFromFloating.from) {
+        CreateEdge(previousEdgeFromFloating)
+        return
+    }
+    // Dropping on a different node - create new edge with swapped endpoint
+    const nearest = findNearestHandle(targetNode, worldPos.x, worldPos.y)
+    if (!nearest) {
+        return
+    }
+    const newEdge: SkillEdge = {
+        id: floatingEdge.id,
+        from: floatingEdgeDirection === Direction.from ? targetNode.id : previousEdgeFromFloating.from,
+        to: floatingEdgeDirection === Direction.to ? targetNode.id : previousEdgeFromFloating.to,
+        fromSide: floatingEdgeDirection === Direction.from ? nearest.side as any : previousEdgeFromFloating.fromSide,
+        toSide: floatingEdgeDirection === Direction.to ? nearest.side as any : previousEdgeFromFloating.toSide,
+    }
+    CreateEdge(newEdge)
+}
