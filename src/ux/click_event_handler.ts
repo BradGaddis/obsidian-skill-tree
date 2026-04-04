@@ -1,7 +1,7 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
-import { distanceTo } from "../utils";
+import { distanceTo, pointToSegmentDistance } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
 import { Coordinate, Handle } from "src/types";
@@ -25,7 +25,8 @@ let previousEdgeFromFloating: SkillEdge | null
 
 let floatingEdgeDirection: EdgeDirection
 
-// let endPointHit: { edge: SkillEdge, which: 'from' | 'to', ex: number, ey: number } | null
+let isDragging: boolean
+
 
 
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
@@ -40,34 +41,16 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
 
-        // User clicks an edge
-        // endPointHit = getEdgeEndpointAtWorld(worldPos.x, worldPos.y)
-
-        // if (endPointHit) {
-        //     const edge = endPointHit.edge
-        //     // Remove the edge from the array
-        //     RemoveEdge(edge.id)
-        //     // which end of the edge did we hit?
-        //     console.log(edge)
-
-        // Create floating edge - one end follows mouse
-        // if (endPointHit.which === 'from') {
-        //     floatingEdge = { from: edge.to, fromSide: edge.toSide ?? null, to: null, toSide: null }
-        //     edgeDragSourcePos = worldPos
-        //     edgeDragTarget = worldPos
-        // } else {
-        //     floatingEdge = { from: edge.from, fromSide: edge.fromSide ?? null, to: null, toSide: null }
-        //     edgeDragSourcePos = worldPos
-        //     edgeDragTarget = worldPos
-        // }
-
-        //     Render()
-        //     return
-        // }
-
-        // user does other stuff:
-
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
+
+        const edgeHandle = getEdgeEndpointAtWorld(worldPos)
+        if (edgeHandle) {
+            isDragging = true
+            floatingEdge = FindEdgeAtHandle(edgeHandle)
+            floatingEdgeDirection = GetEdgeDirection(floatingEdge, edgeHandle.node)
+            previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
+            return
+        }
 
         if (!hitNode) return
 
@@ -76,13 +59,12 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
         const edgeThreshold = 15 / view.scale
 
-        Render() // rendering here because all of the rest is dragging logic/could return early
 
         if (Math.abs(dist - r) >= edgeThreshold) {
             return
         }
-
         const handle = getHandleAtWorld(worldPos)
+
         if (!handle) {
             return
         }
@@ -91,6 +73,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         floatingEdge = FindEdgeAtHandle(handle)
 
         if (floatingEdge) {
+            isDragging = true
             floatingEdgeDirection = GetEdgeDirection(floatingEdge, handle.node)
             previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
             return // remove
@@ -100,6 +83,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         setEdgeDragFrom(handle)
         setEdgeDragTarget(worldPos)
+        // Render()
     };
 
     // TODO: fix for node dragging
@@ -130,6 +114,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (!edgeDragFrom) return //TODO: add node dragging check
 
+
         setEdgeDragTarget(worldPos)
         Render()
     };
@@ -150,6 +135,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         previousEdgeFromFloating = null
         edgeDragFrom = null
         edgeDragTarget = null
+        isDragging = false
         Render()
     };
 
@@ -182,9 +168,10 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     const panCleanup = InitPanHandler(view,
         () => {
-            return hitNode == null && edgeDragFrom == null
+            return (hitNode == null && !isDragging)
         }
     ).cleanup;
+
     const zoomCleanup = InitZoomHandler(view, {
         minScale: 0.3,
         maxScale: 3
@@ -305,11 +292,9 @@ function completeEdgeCreation(worldPos: Coordinate): boolean {
 }
 
 
-function getEdgeEndpointAtWorld(x: number, y: number): { edge: SkillEdge, which: 'from' | 'to', ex: number, ey: number } | null {
+function getEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes()
     const edges = GetEdges()
-
-    // TODO: deal with magic numbers
     const threshold = 20 / view.scale
 
     for (const e of edges) {
@@ -322,22 +307,17 @@ function getEdgeEndpointAtWorld(x: number, y: number): { edge: SkillEdge, which:
         const rFrom = nodeRadii[a.id] || nodeRadius
         const rTo = nodeRadii[b.id] || nodeRadius
 
-        // Calculate "from" endpoint position
         let fromX = a.x, fromY = a.y
-
         if (e.fromSide === 'top') fromY -= rFrom
         else if (e.fromSide === 'right') fromX += rFrom
         else if (e.fromSide === 'bottom') fromY += rFrom
         else if (e.fromSide === 'left') fromX -= rFrom
         else {
-
-            // Default: midpoint direction
             const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1
             fromX = a.x + (dx / d) * rFrom
             fromY = a.y + (dy / d) * rFrom
         }
 
-        // Calculate "to" endpoint position
         let toX = b.x, toY = b.y
         if (e.toSide === 'top') toY -= rTo
         else if (e.toSide === 'right') toX += rTo
@@ -349,61 +329,22 @@ function getEdgeEndpointAtWorld(x: number, y: number): { edge: SkillEdge, which:
             toY = b.y - (dy / d) * rTo
         }
 
-        // Check if click is near "from" endpoint
-        if ((x - fromX) ** 2 + (y - fromY) ** 2 <= threshold ** 2) {
-            return { edge: e, which: 'from', ex: fromX, ey: fromY }
-        }
+        const dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY)
 
-        // Check if click is near "to" endpoint
-        if ((x - toX) ** 2 + (y - toY) ** 2 <= threshold ** 2) {
-            return { edge: e, which: 'to', ex: toX, ey: toY }
+        if (dist <= threshold) {
+            const fromDist = distanceTo(worldPos, { x: fromX, y: fromY })
+            const toDist = distanceTo(worldPos, { x: toX, y: toY })
+
+            if (fromDist <= toDist) {
+                return { node: a, side: e.fromSide || 'right', hx: fromX, hy: fromY }
+            } else {
+                return { node: b, side: e.toSide || 'left', hx: toX, hy: toY }
+            }
         }
     }
 
     return null
 }
-
-// function handleExistingEdgeDrop(worldPos: Coordinate): void {
-//     if (!draggingEdgeEndpoint) return
-//
-//     const edge = GetEdges().find(e => e.id === draggingEdgeEndpoint!.edgeId)
-//     if (!edge) return
-//
-//     const targetNode = FindNodeAt(worldPos.x, worldPos.y)
-//     const sourceNodeId = draggingEdgeEndpoint.which === 'from' ? edge.from : edge.to
-//     const otherNodeId = draggingEdgeEndpoint.which === 'from' ? edge.to : edge.from
-//
-//     // If dropping on the same node, just clear the drag state (no change)
-//     if (targetNode && targetNode.id === otherNodeId) {
-//         draggingEdgeEndpoint = null
-//         edgeDragSourcePos = null
-//         edgeDragTarget = null
-//         Render()
-//         return
-//     }
-//
-//     // If dropping on a different node, reconnect the edge
-//     if (targetNode && targetNode.id !== sourceNodeId) {
-//         if (draggingEdgeEndpoint.which === 'from') {
-//             edge.from = targetNode.id
-//             edge.fromSide = 'right' // TODO: calculate proper side
-//         } else {
-//             edge.to = targetNode.id
-//             edge.toSide = 'left' // TODO: calculate proper side
-//         }
-//     }
-//
-//     // If dropping on empty space, remove the edge connection
-//     if (!targetNode) {
-//         RemoveEdge(edge.id)
-//     }
-//
-//     draggingEdgeEndpoint = null
-//     edgeDragSourcePos = null
-//     edgeDragTarget = null
-//     Render()
-// }
-//
 
 
 function HandleFloatingEdge(worldPos: Coordinate) {

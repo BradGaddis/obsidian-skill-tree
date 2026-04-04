@@ -18,9 +18,6 @@ export function InitPanHandler(skillTreeView: SkillTreeView, shouldStartPan: (..
     // Event handlers
     const onMouseDown = (e: MouseEvent) => {
         if (e.button !== 0) return;  // only left click
-        // const rect = canvas.getBoundingClientRect();
-        // const w = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });;
-
         if (shouldStartPan()) {
             isPanning = true;
         }

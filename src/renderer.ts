@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, floatingEdge } from "./ux/click";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
 import { SaveNodes } from "./recorder";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
 

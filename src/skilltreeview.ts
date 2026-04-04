@@ -15,7 +15,7 @@ import { modeToggleBtn } from "./toolbar";
 
 // import { InitPanHandler } from "./ux/panning";
 // import { InitZoomHandler } from "./ux/zoom";
-import { edgeDragFrom, hitNode, InitClickHandler } from "./ux/click";
+import { edgeDragFrom, hitNode, InitClickHandler } from "./ux/click_event_handler";
 
 export class SkillTreeView extends ItemView {
     // private panCleanup: (() => void) | null = null;
