@@ -1,6 +1,7 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
+import { distanceTo } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
 import { Coordinate, Handle } from "src/types";
@@ -240,9 +241,7 @@ function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): {
     let minDist = Infinity
 
     for (const h of handles) {
-        const dx = h.hx - refX
-        const dy = h.hy - refY
-        const dist = dx * dx + dy * dy
+        const dist = distanceTo({ x: h.hx, y: h.hy }, { x: refX, y: refY })
         if (dist < minDist) {
             minDist = dist
             nearest = h
@@ -429,7 +428,15 @@ function HandleFloatingEdge(worldPos: Coordinate) {
         return
     }
     // Dropping on a different node - create new edge with swapped endpoint
-    const nearest = findNearestHandle(targetNode, worldPos.x, worldPos.y)
+    const nodes = GetNodes()
+    const otherNodeId = floatingEdgeDirection === Direction.to
+        ? previousEdgeFromFloating.from
+        : previousEdgeFromFloating.to
+    const otherNode = nodes.get(otherNodeId as string | number)
+    if (!otherNode) {
+        return
+    }
+    const nearest = findNearestHandle(targetNode, otherNode.x, otherNode.y)
     if (!nearest) {
         return
     }
