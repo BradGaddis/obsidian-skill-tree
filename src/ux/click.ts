@@ -159,6 +159,30 @@ function getHandleAtWorld(coords: Coordinate): Handle | null {
     return null
 }
 
+function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
+    const r = nodeRadii[targetNode.id] || nodeRadius
+    const handles = [
+        { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
+        { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
+        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
+        { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
+    ]
+    
+    let nearest: { side: string, hx: number, hy: number } | null = null
+    let minDist = Infinity
+    
+    for (const h of handles) {
+        const dx = h.hx - refX
+        const dy = h.hy - refY
+        const dist = dx * dx + dy * dy
+        if (dist < minDist) {
+            minDist = dist
+            nearest = h
+        }
+    }
+    return nearest
+}
+
 export function setEdgeDragFrom(edgeDrag: EdgeDrag): void {
     edgeDragFrom = edgeDrag
 
@@ -193,9 +217,9 @@ function completeEdgeCreation(worldPos: Coordinate): boolean {
     if (duplicate) return false
 
     // Get source and target sides
-    const fromSide = edgeDragFrom.handle.side
-    const targetHandle = getHandleAtWorld(worldPos)
-    const toSide = targetHandle?.side || 'top'  // fallback
+    const sourceHandle = edgeDragFrom.handle
+    const nearest = findNearestHandle(targetNode, sourceHandle.hx, sourceHandle.hy)
+    const toSide = nearest?.side || 'top'  // fallback
 
     console.log("sanity check")
     // Create new edge
@@ -203,7 +227,7 @@ function completeEdgeCreation(worldPos: Coordinate): boolean {
         id: Date.now(),
         from: sourceNode.id,
         to: targetNode.id,
-        fromSide: fromSide as any,
+        fromSide: sourceHandle.side as any,
         toSide: toSide as any
     }
 
