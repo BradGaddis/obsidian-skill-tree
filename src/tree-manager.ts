@@ -10,6 +10,7 @@ import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
 import { Handle } from "./types";
 import { Direction } from "./enums";
+import { TFile } from "obsidian";
 
 
 // TODO: Try exporting nodes as a uniform `SkillNode`
@@ -35,7 +36,8 @@ export let tasksCache: Map<string | number, any[]> = new Map();
 export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
     view = skillTreeView
     await LoadTree()
-    // CleanUpEdges()
+    await LoadAllNodeTasks()
+    SetupFileWatchers()
 }
 
 
@@ -47,12 +49,50 @@ export function GetEdges(): SkillEdge[] {
     return edges;
 }
 
+export function SetNodesFromSnapshot(nodesData: any[]): void {
+    nodes.clear();
+    for (const data of nodesData) {
+        const node = NodeFromJSON(data);
+        if (node) {
+            nodes.set(node.id, node);
+        }
+    }
+}
+
+export function SetEdgesFromSnapshot(edgesData: SkillEdge[]): void {
+    edges = [...edgesData];
+}
+
 export function RemoveEdge(edgeId: number) {
     edges = edges.filter(e => e.id !== edgeId)
 }
 
 export function CreateEdge(edge: SkillEdge) {
     edges.push(edge)
+}
+
+export function AddNode(x: number, y: number, fileLink?: string, nodeType?: string): SkillNode {
+    const nodeData: any = {
+        x,
+        y,
+        state: 'unavailable',
+    };
+
+    if (fileLink) {
+        nodeData.fileLink = fileLink;
+    }
+
+    if (nodeType) {
+        nodeData.nodeType = nodeType;
+    }
+
+    const node = NodeFromJSON(nodeData);
+    if (node) {
+        nodes.set(node.id, node);
+        return node;
+    }
+
+    return null;
 }
 
 
@@ -262,6 +302,8 @@ async function LoadTree() {
     }
 
     loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
+
+    edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
 }
 
 
@@ -276,7 +318,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
         nodes.set(node.id, node);
     }
 
-    edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
+    // edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
 
 }
 
@@ -373,4 +415,111 @@ export function GetEdgeDirection(edge: SkillEdge, node: SkillNode): Direction {
         return Direction.to
     }
     return Direction.none
+}
+
+export async function LoadAllNodeTasks(): Promise<void> {
+    for (const node of nodes.values()) {
+        if (node.fileLink) {
+            await LoadNodeTasks(node);
+        }
+    }
+}
+
+async function LoadNodeTasks(node: SkillNode): Promise<void> {
+    if (!node.fileLink) return;
+
+    const tasks = await GetTasksFromFile(node.fileLink);
+    tasksCache.set(node.id, tasks);
+
+    if (tasks.length > 0) {
+        node.canSkipOrphanUnavailable = true;
+    }
+
+    UpdateNodeStateFromTasks(node);
+}
+
+async function GetTasksFromFile(filePath: string): Promise<any[]> {
+    const tasks: any[] = [];
+
+    try {
+        let normalizedPath = filePath.trim();
+        if (!normalizedPath.endsWith('.md')) {
+            normalizedPath = normalizedPath + '.md';
+        }
+
+        const file = view.app.vault.getAbstractFileByPath(normalizedPath);
+        if (!file || !(file instanceof TFile)) {
+            return tasks;
+        }
+
+        const content = await view.app.vault.read(file);
+        const lines = content.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const checkboxMatch = line.match(/^(\s*)([-*+])\s*\[([ xX])\]\s*(.*)$/);
+            if (checkboxMatch) {
+                tasks.push({
+                    completed: checkboxMatch[3].toLowerCase() === 'x',
+                    text: checkboxMatch[4].trim(),
+                    line: i,
+                    filePath: normalizedPath
+                });
+            }
+        }
+    } catch (e) {
+        console.log('[Tasks] Error loading file:', filePath, e);
+    }
+
+    return tasks;
+}
+
+function UpdateNodeStateFromTasks(node: SkillNode): void {
+    const tasks = tasksCache.get(node.id) || [];
+    const completedTasks = tasks.filter((t: any) => t.completed).length;
+    const totalTasks = tasks.length;
+
+    if (totalTasks === 0) return;
+
+    if (completedTasks === totalTasks) {
+        node.state = 'complete';
+    } else if (completedTasks > 0) {
+        node.state = 'in-progress';
+    } else {
+        node.state = 'unavailable';
+    }
+}
+
+let fileWatcherRef: any = null;
+
+export function SetupFileWatchers(): void {
+    if (fileWatcherRef) {
+        view.app.vault.offref(fileWatcherRef);
+    }
+
+    const listener = async (file: any) => {
+        const normalizedPath = file.path;
+        
+        for (const node of nodes.values()) {
+            if (!node.fileLink) continue;
+
+            let nodeFilePath = node.fileLink.trim();
+            if (!nodeFilePath.endsWith('.md')) {
+                nodeFilePath = nodeFilePath + '.md';
+            }
+
+            if (nodeFilePath === normalizedPath) {
+                await LoadNodeTasks(node);
+            }
+        }
+    };
+
+    fileWatcherRef = view.app.vault.on('modify', listener);
+}
+
+export function CleanupFileWatchers(): void {
+    if (fileWatcherRef) {
+        view.app.vault.offref(fileWatcherRef);
+        fileWatcherRef = null;
+    }
 }

@@ -1,6 +1,7 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
+import { RecordSnapshot, SaveNodes } from "../recorder";
 import { distanceTo, pointToSegmentDistance } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
@@ -10,7 +11,6 @@ import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
 import { SkillEdge } from "src/interfaces";
 import { Direction, Direction as EdgeDirection } from "src/enums";
-import { SaveNodes } from "src/recorder";
 
 let view: SkillTreeView;
 
@@ -50,6 +50,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
                 checkboxHit.state = 'complete'
             }
             Render()
+            SaveNodes()
             return
         }
 
@@ -64,6 +65,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const edgeHandle = getEdgeEndpointAtWorld(worldPos)
         if (edgeHandle) {
+            RecordSnapshot()
             isDragging = true
             floatingEdge = FindEdgeAtHandle(edgeHandle)
             if (floatingEdge) {
@@ -77,6 +79,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const handle = getHandleAtWorld(worldPos)
         if (!handle) {
+            RecordSnapshot()
             isDragging = true
             return
         }
@@ -88,6 +91,8 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         if (Math.abs(dist - r) >= edgeThreshold) {
             return
         }
+
+        RecordSnapshot()
 
         floatingEdge = FindEdgeAtHandle(handle)
 
@@ -163,6 +168,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         edgeDragTarget = null
         isDragging = false
         Render()
+        SaveNodes()
     };
 
     const onClick = (e: MouseEvent) => {
@@ -353,6 +359,7 @@ function completeEdgeCreation(worldPos: Coordinate): boolean {
     CreateEdge(newEdge)
 
     Render()
+    SaveNodes()
     return true
 }
 
@@ -452,6 +459,10 @@ function HandleFloatingEdge(worldPos: Coordinate) {
         to: floatingEdgeDirection === Direction.to ? targetNode.id : previousEdgeFromFloating.to,
         fromSide: floatingEdgeDirection === Direction.from ? nearest.side as any : previousEdgeFromFloating.fromSide,
         toSide: floatingEdgeDirection === Direction.to ? nearest.side as any : previousEdgeFromFloating.toSide,
+        fromX: undefined,
+        fromY: undefined,
+        toX: undefined,
+        toY: undefined,
     }
     CreateEdge(newEdge)
 }

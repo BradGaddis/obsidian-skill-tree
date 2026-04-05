@@ -1,6 +1,6 @@
 import { SkillTreeView } from "./skilltreeview";
 import { Render } from "./renderer";
-import { GetNodes, GetEdges } from "./tree-manager";
+import { GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "./tree-manager";
 import { HISTORY_UPPER_BOUNDS } from "./constants";
 
 let view: SkillTreeView
@@ -46,7 +46,8 @@ function GetSnapshot() {
 function ApplySnapshot(snap: any) {
     _suppressHistory = true;
     try {
-        // Apply snapshot to tree manager - for now just render
+        SetNodesFromSnapshot(snap.nodes);
+        SetEdgesFromSnapshot(snap.edges);
         Render();
     } finally { _suppressHistory = false; }
 }

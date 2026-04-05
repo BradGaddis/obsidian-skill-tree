@@ -224,7 +224,6 @@ function UpdateInRAFID() {
     }
 
     context.restore();
-    SaveNodes()
     rafId = null
 }
 

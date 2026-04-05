@@ -48,9 +48,9 @@ export class SkillNode implements ISkillNode {
                 continue
             }
             if (from.state != "complete") {
-                console.log("from was not complete for ", this.id)
-                console.log(`This node has froms: ${this.from}`)
-                console.log(`This node has tos: ${this.to}`)
+
+
+
                 return false
             }
         }
@@ -155,7 +155,7 @@ export class SkillNode implements ISkillNode {
             return
         }
         for (const to of this.to) {
-            console.log("progagating to ", to.id, " which is an ", to.getStructuralType(), " node")
+
             to.validate();
         }
     }
@@ -302,13 +302,13 @@ export class SkillNode implements ISkillNode {
                         // await this.app.workspace.openLinkText(node.fileLink!, '', false);
                         // await this.updateFileFrontmatterWithNodeId(node.fileLink, node.id);
                     } catch (err) {
-                        console.error('Failed to open note:', err);
+
                     }
                 } else {
                     // this.showCreateFileModal(node);
                 }
             } catch (err) {
-                console.error('Open Note click failed:', err);
+
             }
         });
     }
