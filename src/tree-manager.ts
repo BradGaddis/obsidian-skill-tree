@@ -20,7 +20,7 @@ let currentTree: SkillTreeData
 let nodes: Map<string | number | null, SkillNode> = new Map();
 let edges: SkillEdge[] = [];
 
-let selectedNodeId: string | null
+let selectedNodeId: string | number | null
 
 // Cache for tasks per node
 /**
@@ -310,8 +310,8 @@ function buildRelationshipsFromEdges(): void {
         const childNode = nodes.get(edge.from);
         const parentNode = nodes.get(edge.to);
         if (childNode && parentNode) {
-            childNode.parents.push(parentNode);
-            parentNode.children.push(childNode);
+            childNode.from.push(parentNode);
+            parentNode.to.push(childNode);
         }
     }
 }
@@ -333,11 +333,11 @@ export function GetNodeByID(id: string): SkillNode | null {
     return node;
 }
 
-export function SetSelectedNodeID(ID: string | null): void {
+export function SetSelectedNodeID(ID: string | number | null): void {
     selectedNodeId = ID
 }
 
-export function GetSelectedNodeId(): string | null {
+export function GetSelectedNodeId(): string | number | null {
     return selectedNodeId;
 }
 

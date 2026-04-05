@@ -22,9 +22,9 @@ export interface ISkillNode {
     /** Whether this node can be complete when orphaned (tree-link, nodes-with-tasks) */
     canSkipOrphanUnavailable?: boolean;
     /** Child nodes (transient) */
-    children?: ISkillNode[];
+    to?: ISkillNode[];
     /** Parent nodes (transient) */
-    parents?: ISkillNode[];
+    from?: ISkillNode[];
     /** Whether this node has tasks */
     hasTasks?: boolean;
     /** Label for display */

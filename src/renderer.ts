@@ -7,7 +7,7 @@ import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
 import { SaveNodes } from "./recorder";
-import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
+import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox } from "./drawing";
 import { Coordinate } from "./types";
 
 
@@ -34,7 +34,7 @@ export let frameDelta: number = 1
 let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
 // TODO: Make it an adjustable setting
-const fontSize = 16
+export const fontSize = 16
 
 export let rafId: number | null = null;
 
@@ -435,6 +435,7 @@ function RenderNodes(nodes: SkillNode[]) {
         const r = allNodeRadii.get(n.id) as number;
 
         DrawNode(n, r);
+        DrawCheckBox(n);
 
         // TODO: fix this logic to determine if a file is ACTUALLY linked
         let isUnlinked: boolean = n.fileLink == '';

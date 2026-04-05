@@ -1,4 +1,4 @@
-import { nodeRadii, nodeRadius } from "./renderer";
+import { nodeRadii, nodeRadius, fontSize } from "./renderer";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { NodeShape } from "./skill_nodes/types";
 import { SkillTreeView } from "./skilltreeview";
@@ -150,4 +150,64 @@ export function DrawStar(ctx: CanvasRenderingContext2D, x: number, y: number, ra
         }
     }
     ctx.closePath();
+}
+
+
+export function DrawCheckBox(n: SkillNode) {
+    const context = view.context
+    if (!context) return
+    if (!n.userCompletable) return
+    if (n.state !== 'in-progress') return
+
+    let r = nodeRadii[n.id] || nodeRadius
+    const minScreenSize = 14;
+    const maxScreenSize = 24;
+    const baseScreenSize = Math.min(maxScreenSize, Math.max(minScreenSize, r * 0.25));
+    const checkboxSize = baseScreenSize / view.scale;
+
+    // Calculate text position to place checkbox below text
+    const lineHeight = fontSize / view.scale
+    const isUnlinked = n.fileLink === ''
+    const label = isUnlinked ? n.fileLink : n.fileLink || '' + ' [Unlinked]'
+    const words = (label || '').split(/\s+/).filter(Boolean)
+    const lines: string[] = []
+    for (let i = 0; i < words.length; i += 4) {
+        lines.push(words.slice(i, i + 4).join(' '))
+    }
+    const totalLines = lines.length + (isUnlinked ? 1 : 0)
+    const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2
+    const textBottomY = firstLineY + totalLines * lineHeight
+
+    // Position checkbox below the text
+    const checkboxX = n.x - checkboxSize / 2;
+    const checkboxY = textBottomY + 4 / view.scale;
+
+    context.strokeStyle = '#333';
+    context.lineWidth = 2 / view.scale;
+    context.beginPath();
+    const checkboxRadius = checkboxSize * 0.15;
+    context.moveTo(checkboxX + checkboxRadius, checkboxY);
+    context.lineTo(checkboxX + checkboxSize - checkboxRadius, checkboxY);
+    context.arcTo(checkboxX + checkboxSize, checkboxY, checkboxX + checkboxSize, checkboxY + checkboxRadius, checkboxRadius);
+    context.lineTo(checkboxX + checkboxSize, checkboxY + checkboxSize - checkboxRadius);
+    context.arcTo(checkboxX + checkboxSize, checkboxY + checkboxSize, checkboxX + checkboxSize - checkboxRadius, checkboxY + checkboxSize, checkboxRadius);
+    context.lineTo(checkboxX + checkboxRadius, checkboxY + checkboxSize);
+    context.arcTo(checkboxX, checkboxY + checkboxSize, checkboxX, checkboxY + checkboxSize - checkboxRadius, checkboxRadius);
+    context.lineTo(checkboxX, checkboxY + checkboxRadius);
+    context.arcTo(checkboxX, checkboxY, checkboxX + checkboxRadius, checkboxY, checkboxRadius);
+    context.stroke();
+
+    // if (n.state === 'complete') {
+    //     context.strokeStyle = '#2e7d32';
+    //     context.lineWidth = 2.5 / view.scale;
+    //     context.lineCap = 'round';
+    //     context.lineJoin = 'round';
+    //     context.beginPath();
+    //     context.moveTo(checkboxX + checkboxSize * 0.25, checkboxY + checkboxSize * 0.5);
+    //     context.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.7);
+    //     context.lineTo(checkboxX + checkboxSize * 0.75, checkboxY + checkboxSize * 0.3);
+    //     context.stroke();
+    //     context.lineCap = 'butt';
+    //     context.lineJoin = 'miter';
+    // }
 }

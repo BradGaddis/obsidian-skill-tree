@@ -1,4 +1,4 @@
-import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
 import { distanceTo, pointToSegmentDistance } from "../utils";
@@ -42,6 +42,18 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const rect = canvas.getBoundingClientRect();
         const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
+        // Check for checkbox click first
+        const checkboxHit = getCheckboxAtWorld(worldPos)
+        if (checkboxHit && checkboxHit.userCompletable) {
+            if (checkboxHit.state === 'in-progress') {
+                checkboxHit.state = 'complete'
+            }
+            // } else if (checkboxHit.state === 'in-progress') {
+            //     checkboxHit.state = 'complete'
+            // }
+            Render()
+            return
+        }
 
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
@@ -239,18 +251,57 @@ function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): {
         { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
         { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
     ]
-
     let nearest: { side: string, hx: number, hy: number } | null = null
     let minDist = Infinity
 
     for (const h of handles) {
-        const dist = distanceTo({ x: h.hx, y: h.hy }, { x: refX, y: refY })
+        const dx = h.hx - refX
+        const dy = h.hy - refY
+        const dist = Math.sqrt(dx * dx + dy * dy)
         if (dist < minDist) {
             minDist = dist
             nearest = h
         }
     }
     return nearest
+}
+
+function getCheckboxAtWorld(worldPos: Coordinate): SkillNode | null {
+    const nodes = GetNodes()
+    for (const node of nodes.values()) {
+        if (!node.userCompletable) continue
+        if (node.state !== 'in-progress' && node.state !== 'complete') continue
+
+        const r = nodeRadii[node.id] || nodeRadius
+        const minScreenSize = 14
+        const maxScreenSize = 24
+        const baseScreenSize = Math.min(maxScreenSize, Math.max(minScreenSize, r * 0.25))
+        const checkboxSize = baseScreenSize / view.scale
+
+        // Calculate text position (same as in DrawCheckBox)
+        const lineHeight = fontSize / view.scale
+        const isUnlinked = node.fileLink === ''
+        const label = isUnlinked ? node.fileLink : node.fileLink || '' + ' [Unlinked]'
+        const words = (label || '').split(/\s+/).filter(Boolean)
+        const nodeLines: string[] = []
+        for (let i = 0; i < words.length; i += 4) {
+            nodeLines.push(words.slice(i, i + 4).join(' '))
+        }
+        const totalLines = nodeLines.length + (isUnlinked ? 1 : 0)
+        const firstLineY = node.y - ((totalLines - 1) * lineHeight) / 2
+        const textBottomY = firstLineY + totalLines * lineHeight
+
+        const checkboxX = node.x - checkboxSize / 2
+        const checkboxY = textBottomY + 4 / view.scale
+
+        const dx = worldPos.x - checkboxX
+        const dy = worldPos.y - checkboxY
+
+        if (dx >= 0 && dx <= checkboxSize && dy >= 0 && dy <= checkboxSize) {
+            return node
+        }
+    }
+    return null
 }
 
 export function setEdgeDragFrom(edgeDrag: Handle): void {
