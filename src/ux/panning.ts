@@ -17,10 +17,17 @@ export function InitPanHandler(skillTreeView: SkillTreeView, shouldStartPan: (..
 
     // Event handlers
     const onMouseDown = (e: MouseEvent) => {
-        if (e.button !== 0) return;  // only left click
-        if (shouldStartPan()) {
+        if (e.button === 0 && shouldStartPan()) {
+            isPanning = true;
+        } else if (e.button === 1) {
+            isPanning = true;
+        } else if (e.button === 2 && shouldStartPan()) {
             isPanning = true;
         }
+    };
+
+    const onContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -37,6 +44,7 @@ export function InitPanHandler(skillTreeView: SkillTreeView, shouldStartPan: (..
 
     // Attach listeners
     canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
@@ -44,6 +52,7 @@ export function InitPanHandler(skillTreeView: SkillTreeView, shouldStartPan: (..
     return {
         cleanup: () => {
             canvas.removeEventListener('mousedown', onMouseDown);
+            canvas.removeEventListener('contextmenu', onContextMenu);
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
         }

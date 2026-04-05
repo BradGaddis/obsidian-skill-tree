@@ -43,6 +43,14 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
+        if (e.button === 2 && hitNode) {
+            SetSelectedNodeID(hitNode.id)
+            CenterOnNode(hitNode)
+            createStatsModal(view, hitNode)
+            // TODO: open edit modal
+            return
+        }
+
         const edgeHandle = getEdgeEndpointAtWorld(worldPos)
         if (edgeHandle) {
             isDragging = true

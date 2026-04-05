@@ -109,8 +109,37 @@ export function UpdateToolbarUI(): void {
     };
 }
 
-// TODO: factor in world origin, update all of the node coordinates
+
 export function Recenter() {
+    const nodes = Array.from(GetNodes().values());
+    if (nodes.length === 0) return;
+
+    const xs = nodes.map(n => n.x);
+    const ys = nodes.map(n => n.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const offsetX = -centerX;
+    const offsetY = -centerY;
+
+    for (const node of nodes) {
+        node.x += offsetX;
+        node.y += offsetY;
+    }
+
+    view.offset = { x: 0, y: 0 };
+    Render();
+}
+
+
+// TODO: factor in world origin, update all of the node coordinates
+// TODO: move some amount with RAF for stylistic reasons
+export function Recenter2() {
     const nodes = Array.from(GetNodes().values());
     canvasWidth = (view.canvas?.width || 0) / dpr
     canvasHeight = (view.canvas?.height || 0) / dpr
@@ -120,6 +149,7 @@ export function Recenter() {
         const ys = nodes.map(n => n.y);
         const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
         const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+        console.log(centerX, centerY)
         // Offset to center (assuming canvas is ~800px wide)
         view.offset = { x: canvasWidth / 2 - centerX, y: canvasHeight / 2 - centerY };
     }
