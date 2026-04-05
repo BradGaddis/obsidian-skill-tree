@@ -4,6 +4,7 @@ import { SkillTreeView } from "src/skilltreeview";
 import { TFile } from "obsidian";
 import { GetEdges, GetNodes, tasksCache } from "src/tree-manager";
 import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO, STATS_MODAL_ROW_DOM_EL_INFO } from "../constants"
+import { OptionalNode } from "./optional_node";
 
 // TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {
@@ -18,6 +19,8 @@ export class SkillNode implements ISkillNode {
     x: number;
     y: number;
     state: NodeState;
+
+
     heldState: NodeState | null = null;
     exp: number;
     fileLink?: string;
@@ -39,81 +42,106 @@ export class SkillNode implements ISkillNode {
         this.canSkipOrphanUnavailable = data.canSkipOrphanUnavailable ?? false;
     }
 
-    protected allNonOptionalChildrenComplete(): boolean {
-        return false;
-        // const nonOptional = this.children.filter(c => !c.optional);
-        // return nonOptional.length > 0 && nonOptional.every(c => c.state === 'complete');
+    protected allNonOptionalFromsComplete(): boolean {
+        for (let from of this.from) {
+            if (from.nodeTypeName == "OptionalNode") {
+                continue
+            }
+            if (from.state != "complete") {
+                console.log("from was not complete for ", this.id)
+                console.log(`This node has froms: ${this.from}`)
+                console.log(`This node has tos: ${this.to}`)
+                return false
+            }
+        }
+        return true
     }
 
-    protected updateRelationShips() {
+    updateRelationShips() {
         const edges = GetEdges();
         const nodes = GetNodes();
 
-        this.to = edges
+        this.from = edges
             .filter((e) => e.to === this.id)
-            .map((e) => nodes.get(e.to as string | number))
+            .map((e) => nodes.get(e.from as string | number))
             .filter((n): n is SkillNode => n !== undefined);
 
-        this.from = edges
+        this.to = edges
             .filter((e) => e.from === this.id)
-            .map((e) => nodes.get(e.from as string | number))
+            .map((e) => nodes.get(e.to as string | number))
             .filter((n): n is SkillNode => n !== undefined);
     }
 
-    validate(): void {
-        this.updateRelationShips()
+    validateOrphanNode() {
+        this.state = "unavailable"
+    }
 
-
-        if (this.hasOnHoldFrom()) {
-            this.state == 'on-hold'
-            this.cascadeTo()
+    validateStartNode() {
+        if (this.userCompletable && this.state === "complete") {
             return
-
         }
+        this.state = "in-progress"
+    }
+
+    validateIntermediateNode() {
+        if (this.hasUnavailableFroms()) {
+            this.state = "unavailable"
+        }
+        else if (this.allNonOptionalFromsComplete()) {
+            // Only set to in-progress if not already complete (user manually marked it)
+            if (this.state !== "complete") {
+                this.state = "in-progress"
+            }
+        }
+        else {
+            this.state = "unavailable"
+        }
+
+    }
+
+
+    validateEndNode() {
+        if (this.hasUnavailableFroms()) {
+            this.state = "unavailable"
+        }
+        else if (this.allNonOptionalFromsComplete()) {
+            // Only set to in-progress if not already complete (user manually marked it)
+            if (this.state !== "complete") {
+                this.state = "in-progress"
+            }
+        }
+        else {
+            this.state = "unavailable"
+        }
+
+    }
+
+    validate(): void {
+        const nodeStructuralType = this.getStructuralType()
 
 
         switch (this.getStructuralType()) {
             case "orphaned":
-                if (this.state !== 'unavailable') {
-
-                    this.state = 'unavailable';
-                    this.cascadeTo();
-                    return;
-                }
-                return;
-
-            case "intermediate":
+                this.validateOrphanNode()
+                break;
             case "start":
-                if (this.state != "complete") {
-                    this.state = "in-progress"
-                    return
-                }
+                this.validateStartNode()
+                break;
+            case "intermediate":
             case "end":
-                if (this.hasUnavailableFroms()) {
-                    if (this.state !== 'unavailable') {
-                        this.state = 'unavailable';
-                        this.cascadeTo();
-                        return;
-                    }
-                    return;
-                }
-                this.cascadeTo()
+                this.validateEndNode()
                 break;
         }
-
-        return;
-
+        this.cascadeTo()
     }
 
-    protected getStructuralType(): NodeType {
+    getStructuralType(): NodeType {
         const to = this.to.length > 0;
         const from = this.from.length > 0;
 
         if (!to && !from) return 'orphaned';
-
-        if (from && !to) return 'start';
-
-        if (to && !from) return 'end';
+        if (!from && to) return 'start';
+        if (!to && from) return 'end';
 
         return 'intermediate';
     }
@@ -127,12 +155,13 @@ export class SkillNode implements ISkillNode {
             return
         }
         for (const to of this.to) {
+            console.log("progagating to ", to.id, " which is an ", to.getStructuralType(), " node")
             to.validate();
         }
     }
 
     protected hasUnavailableFroms(): boolean {
-        return this.to.some(from => from.state === 'unavailable');
+        return this.from.some(from => from.state === 'unavailable');
     }
 
     protected hasOnHoldFrom(): boolean {

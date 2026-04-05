@@ -10,6 +10,7 @@ import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
 import { SkillEdge } from "src/interfaces";
 import { Direction, Direction as EdgeDirection } from "src/enums";
+import { SaveNodes } from "src/recorder";
 
 let view: SkillTreeView;
 
@@ -48,9 +49,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             if (checkboxHit.state === 'in-progress') {
                 checkboxHit.state = 'complete'
             }
-            // } else if (checkboxHit.state === 'in-progress') {
-            //     checkboxHit.state = 'complete'
-            // }
             Render()
             return
         }

@@ -6,9 +6,9 @@ import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
-import { SaveNodes } from "./recorder";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox } from "./drawing";
 import { Coordinate } from "./types";
+import { SaveNodes } from "./recorder";
 
 
 let view: SkillTreeView
@@ -208,7 +208,11 @@ function UpdateInRAFID() {
 
 
     for (let node of nodes) {
-        node.validate()
+        node.updateRelationShips()
+    }
+    for (let node of nodes) {
+        if (node.getStructuralType() == "start" || node.getNodeType() == "orphaned")
+            node.validate()
     }
 
     // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
@@ -220,7 +224,6 @@ function UpdateInRAFID() {
     }
 
     context.restore();
-
     SaveNodes()
     rafId = null
 }

@@ -14,11 +14,11 @@ export class OptionalNode extends SkillNode {
     }
 
     validate(): void {
-        super.validate()
-        if (this.allNonOptionalChildrenComplete()) {
-            this.state = 'complete'
-            this.cascadeTo()
-        }
+        // super.validate()
+        // if (this.allNonOptionalFromsComplete()) {
+        //     this.state = 'complete'
+        //     this.cascadeFrom()
+        // }
     }
 
     static fromJSON(data: any): OptionalNode {

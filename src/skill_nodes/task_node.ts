@@ -11,7 +11,7 @@ export class TaskNode extends SkillNode {
     }
 
     validate(): void {
-        this.cascadeTo()
+        this.cascadeFromNode()
         return;
     }
 

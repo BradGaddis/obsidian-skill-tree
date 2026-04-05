@@ -15,9 +15,9 @@ export class CheckpointNode extends SkillNode {
 
     validate(): void {
         super.validate()
-        if (this.allNonOptionalChildrenComplete()) {
+        if (this.allNonOptionalFromsComplete()) {
             this.state = 'complete'
-            this.cascadeTo()
+            this.cascadeFromNode()
         }
     }
 
