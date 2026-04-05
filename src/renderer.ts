@@ -206,7 +206,13 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
+    // validate edges | remove duplicates
+    for (let edge of GetEdges()) {
 
+
+    }
+
+    // validate nodes
     for (let node of nodes) {
         node.validate()
     }
@@ -292,6 +298,7 @@ function RenderEdgeLines() {
             sx1 = e.fromX;
             sy1 = e.fromY;
         }
+
         // Priority 2: Use from node
         else if (e.from) {
             const a = nodeMap.get(e.from as string | number);
@@ -303,6 +310,7 @@ function RenderEdgeLines() {
             else if (e.fromSide === 'bottom') sy1 += nodeRadius;
             else if (e.fromSide === 'left') sx1 -= nodeRadius;
         }
+
         else {
             continue; // No start position available
         }

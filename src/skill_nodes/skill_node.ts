@@ -13,7 +13,7 @@ export class SkillNode implements ISkillNode {
         return false
     }
 
-    id: string;
+    id: string | number;
     x: number;
     y: number;
     state: NodeState;
@@ -27,7 +27,7 @@ export class SkillNode implements ISkillNode {
     parents: SkillNode[] = [];
 
     constructor(data: Partial<ISkillNode> = {}) {
-        this.id = crypto.randomUUID()
+        this.id = data.id ?? crypto.randomUUID()
         this.x = data.x ?? 0;
         this.y = data.y ?? 0;
         this.state = data.state ?? 'unavailable';
@@ -62,7 +62,7 @@ export class SkillNode implements ISkillNode {
     validate(): void {
 
         this.updateRelationShips()
-        console.log(this.id, this.parents, this.children)
+        console.log(this.parents, this.children)
         return
 
         const originalState = this.state;

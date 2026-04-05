@@ -17,7 +17,7 @@ import { Direction } from "./enums";
 let view: SkillTreeView
 let currentTree: SkillTreeData
 
-let nodes: Map<string | number, SkillNode> = new Map();
+let nodes: Map<string | number | null, SkillNode> = new Map();
 let edges: SkillEdge[] = [];
 
 let selectedNodeId: string | null
@@ -39,7 +39,7 @@ export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<voi
 }
 
 
-export function GetNodes(): Map<string | number, SkillNode> {
+export function GetNodes(): Map<string | number | null, SkillNode> {
     return nodes;
 }
 
@@ -268,24 +268,17 @@ async function LoadTree() {
 function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
     nodes.clear();
     edges = [...edgesData];
-    console.log(...edges)
-
     for (const data of nodesData) {
         const node: SkillNode = NodeFromJSON(data);
         if (!node) {
             return
         }
-
-        // TODO: implement
-        // if (!node.id) {
-        //     node.id = crypto.randomUUID()
-        // }
-        //
         nodes.set(node.id, node);
     }
 
-}
+    edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
 
+}
 
 function NodeFromJSON(data: any): any {
     if (data.nodeType) {
