@@ -11,7 +11,7 @@ export class SkillNode implements ISkillNode {
 
     // This should be allowed to change by anybody
     get userCompletable(): boolean {
-        return false
+        return true
     }
 
     id: string | number;
@@ -50,99 +50,71 @@ export class SkillNode implements ISkillNode {
         const nodes = GetNodes();
 
         this.to = edges
-            .filter((e) => e.from === this.id)
+            .filter((e) => e.to === this.id)
             .map((e) => nodes.get(e.to as string | number))
             .filter((n): n is SkillNode => n !== undefined);
 
         this.from = edges
-            .filter((e) => e.to === this.id)
+            .filter((e) => e.from === this.id)
             .map((e) => nodes.get(e.from as string | number))
             .filter((n): n is SkillNode => n !== undefined);
     }
 
     validate(): void {
-        const originalState = this.state;
-        const nodeType = this.getStructuralType();
+        this.updateRelationShips()
 
 
-        if (nodeType === 'orphaned') {
-            if (this.state !== 'unavailable') {
+        if (this.hasOnHoldFrom()) {
+            this.state == 'on-hold'
+            this.cascadeTo()
+            return
 
-                this.state = 'unavailable';
-                this.cascadeTo();
+        }
+
+
+        switch (this.getStructuralType()) {
+            case "orphaned":
+                if (this.state !== 'unavailable') {
+
+                    this.state = 'unavailable';
+                    this.cascadeTo();
+                    return;
+                }
                 return;
-            }
-            return;
-        }
-        if (this.hasUnavailableFroms()) {
-            if (this.state !== 'unavailable') {
 
-                this.state = 'unavailable';
-                this.cascadeTo();
-                return;
-            }
-            return;
-        }
-        const hasOnHoldChild = this.hasOnHoldFrom();
-        const hasRepeatingInProgressChild = this.hasRepeatingInProgressFrom();
-
-        if (this.state === 'on-hold') {
-
-            if (hasOnHoldChild || hasRepeatingInProgressChild) {
-                return
-            }
-            if (!this.heldState) {
-
-                return
-            }
-
-            this.state = this.heldState;
-            this.heldState = null;
-            this.validate()
-            return;
+            case "intermediate":
+            case "start":
+                if (this.state != "complete") {
+                    this.state = "in-progress"
+                    return
+                }
+            case "end":
+                if (this.hasUnavailableFroms()) {
+                    if (this.state !== 'unavailable') {
+                        this.state = 'unavailable';
+                        this.cascadeTo();
+                        return;
+                    }
+                    return;
+                }
+                this.cascadeTo()
+                break;
         }
 
-        if (hasOnHoldChild || hasRepeatingInProgressChild) {
-            this.heldState = originalState;
-            this.state = 'on-hold';
-            this.cascadeTo();
-            return;
-        }
-
-        if (nodeType === 'start' && this.state !== 'complete') {
-            this.state = 'in-progress';
-            if (this.state !== originalState) {
-                this.cascadeTo();
-                return;
-            }
-            return;
-        }
-
-        if (nodeType !== 'start' && this.to.length > 0) {
-            // const allNonOptionalComplete = this.children.every(c => c.optional || c.state === 'complete');
-            // if (allNonOptionalComplete && this.state === 'unavailable') {
-            //     this.state = 'in-progress';
-            //     this.cascadeToParents();
-            //     return;
-            // }
-        }
-        if (this.hasIncompleteFrom()) {
-
-            this.state = 'unavailable'
-            this.cascadeTo();
-            return;
-        }
-        this.cascadeTo();
         return;
+
     }
 
     protected getStructuralType(): NodeType {
-        const hasChildren = this.to.length > 0;
-        const hasParents = this.from.length > 0;
+        const to = this.to.length > 0;
+        const from = this.from.length > 0;
 
-        if (!hasChildren && !hasParents) return 'orphaned';
-        if (hasParents && !hasChildren) return 'start';
-        if (hasChildren && !hasParents) return 'end';
+        if (!to && !from) return 'orphaned';
+
+        if (from && !to) return 'start';
+
+        if (to && !from) return 'end';
+
         return 'intermediate';
     }
 
