@@ -9,6 +9,7 @@ import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO, STATS_MODAL_ROW_DOM_EL_INFO } from "
 export class SkillNode implements ISkillNode {
     readonly nodeTypeName: string = "BaseNode";
 
+    // This should be allowed to change by anybody
     get userCompletable(): boolean {
         return false
     }
@@ -23,8 +24,8 @@ export class SkillNode implements ISkillNode {
     shape: NodeShape;
     canSkipOrphanUnavailable: boolean = false;
 
-    children: SkillNode[] = [];
-    parents: SkillNode[] = [];
+    to: SkillNode[] = [];
+    from: SkillNode[] = [];
 
     constructor(data: Partial<ISkillNode> = {}) {
         this.id = data.id ?? crypto.randomUUID()
@@ -48,52 +49,53 @@ export class SkillNode implements ISkillNode {
         const edges = GetEdges();
         const nodes = GetNodes();
 
-        this.children = edges
+        this.to = edges
             .filter((e) => e.from === this.id)
             .map((e) => nodes.get(e.to as string | number))
             .filter((n): n is SkillNode => n !== undefined);
 
-        this.parents = edges
+        this.from = edges
             .filter((e) => e.to === this.id)
             .map((e) => nodes.get(e.from as string | number))
             .filter((n): n is SkillNode => n !== undefined);
     }
 
     validate(): void {
-
-        this.updateRelationShips()
-        console.log(this.parents, this.children)
-        return
-
         const originalState = this.state;
         const nodeType = this.getStructuralType();
 
+
         if (nodeType === 'orphaned') {
             if (this.state !== 'unavailable') {
+
                 this.state = 'unavailable';
-                this.cascadeToParents();
+                this.cascadeTo();
                 return;
             }
             return;
         }
-        if (this.hasUnavailableChild()) {
+        if (this.hasUnavailableFroms()) {
             if (this.state !== 'unavailable') {
+
                 this.state = 'unavailable';
-                this.cascadeToParents();
+                this.cascadeTo();
                 return;
             }
             return;
         }
-        const hasOnHoldChild = this.hasOnHoldChild();
-        const hasRepeatingInProgressChild = this.hasRepeatingInProgressChild();
+        const hasOnHoldChild = this.hasOnHoldFrom();
+        const hasRepeatingInProgressChild = this.hasRepeatingInProgressFrom();
 
         if (this.state === 'on-hold') {
+
             if (hasOnHoldChild || hasRepeatingInProgressChild) {
                 return
             }
             if (!this.heldState) {
+
                 return
             }
+
             this.state = this.heldState;
             this.heldState = null;
             this.validate()
@@ -103,21 +105,20 @@ export class SkillNode implements ISkillNode {
         if (hasOnHoldChild || hasRepeatingInProgressChild) {
             this.heldState = originalState;
             this.state = 'on-hold';
-            this.cascadeToParents();
+            this.cascadeTo();
             return;
         }
 
-        if (nodeType === 'root' && this.state !== 'complete') {
+        if (nodeType === 'start' && this.state !== 'complete') {
             this.state = 'in-progress';
             if (this.state !== originalState) {
-                this.cascadeToParents();
+                this.cascadeTo();
                 return;
             }
             return;
         }
 
-        if (nodeType !== 'root' && this.children.length > 0) {
-            // TODO:
+        if (nodeType !== 'start' && this.to.length > 0) {
             // const allNonOptionalComplete = this.children.every(c => c.optional || c.state === 'complete');
             // if (allNonOptionalComplete && this.state === 'unavailable') {
             //     this.state = 'in-progress';
@@ -125,22 +126,23 @@ export class SkillNode implements ISkillNode {
             //     return;
             // }
         }
-        if (this.hasIncompleteChild()) {
+        if (this.hasIncompleteFrom()) {
+
             this.state = 'unavailable'
-            this.cascadeToParents();
+            this.cascadeTo();
             return;
         }
-        this.cascadeToParents();
+        this.cascadeTo();
         return;
     }
 
     protected getStructuralType(): NodeType {
-        const hasChildren = this.children.length > 0;
-        const hasParents = this.parents.length > 0;
+        const hasChildren = this.to.length > 0;
+        const hasParents = this.from.length > 0;
 
         if (!hasChildren && !hasParents) return 'orphaned';
-        if (hasParents && !hasChildren) return 'root';
-        if (hasChildren && !hasParents) return 'top';
+        if (hasParents && !hasChildren) return 'start';
+        if (hasChildren && !hasParents) return 'end';
         return 'intermediate';
     }
 
@@ -148,38 +150,38 @@ export class SkillNode implements ISkillNode {
         return this.getStructuralType();
     }
 
-    protected cascadeToParents(): void {
-        if (this.parents.length == 0) {
+    protected cascadeTo(): void {
+        if (this.to.length == 0) {
             return
         }
-        for (const parent of this.parents) {
-            parent.validate();
+        for (const to of this.to) {
+            to.validate();
         }
     }
 
-    protected hasUnavailableChild(): boolean {
-        return this.children.some(child => child.state === 'unavailable');
+    protected hasUnavailableFroms(): boolean {
+        return this.to.some(from => from.state === 'unavailable');
     }
 
-    protected hasOnHoldChild(): boolean {
-        return this.children.some(child => child.state === 'on-hold');
+    protected hasOnHoldFrom(): boolean {
+        return this.to.some(from => from.state === 'on-hold');
     }
 
-    protected hasRepeatingInProgressChild(): boolean {
-        return this.children.some(child => {
+    protected hasRepeatingInProgressFrom(): boolean {
+        return this.to.some(from => {
             // TODO: 
-            // return child.repeating && child.state === 'in-progress';
+            // return from.repeating && from.state === 'in-progress';
         });
     }
 
-    protected hasIncompleteChild(): boolean {
-        return this.children.some(child => {
+    protected hasIncompleteFrom(): boolean {
+        return this.to.some(child => {
             return child.state == 'in-progress';
         });
     }
 
-    protected allChildrenComplete(): boolean {
-        return this.children.length > 0 && this.children.every(child => child.state === 'complete');
+    protected allFromsComplete(): boolean {
+        return this.to.length > 0 && this.to.every(child => child.state === 'complete');
     }
 
     protected canBeComplete(): boolean {

@@ -206,13 +206,7 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
-    // validate edges | remove duplicates
-    for (let edge of GetEdges()) {
 
-
-    }
-
-    // validate nodes
     for (let node of nodes) {
         node.validate()
     }
@@ -289,7 +283,6 @@ function RenderEdgeLines() {
         return;
     }
     for (const e of GetEdges()) {
-        console.log(e)
         // Determine sx1, sy1 (start position)
         let sx1: number, sy1: number;
 
