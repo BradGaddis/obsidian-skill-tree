@@ -17,7 +17,7 @@ import {
     SwitchTree,
     CreateTree,
 } from "./tree-manager"
-import { Render, UpdateToolbarUI } from "./renderer";
+import { Recenter, Render, UpdateToolbarUI } from "./renderer";
 import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddNodeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
 import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor as RefreshJSONEditor } from "./json_editor";
@@ -122,7 +122,8 @@ function SetupToolbarButtons(): void {
     SetupTreeSelectorDiv();
     SetupRenameTreeButton()
     SetupDeleteTreeButton();
-    SetUpGoToLinkedBtn();
+    SetUpGoToLinkedButton();
+    SetUpRecenterButton();
 
     // Initialize to not showing edit mode buttons
     for (let button of editModeOnlyButtons) {
@@ -167,11 +168,11 @@ function SetupAddEmptyButton() {
             const rect = view.canvas.getBoundingClientRect();
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
-            const worldPos = view.screenToWorld(centerX, centerY);
+            const worldPos = view.screenToWorld({ x: centerX, y: centerY });
             // TODO: Refactor into Graph or something?
-            view.addNodeAt(worldPos.x, worldPos.y);
+            // view.addNodeAt(worldPos.x, worldPos.y);
         } else {
-            view.addNodeAt(200, 150);
+            // view.addNodeAt(200, 150);
         }
         await SaveNodes();
         Render();
@@ -189,9 +190,9 @@ function SetupAddOptionalButton() {
             const rect = view.canvas.getBoundingClientRect();
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
-            worldPos = view.screenToWorld(centerX, centerY);
+            worldPos = view.screenToWorld({ x: centerX, y: centerY });
         }
-        view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'OptionalNode', optional: true, state: 'in-progress', exp: 0 });
+        // view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'OptionalNode', optional: true, state: 'in-progress', exp: 0 });
         await SaveNodes();
         Render();
         RefreshJSONEditor();
@@ -207,10 +208,10 @@ function SetupAddCheckpointButton() {
             const rect = view.canvas.getBoundingClientRect();
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
-            worldPos = view.screenToWorld(centerX, centerY);
+            worldPos = view.screenToWorld({ x: centerX, y: centerY });
         }
-        view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'CheckpointNode', checkpoint: true, shape: 'diamond', exp: 0 });
-        await SaveNodes();
+        // view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'CheckpointNode', checkpoint: true, shape: 'diamond', exp: 0 });
+        // await SaveNodes();
         Render();
         RefreshJSONEditor();
     };
@@ -233,7 +234,7 @@ function SetupAddRepeatingButton() {
             const rect = view.canvas.getBoundingClientRect();
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
-            worldPos = view.screenToWorld(centerX, centerY);
+            worldPos = view.screenToWorld({ x: centerX, y: centerY });
         }
         OpenAddRepeatingNodeDialog(worldPos.x, worldPos.y);
     };
@@ -392,7 +393,7 @@ function SetupTreeSelectorDiv() {
 
 }
 
-function SetUpGoToLinkedBtn() {
+function SetUpGoToLinkedButton() {
     goToLinkedBtn = toolbarButtons.createEl('button', { text: 'Go to Linked' });
     goToLinkedBtn.style.marginLeft = '6px';
     goToLinkedBtn.title = 'Jump to a tree that links to view one';
@@ -496,3 +497,9 @@ function updateGoToLinkedBtnVisibility(): void {
 
 
 
+function SetUpRecenterButton() {
+    const recenterBtn = toolbarButtons.createEl('button', { text: 'Recenter' });
+    recenterBtn.style.marginLeft = '8px';
+
+    recenterBtn.onclick = () => Recenter();
+}

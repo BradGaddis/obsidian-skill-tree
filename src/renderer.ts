@@ -8,6 +8,7 @@ import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
 import { SaveNodes } from "./recorder";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing } from "./drawing";
+import { Coordinate } from "./types";
 
 
 let view: SkillTreeView
@@ -24,12 +25,18 @@ export let bottomWorld: number = 0
 export let canvasWidth: number = 0
 export let canvasHeight: number = 0
 
+// TODO: implement these?
+let lastTimeStamp: number = 0
+export let frameDelta: number = 1
+// let deltaEpsilon: number = .001
+// let nodeBoundingBox: Coordinate // TODO: use for zooming and panning limits
+
 let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 
 // TODO: Make it an adjustable setting
 const fontSize = 16
 
-let rafId: number | null = null;
+export let rafId: number | null = null;
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
     view = skillTreeView
@@ -110,7 +117,8 @@ export function UpdateToolbarUI(): void {
 }
 
 
-export function Recenter() {
+// TODO: move some amount with RAF for stylistic reasons
+export function Recenter(delta: number = 1) {
     const nodes = Array.from(GetNodes().values());
     if (nodes.length === 0) return;
 
@@ -128,89 +136,103 @@ export function Recenter() {
     const offsetY = -centerY;
 
     for (const node of nodes) {
-        node.x += offsetX;
-        node.y += offsetY;
+        node.x += offsetX
+        node.y += offsetY
     }
-
-    view.offset = { x: 0, y: 0 };
+    canvasWidth = (view.canvas?.width || 0) / dpr;
+    canvasHeight = (view.canvas?.height || 0) / dpr;
+    view.offset = { x: canvasWidth / 2, y: canvasHeight / 2 };
     Render();
 }
 
 
-// TODO: factor in world origin, update all of the node coordinates
-// TODO: move some amount with RAF for stylistic reasons
-export function Recenter2() {
-    const nodes = Array.from(GetNodes().values());
-    canvasWidth = (view.canvas?.width || 0) / dpr
-    canvasHeight = (view.canvas?.height || 0) / dpr
-    if (nodes.length > 0) {
-        // Calculate center of all nodes
-        const xs = nodes.map(n => n.x);
-        const ys = nodes.map(n => n.y);
-        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-        const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
-        console.log(centerX, centerY)
-        // Offset to center (assuming canvas is ~800px wide)
-        view.offset = { x: canvasWidth / 2 - centerX, y: canvasHeight / 2 - centerY };
+// DEPRECATED
+// export function Recenter2() {
+//     const nodes = Array.from(GetNodes().values());
+//     canvasWidth = (view.canvas?.width || 0) / dpr
+//     canvasHeight = (view.canvas?.height || 0) / dpr
+//     if (nodes.length > 0) {
+//         // Calculate center of all nodes
+//         const xs = nodes.map(n => n.x);
+//         const ys = nodes.map(n => n.y);
+//         const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+//         const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+//         console.log(centerX, centerY)
+//         // Offset to center (assuming canvas is ~800px wide)
+//         view.offset = { x: canvasWidth / 2 - centerX, y: canvasHeight / 2 - centerY };
+//     }
+//     Render();
+// }
+
+
+function UpdateInRAFID() {
+
+    frameDelta = Date.now() - lastTimeStamp
+
+
+    if (!view.context || !view.canvas) return;
+    const context = view.context;
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, view.canvas.width, view.canvas.height);
+
+    RenderWarningBanner();
+
+    context.save();
+
+    try {
+        context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, view.offset.x * dpr, view.offset.y * dpr);
+    } catch (e) {
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.translate(view.offset.x, view.offset.y);
+        context.scale(view.scale, view.scale);
     }
-    Render();
+
+
+    const clientW = view.canvas.width / dpr;
+    const clientH = view.canvas.height / dpr;
+    leftWorld = (-view.offset.x) / view.scale;
+    rightWorld = (clientW - view.offset.x) / view.scale;
+    topWorld = (-view.offset.y) / view.scale;
+    bottomWorld = (clientH - view.offset.y) / view.scale;
+
+    nodeRadius = view.settings.nodeRadius
+
+    const nodes = Array.from(GetNodes().values())
+
+
+    styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
+
+    allNodeRadii = new Map(
+        nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
+    );
+
+
+    for (let node of nodes) {
+        node.validate()
+    }
+
+    // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
+    RenderNodes(nodes)
+    RenderEdgeLines()
+    RenderTemporaryEdgeLine()
+    if (view.settings.mode == "edit") {
+        RenderNodeHandles(nodes);
+    }
+
+    context.restore();
+
+    SaveNodes()
+    rafId = null
 }
+
 
 export function Render(): void {
-    if (!rafId) {
-        rafId = requestAnimationFrame(() => {
-            if (!view.context || !view.canvas) return;
-            const context = view.context;
-            context.setTransform(1, 0, 0, 1, 0, 0);
-            context.clearRect(0, 0, view.canvas.width, view.canvas.height);
-
-            RenderWarningBanner();
-
-            context.save();
-
-            try {
-                context.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, view.offset.x * dpr, view.offset.y * dpr);
-            } catch (e) {
-                context.setTransform(dpr, 0, 0, dpr, 0, 0);
-                context.translate(view.offset.x, view.offset.y);
-                context.scale(view.scale, view.scale);
-            }
-
-
-            const clientW = view.canvas.width / dpr;
-            const clientH = view.canvas.height / dpr;
-            leftWorld = (-view.offset.x) / view.scale;
-            rightWorld = (clientW - view.offset.x) / view.scale;
-            topWorld = (-view.offset.y) / view.scale;
-            bottomWorld = (clientH - view.offset.y) / view.scale;
-
-            nodeRadius = view.settings.nodeRadius
-
-            const nodes = Array.from(GetNodes().values())
-
-
-            styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
-
-            allNodeRadii = new Map(
-                nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
-            );
-
-
-            RenderNodes(nodes)
-            RenderEdgeLines()
-            RenderTemporaryEdgeLine()
-
-            if (view.settings.mode == "edit") {
-                RenderNodeHandles(nodes);
-            }
-
-
-            // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
-            context.restore();
-        });
-        // SaveNodes() // TODO: check if this is still valid/implement
+    if (rafId) {
+        return
     }
-    rafId = null
+    rafId = requestAnimationFrame(
+        UpdateInRAFID
+    );
 }
 
 
@@ -218,8 +240,6 @@ function RenderWarningBanner(padding: number = 2) {
     const context = view.context;
     const canvas = view.canvas;
     if (!context || !canvas) return;
-
-
     if (!view.isTasksPluginInstalled() || !view.isDataviewPluginInstalled()) {
         context.save();
         context.fillStyle = 'rgba(255, 193, 7, 0.9)';
@@ -241,12 +261,9 @@ function RenderTemporaryEdgeLine() {
     const from = edgeDragFrom  // import from click.ts
     const target = edgeDragTarget
     if (!from || !target) return
-
     const context = view.context
     if (!context) return
-
     context.save()
-
     // TODO: deal with these magic numbers
     context.setLineDash([4 / view.scale, 4 / view.scale])
     context.strokeStyle = '#2563eb'
@@ -260,15 +277,13 @@ function RenderTemporaryEdgeLine() {
 
 function RenderEdgeLines() {
     const edgeLineWidth = 24 / Math.max(0.3, view.scale);
-
     const nodeMap = GetNodes()
-
     const context = view.context
     if (!context) {
         return;
     }
-
     for (const e of GetEdges()) {
+        console.log(e)
         // Determine sx1, sy1 (start position)
         let sx1: number, sy1: number;
 

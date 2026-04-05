@@ -71,10 +71,10 @@ export class SkillTreeView extends ItemView {
         InitSkillModal(this)
         InitJSONEditor(this)
         InitRenderer(this)
-        Recenter()
         this.clickCleanup = InitClickHandler(this).cleanup
 
         await this.loadSettings();
+        Recenter()
     }
 
     protected async onClose(): Promise<void> {

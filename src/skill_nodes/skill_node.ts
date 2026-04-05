@@ -2,9 +2,10 @@ import { NodeState, NodeType, NodeShape } from "./types";
 import { ISkillNode } from "./interfaces";
 import { SkillTreeView } from "src/skilltreeview";
 import { TFile } from "obsidian";
-import { tasksCache } from "src/tree-manager";
+import { GetEdges, GetNodes, tasksCache } from "src/tree-manager";
 import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO, STATS_MODAL_ROW_DOM_EL_INFO } from "../constants"
 
+// TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {
     readonly nodeTypeName: string = "BaseNode";
 
@@ -43,7 +44,26 @@ export class SkillNode implements ISkillNode {
         // return nonOptional.length > 0 && nonOptional.every(c => c.state === 'complete');
     }
 
+    protected updateRelationShips() {
+        const edges = GetEdges();
+        const nodes = GetNodes();
+
+        this.children = edges
+            .filter((e) => e.from === this.id)
+            .map((e) => nodes.get(e.to as string | number))
+            .filter((n): n is SkillNode => n !== undefined);
+
+        this.parents = edges
+            .filter((e) => e.to === this.id)
+            .map((e) => nodes.get(e.from as string | number))
+            .filter((n): n is SkillNode => n !== undefined);
+    }
+
     validate(): void {
+
+        this.updateRelationShips()
+        console.log(this.id, this.parents, this.children)
+        return
 
         const originalState = this.state;
         const nodeType = this.getStructuralType();
@@ -186,13 +206,6 @@ export class SkillNode implements ISkillNode {
         return new SkillNode(data)
     }
 
-    addChild(node: SkillNode) {
-        this.children.push(node);
-    }
-
-    addParent(node: SkillNode) {
-        this.parents.push(node);
-    }
 
     // MAJOR TODO:  fit this to node class
     // TODO: factor out styling
@@ -259,41 +272,45 @@ export class SkillNode implements ISkillNode {
             // ignore description failures. Should be blank
         }
 
-        if (this.fileLink) {
-            const openBtn = headerRight.createEl('button', { text: 'Open Note' });
-            openBtn.style.fontSize = '12px';
-            openBtn.style.color = 'var(--text-accent)';
-            openBtn.style.background = 'transparent';
-            openBtn.style.border = 'none';
-            openBtn.style.cursor = 'pointer';
-            openBtn.style.marginTop = '4px';
-            openBtn.style.padding = '4px 6px';
-
-            openBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                try {
-                    let normalizedPath = this.fileLink!.trim();
-                    if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
-                    const file = view.app.vault.getAbstractFileByPath(normalizedPath);
-                    if (file && file instanceof TFile) {
-                        try {
-                            // Mark that we should recenter when this view regains focus
-                            // this._recenterOnFocus = true;
-                            // await this.app.workspace.openLinkText(node.fileLink!, '', false);
-                            // await this.updateFileFrontmatterWithNodeId(node.fileLink, node.id);
-                        } catch (err) {
-                            console.error('Failed to open note:', err);
-                        }
-                    } else {
-                        // this.showCreateFileModal(node);
-                    }
-                } catch (err) {
-                    console.error('Open Note click failed:', err);
-                }
-            });
+        if (!this.fileLink) {
+            return
         }
 
+        // TODO: factor out
+        const openBtn = headerRight.createEl('button', { text: 'Open Note' });
+        openBtn.style.fontSize = '12px';
+        openBtn.style.color = 'var(--text-accent)';
+        openBtn.style.background = 'transparent';
+        openBtn.style.border = 'none';
+        openBtn.style.cursor = 'pointer';
+        openBtn.style.marginTop = '4px';
+        openBtn.style.padding = '4px 6px';
+
+        openBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+                let normalizedPath = this.fileLink!.trim();
+                if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
+                const file = view.app.vault.getAbstractFileByPath(normalizedPath);
+                if (file && file instanceof TFile) {
+                    try {
+                        // Mark that we should recenter when this view regains focus
+                        // this._recenterOnFocus = true;
+                        // await this.app.workspace.openLinkText(node.fileLink!, '', false);
+                        // await this.updateFileFrontmatterWithNodeId(node.fileLink, node.id);
+                    } catch (err) {
+                        console.error('Failed to open note:', err);
+                    }
+                } else {
+                    // this.showCreateFileModal(node);
+                }
+            } catch (err) {
+                console.error('Open Note click failed:', err);
+            }
+        });
     }
+
+    // TODO: factor out
     // Show the node's XP worth instead of a level icon
     createExpBadge(el: HTMLElement) {
         const expBadge = el.createDiv(STATS_MODAL_EXP_BADGE_DOM_EL_INFO);
@@ -306,6 +323,9 @@ export class SkillNode implements ISkillNode {
 
         // Only show the stylized exp badge
         el.appendChild(expBadge);
+    }
+
+    async setEditModalContents(view: SkillTreeView, modal: HTMLElement) {
     }
 
 }

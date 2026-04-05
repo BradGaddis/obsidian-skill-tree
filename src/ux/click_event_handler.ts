@@ -4,6 +4,7 @@ import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEd
 import { distanceTo, pointToSegmentDistance } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/stilltree-stats-modal";
+import { createEditModal } from "../modal/skilltree-edit-modal";
 import { Coordinate, Handle } from "src/types";
 import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
@@ -12,6 +13,7 @@ import { Direction, Direction as EdgeDirection } from "src/enums";
 
 let view: SkillTreeView;
 
+// TODO: refactor mouse handlers into seperate methods and add listeners
 
 // prevents node from opening on first click
 let nodeWasSelected: SkillNode | null
@@ -45,9 +47,8 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (e.button === 2 && hitNode) {
             SetSelectedNodeID(hitNode.id)
-            CenterOnNode(hitNode)
-            createStatsModal(view, hitNode)
-            // TODO: open edit modal
+            // CenterOnNode(hitNode)
+            createEditModal(view, hitNode)
             return
         }
 
@@ -55,8 +56,10 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         if (edgeHandle) {
             isDragging = true
             floatingEdge = FindEdgeAtHandle(edgeHandle)
-            floatingEdgeDirection = GetEdgeDirection(floatingEdge, edgeHandle.node)
-            previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
+            if (floatingEdge) {
+                floatingEdgeDirection = GetEdgeDirection(floatingEdge, edgeHandle.node)
+                previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
+            }
             return
         }
 

@@ -34,8 +34,8 @@ export let tasksCache: Map<string | number, any[]> = new Map();
 
 export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
     view = skillTreeView
-    await LoadNodes()
-    CleanUpEdges()
+    await LoadTree()
+    // CleanUpEdges()
 }
 
 
@@ -53,16 +53,6 @@ export function RemoveEdge(edgeId: number) {
 
 export function CreateEdge(edge: SkillEdge) {
     edges.push(edge)
-}
-
-function CleanUpEdges() {
-    let cleaned: SkillEdge[] = []
-    for (let edge of GetEdges()) {
-        if (nodes.get(edge.from) && nodes.get(edge.to)) {
-            cleaned.push(edge)
-        }
-    }
-    edges = cleaned
 }
 
 
@@ -256,13 +246,11 @@ export async function SwitchTree(treeName: string) {
     // view.requestRender();
 }
 
-async function LoadNodes() {
+async function LoadTree() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
-    if (currentTree) {
-
-        loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
-    } else {
+    if (!currentTree) {
+        console.log("current tree not available. using default")
         // Initialize if tree doesn't exist
         view.settings.trees[view.settings.currentTreeName] = {
             name: view.settings.currentTreeName,
@@ -270,26 +258,32 @@ async function LoadNodes() {
             edges: []
         };
         await view.plugin.saveSettings();
+        return
     }
+
+    loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
 }
+
 
 function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
     nodes.clear();
     edges = [...edgesData];
+    console.log(...edges)
 
     for (const data of nodesData) {
-        const node = NodeFromJSON(data);
+        const node: SkillNode = NodeFromJSON(data);
         if (!node) {
             return
         }
+
         // TODO: implement
         // if (!node.id) {
         //     node.id = crypto.randomUUID()
         // }
+        //
         nodes.set(node.id, node);
     }
 
-    rebuildRelationships();
 }
 
 
@@ -315,18 +309,6 @@ function NodeFromJSON(data: any): any {
     }
 }
 
-function rebuildRelationships(): void {
-    clearRelationships();
-    buildRelationshipsFromEdges();
-}
-
-
-function clearRelationships(): void {
-    for (const node of nodes.values()) {
-        node.children = [];
-        node.parents = [];
-    }
-}
 
 
 function buildRelationshipsFromEdges(): void {
@@ -382,8 +364,8 @@ export function FindNodeAt(x: number, y: number): SkillNode | null {
 export function FindEdgeAtHandle(handle: Handle): SkillEdge | null {
     const id = handle.node.id
     const side = handle.side
-    return edges.find(e => 
-        (e.from === id && e.fromSide === side) || 
+    return edges.find(e =>
+        (e.from === id && e.fromSide === side) ||
         (e.to === id && e.toSide === side)
     ) ?? null
 }
