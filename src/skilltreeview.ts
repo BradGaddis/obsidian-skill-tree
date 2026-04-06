@@ -16,11 +16,13 @@ import { InitJSONEditor } from "./dialog/json_editor";
 import { modeToggleBtn } from "./toolbar";
 
 import { InitClickHandler } from "./ux/click_event_handler";
+import { InitTouchHandler } from "./ux/touch_event_handler";
 
 // TODO: fix radius storage in settings
 
 export class SkillTreeView extends ItemView {
     private clickCleanup: (() => void) | null = null;
+    private touchCleanup: (() => void) | null = null;
 
     private _scale: number = 1
     get scale(): number { return this._scale }
@@ -66,12 +68,17 @@ export class SkillTreeView extends ItemView {
             this.clickCleanup = InitClickHandler(this).cleanup
         }
 
+        if (Platform.isMobile || Platform.isDesktop) {
+            this.touchCleanup = InitTouchHandler(this).cleanup
+        }
+
         await this.loadSettings();
         Recenter()
     }
 
     protected async onClose(): Promise<void> {
         this.clickCleanup?.();
+        this.touchCleanup?.();
         this.resizeObserver?.disconnect();
     }
 

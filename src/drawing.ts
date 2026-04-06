@@ -10,10 +10,11 @@ export function InitDrawing(SkillTreeView: SkillTreeView) {
     view = SkillTreeView
 }
 
-export function drawOrthogonalArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineWidth: number) {
-    const headLen = lineWidth * 2;
+export function drawOrthogonalArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineWidth: number, color: string) {
+    const headLen = lineWidth * 2.5;
     const midX = (x1 + x2) / 2;
     const midY = (y1 + y2) / 2;
+    const arrowHalfAngle = Math.PI / 6;
 
     let corner1X: number, corner1Y: number;
     let corner2X: number, corner2Y: number;
@@ -30,24 +31,28 @@ export function drawOrthogonalArrow(ctx: CanvasRenderingContext2D, x1: number, y
         corner2X = x2; corner2Y = midY;
     }
 
+    ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
 
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    // Draw line, stopping at arrow base
+    const angle = Math.atan2(y2 - corner2Y, x2 - corner2X);
+    const baseX = x2 - headLen * Math.cos(angle);
+    const baseY = y2 - headLen * Math.sin(angle);
 
-    // Draw S-shaped line with 2 bends
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(corner1X, corner1Y);
     ctx.lineTo(corner2X, corner2Y);
-    ctx.lineTo(x2, y2);
+    ctx.lineTo(baseX, baseY);
     ctx.stroke();
 
-    // Draw arrowhead
-    const angle = Math.atan2(y2 - corner2Y, x2 - corner2X);
+    // Draw arrowhead triangle on top
+    ctx.fillStyle = color;
+
     ctx.beginPath();
     ctx.moveTo(x2, y2);
-    ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6), y2 - headLen * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6), y2 - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(x2 - headLen * Math.cos(angle - arrowHalfAngle), y2 - headLen * Math.sin(angle - arrowHalfAngle));
+    ctx.lineTo(x2 - headLen * Math.cos(angle + arrowHalfAngle), y2 - headLen * Math.sin(angle + arrowHalfAngle));
     ctx.closePath();
     ctx.fill();
 }

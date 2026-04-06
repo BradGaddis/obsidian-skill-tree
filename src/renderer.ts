@@ -248,9 +248,8 @@ function UpdateInRAFID() {
         }
     }
 
-    // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
-    RenderNodes(nodes)
     RenderEdgeLines()
+    RenderNodes(nodes)
     RenderTemporaryEdgeLine()
     if (view.settings.mode == "edit") {
         RenderNodeHandles(nodes);
@@ -395,21 +394,7 @@ function RenderEdgeLines() {
         context.lineWidth = edgeLineWidth;
 
         // TODO: add settings so user can choose to draw straight or Orthogonal
-        drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth);
-
-        // context.moveTo(sx1, sy1);
-        // context.lineTo(sx2, sy2);
-        context.stroke();
-
-        // const angle = Math.atan2(sy2 - sy1, sx2 - sx1);
-        // const headLen = edgeLineWidth * 2;
-        // context.beginPath();
-        // context.moveTo(sx2, sy2);
-        // context.lineTo(sx2 - headLen * Math.cos(angle - Math.PI / 6), sy2 - headLen * Math.sin(angle - Math.PI / 6));
-        // context.lineTo(sx2 - headLen * Math.cos(angle + Math.PI / 6), sy2 - headLen * Math.sin(angle + Math.PI / 6));
-        // context.closePath();
-        // context.fillStyle = edgeColor;
-        // context.fill();
+        drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth, edgeColor);
 
         context.restore();
     }
