@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodes } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/input_handler";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox } from "./drawing";
 import { Coordinate } from "./types";
 
@@ -564,9 +564,9 @@ function RenderNodeHandles(nodes: SkillNode[]) {
 
     // TODO: allow the user to change the css of the handles
     for (let node of nodes) {
-        const r = nodeRadii[node.id] || nodeRadius;
-        context.strokeStyle = '#2563eb';
         context.lineWidth = 2.5 / view.scale;
+        const r = (nodeRadii[node.id] || nodeRadius) + context.lineWidth * 2;
+        context.strokeStyle = '#2563eb';
         context.fillStyle = '#ffffff';
         context.beginPath();
         context.arc(node.x, node.y - r, handleRadius, 0, Math.PI * 2);

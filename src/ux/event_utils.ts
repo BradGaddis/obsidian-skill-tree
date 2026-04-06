@@ -1,4 +1,4 @@
-import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize, screenToWorld } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize, screenToWorld, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
 import { SkillNode } from "src/skill_nodes/skill_node";
@@ -72,14 +72,14 @@ export function getFloatingEdgeDirection(): Direction {
 export function getHandleAtWorld(coords: Coordinate): Handle | null {
     const nodes = GetNodes()
     for (const node of nodes.values()) {
-        const r = nodeRadii[node.id] || nodeRadius
+        const r = (nodeRadii[node.id] || nodeRadius) + handleRadius
         const handles = [
             { side: 'top', hx: node.x, hy: node.y - r },
             { side: 'right', hx: node.x + r, hy: node.y },
             { side: 'bottom', hx: node.x, hy: node.y + r },
             { side: 'left', hx: node.x - r, hy: node.y },
         ]
-        const handleThreshold = 40
+        const handleThreshold = handleRadius
 
         for (const h of handles) {
             const dx = coords.x - h.hx
@@ -94,12 +94,12 @@ export function getHandleAtWorld(coords: Coordinate): Handle | null {
 }
 
 export function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
-    const r = nodeRadii[targetNode.id] || nodeRadius
+    const r = (nodeRadii[targetNode.id] || nodeRadius) + handleRadius
     const handles = [
-        { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
-        { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
-        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
-        { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
+        { side: 'top', hx: targetNode.x, hy: targetNode.y - r - handleRadius },
+        { side: 'right', hx: targetNode.x + r + handleRadius, hy: targetNode.y },
+        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r + handleRadius },
+        { side: 'left', hx: targetNode.x - r - handleRadius, hy: targetNode.y },
     ]
     let nearest: { side: string, hx: number, hy: number } | null = null
     let minDist = Infinity

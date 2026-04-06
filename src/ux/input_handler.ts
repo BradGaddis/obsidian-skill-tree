@@ -39,7 +39,7 @@ export function setIsDragging(dragging: boolean): void {
     isDragging = dragging;
 }
 
-export function setEdgeDragFrom(handle: Handle | null): void {
+export function setEdgeDragFrom(handle: Handle): void {
     edgeDragFrom = handle;
 }
 
@@ -69,20 +69,20 @@ export function findNodeAt(x: number, y: number): SkillNode | null {
 export function findHandleAt(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
-        const r = nodeRadii[node.id] || nodeRadius;
+        const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
         const handles = [
             { side: 'top', hx: node.x, hy: node.y - r },
             { side: 'right', hx: node.x + r, hy: node.y },
             { side: 'bottom', hx: node.x, hy: node.y + r },
             { side: 'left', hx: node.x - r, hy: node.y },
         ];
-        const handleThreshold = handleRadius;
 
         for (const h of handles) {
             const dx = worldPos.x - h.hx;
             const dy = worldPos.y - h.hy;
             const dist2 = dx * dx + dy * dy;
-            if (dist2 <= handleThreshold * handleThreshold) {
+
+            if (dist2 <= Math.sqrt(r) + r) {
                 console.log("hit handle")
                 return { node, side: h.side as 'top' | 'right' | 'bottom' | 'left', hx: h.hx, hy: h.hy };
             }
@@ -173,7 +173,6 @@ export function updateFloatingEdge(worldPos: Coordinate): void {
 
 export function startNodeDrag(node: SkillNode): void {
     RecordSnapshot();
-    isDragging = true;
     hitNode = node;
 }
 
@@ -251,12 +250,12 @@ export function completeEdgeDrag(worldPos: Coordinate): void {
 }
 
 function findNearestHandleOnNode(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
-    const r = nodeRadii[targetNode.id] || nodeRadius;
+    const r = (nodeRadii[targetNode.id] || nodeRadius) + handleRadius;
     const handles = [
-        { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
-        { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
-        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
-        { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
+        { side: 'top', hx: targetNode.x, hy: targetNode.y - r - handleRadius },
+        { side: 'right', hx: targetNode.x + r + handleRadius, hy: targetNode.y },
+        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r + handleRadius },
+        { side: 'left', hx: targetNode.x - r - handleRadius, hy: targetNode.y },
     ];
 
     let nearest: { side: string, hx: number, hy: number } | null = null;
@@ -291,6 +290,7 @@ export function handleFloatingEdge(worldPos: Coordinate): void {
         CreateEdge(previousEdgeFromFloating);
         return;
     }
+
     if (floatingEdgeDirection === Direction.from && targetNode.id === previousEdgeFromFloating.from) {
         CreateEdge(previousEdgeFromFloating);
         return;

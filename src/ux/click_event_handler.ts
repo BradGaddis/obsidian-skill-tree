@@ -1,4 +1,4 @@
-import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 import { SetSelectedNodeID, FindNodeAt, GetSelectedNodeId, RemoveNode } from "../tree-manager";
 import { RecordSnapshot, SaveNodes } from "../recorder";
@@ -41,10 +41,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (!isInEditMode()) return;
 
-        const node = findNodeAt(worldPos.x, worldPos.y);
-        if (node) {
-            setHitNode(node);
-        }
+        setHitNode(findNodeAt(worldPos.x, worldPos.y));
 
         if (e.button === 2 && hitNode) {
             SetSelectedNodeID(hitNode.id);
@@ -53,32 +50,34 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         }
 
         const edgeHandle = findEdgeEndpointAt(worldPos);
+
         if (edgeHandle) {
             startEdgeDrag(edgeHandle);
             return;
         }
 
+
         const handle = findHandleAt(worldPos);
 
-        if (!hitNode) return;
 
-        if (!handle) {
+        if (handle) {
+            setIsDragging(true)
+            console.log("by this point, we SHOULD be drawing an edge")
+            RecordSnapshot();
+            setEdgeDragFrom(handle);
+            setEdgeDragTarget(worldPos);
+        }
+
+        if (hitNode) {
+            setIsDragging(true)
             startNodeDrag(hitNode);
             RecordSnapshot();
             return;
         }
 
-        const r = nodeRadii[hitNode.id] || nodeRadius;
-        const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y);
-        const edgeThreshold = 15 / view.scale;
 
-        if (Math.abs(dist - r) >= edgeThreshold) {
-            return;
-        }
 
-        RecordSnapshot();
-        setEdgeDragFrom(handle);
-        setEdgeDragTarget(worldPos);
+
     };
 
     const onMouseMove = (e: MouseEvent) => {
@@ -104,8 +103,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     const onMouseUp = (e: MouseEvent) => {
         const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
         if (!worldPos) return;
-
-        setHitNode(null);
 
         handleFloatingEdge(worldPos);
 
