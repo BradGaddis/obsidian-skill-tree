@@ -1,197 +1,140 @@
-import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize, screenToWorld, handleRadius } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, GetSelectedNodeId, RemoveNode, isPositionOccupied, findNearestEmptyPosition } from "../tree-manager";
-import { pushNodeFromCollision } from "../utils/collision";
+import { SetSelectedNodeID, FindNodeAt, GetSelectedNodeId, RemoveNode } from "../tree-manager";
 import { RecordSnapshot, SaveNodes } from "../recorder";
-import { distanceTo, pointToSegmentDistance } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createStatsModal } from "../modal/skilltree-stats-modal";
 import { createEditModal } from "../modal/skilltree-edit-modal";
-import { Coordinate, Handle } from "src/types";
+import { Coordinate } from "src/types";
 import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
-import { SkillEdge } from "src/interfaces";
-import { Direction, Direction as EdgeDirection } from "src/enums";
+import { initInputHandler, isInEditMode, screenToWorldCoordinate, findNodeAt, findHandleAt, findEdgeEndpointAt, hitNode, isDragging, edgeDragFrom, edgeDragTarget, resetDragState, setHitNode, setIsDragging, draggingEdgeEndpoint, edgeDragSourcePos, setEdgeDragFrom, setEdgeDragTarget, startNodeDrag, startEdgeDrag, handleEdgeEndpointDrag, updateFloatingEdge, completeEdgeDrag, handleFloatingEdge } from "./input_handler";
+import { getCheckboxAtWorld, completeEdgeCreation, initEventUtils } from "./event_utils";
 
+export { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos };
 
 let view: SkillTreeView;
 
-// TODO: refactor mouse handlers into seperate methods and add listeners
-
-// prevents node from opening on first click
-let nodeWasSelected: SkillNode | null
-export let edgeDragFrom: Handle | null
-export let edgeDragTarget: Coordinate | null
-export let hitNode: SkillNode | null
-export let draggingEdgeEndpoint: { edgeId: number, which: 'from' | 'to' } | null
-export let edgeDragSourcePos: Coordinate | null
-let floatingEdge: SkillEdge | null
-let previousEdgeFromFloating: SkillEdge | null
-
-let floatingEdgeDirection: EdgeDirection
-
-let isDragging: boolean
-
+let nodeWasSelected: SkillNode | null = null;
 
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
+    initInputHandler(skillTreeView);
+    initEventUtils(skillTreeView);
+
     const canvas = view.canvas;
     if (!canvas) return { cleanup: () => { } };
 
     const onMouseDown = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
+        if (!worldPos) return;
 
-        // Check for checkbox click first (works in both edit and view mode)
-        const checkboxHit = getCheckboxAtWorld(worldPos)
+        const checkboxHit = getCheckboxAtWorld(worldPos);
         if (checkboxHit && checkboxHit.userCompletable) {
             if (checkboxHit.state === 'in-progress') {
-                checkboxHit.state = 'complete'
+                checkboxHit.state = 'complete';
             }
-            Render()
-            SaveNodes()
-            return
+            Render();
+            SaveNodes();
+            return;
         }
 
-        if (view.settings.mode !== "edit") return
+        if (!isInEditMode()) return;
 
-        hitNode = FindNodeAt(worldPos.x, worldPos.y);
+        const node = findNodeAt(worldPos.x, worldPos.y);
+        if (node) {
+            setHitNode(node);
+        }
 
         if (e.button === 2 && hitNode) {
-            SetSelectedNodeID(hitNode.id)
-            // CenterOnNode(hitNode)
-            createEditModal(view, hitNode)
-            return
+            SetSelectedNodeID(hitNode.id);
+            createEditModal(view, hitNode);
+            return;
         }
 
-        const edgeHandle = getEdgeEndpointAtWorld(worldPos)
+        const edgeHandle = findEdgeEndpointAt(worldPos);
         if (edgeHandle) {
-            RecordSnapshot()
-            floatingEdge = FindEdgeAtHandle(edgeHandle)
-            if (floatingEdge) {
-                floatingEdgeDirection = GetEdgeDirection(floatingEdge, edgeHandle.node)
-                previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
-            }
-            return
+            startEdgeDrag(edgeHandle);
+            return;
         }
 
-        if (!hitNode) return
+        const handle = findHandleAt(worldPos);
 
-        isDragging = true
-        console.log(hitNode)
+        if (!hitNode) return;
 
-        const handle = getHandleAtWorld(worldPos)
         if (!handle) {
-            RecordSnapshot()
-            return
+            startNodeDrag(hitNode);
+            RecordSnapshot();
+            return;
         }
 
-        const r = nodeRadii[hitNode.id] || nodeRadius
-        const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
-        const edgeThreshold = 15 / view.scale
+        const r = nodeRadii[hitNode.id] || nodeRadius;
+        const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y);
+        const edgeThreshold = 15 / view.scale;
 
         if (Math.abs(dist - r) >= edgeThreshold) {
-            return
+            return;
         }
 
-        RecordSnapshot()
-
-        floatingEdge = FindEdgeAtHandle(handle)
-
-        if (floatingEdge) {
-            floatingEdgeDirection = GetEdgeDirection(floatingEdge, handle.node)
-            previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
-            return // remove
-        }
-
-        floatingEdgeDirection = Direction.none
-
-        setEdgeDragFrom(handle)
-        setEdgeDragTarget(worldPos)
+        RecordSnapshot();
+        setEdgeDragFrom(handle);
+        setEdgeDragTarget(worldPos);
     };
 
-    // TODO: fix for node dragging
     const onMouseMove = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
+        if (!worldPos) return;
 
-        if (floatingEdge) {
-            if (floatingEdgeDirection === Direction.from) {
-                floatingEdge.fromX = worldPos.x
-                floatingEdge.fromY = worldPos.y
-                floatingEdge.from = null
-            } else {
-                floatingEdge.toX = worldPos.x
-                floatingEdge.toY = worldPos.y
-                floatingEdge.to = null
-            }
-            Render()
-            return
-        }
+        updateFloatingEdge(worldPos);
 
         if (isDragging && hitNode) {
-            const newPos = pushNodeFromCollision(worldPos.x, worldPos.y, hitNode);
+            const newPos = { x: worldPos.x, y: worldPos.y };
             hitNode.x = newPos.x;
             hitNode.y = newPos.y;
-            Render()
-            return
+            Render();
+            return;
         }
 
-        if (draggingEdgeEndpoint) {
-            edgeDragSourcePos = worldPos
-            edgeDragTarget = worldPos
-            Render()
-            return
+        if (edgeDragFrom) {
+            setEdgeDragTarget(worldPos);
+            Render();
         }
-
-        if (!edgeDragFrom) return
-
-
-        setEdgeDragTarget(worldPos)
-        Render()
     };
 
     const onMouseUp = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
+        if (!worldPos) return;
 
-        HandleFloatingEdge(worldPos)
+        setHitNode(null);
 
+        handleFloatingEdge(worldPos);
 
         if (edgeDragFrom && edgeDragTarget) {
-            completeEdgeCreation(edgeDragTarget)
+            completeEdgeDrag(edgeDragTarget);
         }
 
-        hitNode = null
-        floatingEdge = null
-        previousEdgeFromFloating = null
-        edgeDragFrom = null
-        edgeDragTarget = null
-        isDragging = false
-        Render()
-        SaveNodes()
+        resetDragState();
     };
 
     const onClick = (e: MouseEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-        const hitNode = FindNodeAt(worldPos.x, worldPos.y);
+        const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
+        if (!worldPos) return;
 
-        if (!hitNode) {
-            SetSelectedNodeID(null)
-            return
+        const hit = findNodeAt(worldPos.x, worldPos.y);
+
+        if (!hit) {
+            SetSelectedNodeID(null);
+            return;
         }
 
-        if (nodeWasSelected?.id === hitNode.id) {
-            createStatsModal(view, hitNode);
+        if (nodeWasSelected?.id === hit.id) {
+            createStatsModal(view, hit);
         }
 
-        SetSelectedNodeID(hitNode.id)
-        nodeWasSelected = hitNode
-        CenterOnNode(hitNode)
-
+        SetSelectedNodeID(hit.id);
+        nodeWasSelected = hit;
+        CenterOnNode(hit);
     };
-
 
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
@@ -206,7 +149,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (e.key === 'Delete' || e.key === 'Backspace') {
             const selectedId = GetSelectedNodeId();
-            if (selectedId && view.settings.mode === 'edit') {
+            if (selectedId && isInEditMode()) {
                 RecordSnapshot();
                 RemoveNode(selectedId);
                 SetSelectedNodeID(null);
@@ -217,7 +160,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     };
     document.addEventListener('keydown', onKeyDown);
 
-
     const zoomCleanup = InitZoomHandler(view, {
         minScale: 0.3,
         maxScale: 3
@@ -225,9 +167,10 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     const panCleanup = InitPanHandler(view,
         () => {
-            return (hitNode == null && !isDragging)
+            return (hitNode == null && !isDragging);
         }
     ).cleanup;
+
     return {
         cleanup: () => {
             panCleanup();
@@ -239,265 +182,4 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             document.removeEventListener('keydown', onKeyDown);
         }
     };
-}
-
-// TODO: move all of these functions into seperate module?
-
-function getHandleAtWorld(coords: Coordinate): Handle | null {
-    const nodes = GetNodes()
-    for (const node of nodes.values()) {
-        const r = nodeRadii[node.id] || nodeRadius
-        const handles = [
-            { side: 'top', hx: node.x, hy: node.y - r },
-            { side: 'right', hx: node.x + r, hy: node.y },
-            { side: 'bottom', hx: node.x, hy: node.y + r },
-            { side: 'left', hx: node.x - r, hy: node.y },
-        ]
-        // TODO: fix this. it's hard to hit when zoomed all the way out
-        // Threshold scales with node radius - larger nodes need bigger hit targets
-        const handleThreshold = handleRadius * 2
-
-        for (const h of handles) {
-            const dx = coords.x - h.hx
-            const dy = coords.y - h.hy
-            const dist2 = dx * dx + dy * dy
-            if (dist2 <= handleThreshold * handleThreshold) {
-                return { node, side: h.side, hx: h.hx, hy: h.hy }
-            }
-        }
-    }
-    return null
-}
-
-// TODO: move into tree manager
-function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
-    const r = nodeRadii[targetNode.id] || nodeRadius
-    const handles = [
-        { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
-        { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
-        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
-        { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
-    ]
-    let nearest: { side: string, hx: number, hy: number } | null = null
-    let minDist = Infinity
-
-    for (const h of handles) {
-        const dx = h.hx - refX
-        const dy = h.hy - refY
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < minDist) {
-            minDist = dist
-            nearest = h
-        }
-    }
-    return nearest
-}
-
-function getCheckboxAtWorld(worldPos: Coordinate): SkillNode | null {
-    const nodes = GetNodes()
-    for (const node of nodes.values()) {
-        if (!node.userCompletable) continue
-        if (node.state !== 'in-progress' && node.state !== 'complete') continue
-
-        const r = nodeRadii[node.id] || nodeRadius
-        const minScreenSize = 14
-        const maxScreenSize = 24
-        const baseScreenSize = Math.min(maxScreenSize, Math.max(minScreenSize, r * 0.25))
-        const checkboxSize = baseScreenSize / view.scale
-
-        // Calculate text position (same as in DrawCheckBox)
-        const lineHeight = fontSize / view.scale
-        const isUnlinked = node.fileLink === ''
-        const label = isUnlinked ? node.fileLink : node.fileLink || '' + ' [Unlinked]'
-        const words = (label || '').split(/\s+/).filter(Boolean)
-        const nodeLines: string[] = []
-        for (let i = 0; i < words.length; i += 4) {
-            nodeLines.push(words.slice(i, i + 4).join(' '))
-        }
-        const totalLines = nodeLines.length + (isUnlinked ? 1 : 0)
-        const firstLineY = node.y - ((totalLines - 1) * lineHeight) / 2
-        const textBottomY = firstLineY + totalLines * lineHeight
-
-        const checkboxX = node.x - checkboxSize / 2
-        const checkboxY = textBottomY + 4 / view.scale
-
-        const dx = worldPos.x - checkboxX
-        const dy = worldPos.y - checkboxY
-
-        if (dx >= 0 && dx <= checkboxSize && dy >= 0 && dy <= checkboxSize) {
-            return node
-        }
-    }
-    return null
-}
-
-export function setEdgeDragFrom(edgeDrag: Handle): void {
-    edgeDragFrom = edgeDrag
-}
-
-export function getEdgeDragFrom(): Handle | null {
-    return edgeDragFrom
-}
-
-export function setEdgeDragTarget(target: Coordinate): void {
-    edgeDragTarget = target
-}
-
-export function getEdgeDragTarget(): typeof edgeDragTarget | null {
-    return edgeDragTarget
-}
-
-
-
-function completeEdgeCreation(worldPos: Coordinate): boolean {
-    if (!edgeDragFrom) return false
-
-    const sourceNode = edgeDragFrom.node
-
-    // Find target node at drop position
-    const targetNode = FindNodeAt(worldPos.x, worldPos.y)
-    if (!targetNode || targetNode.id === sourceNode.id) return false
-
-    // Check for duplicate edge
-    const edges = GetEdges()
-    const duplicate = edges.some(e => e.from === sourceNode.id && e.to === targetNode.id)
-    if (duplicate) return false
-
-    // Get source and target sides
-    const sourceHandle = edgeDragFrom
-    const nearest = findNearestHandle(targetNode, sourceHandle.hx, sourceHandle.hy)
-    const toSide = nearest?.side || 'top'  // fallback
-
-    // Create new edge
-    const newEdge: SkillEdge = {
-        id: Date.now(),
-        from: sourceNode.id,
-        to: targetNode.id,
-        fromSide: sourceHandle.side as any,
-        toSide: toSide as any
-    }
-
-    // Add to edges
-    // Note: Need to use AddEdge from tree-manager or direct push
-    CreateEdge(newEdge)
-
-    Render()
-    SaveNodes()
-    return true
-}
-
-
-function getEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
-    const nodes = GetNodes()
-    const edges = GetEdges()
-    const threshold = 20 / view.scale
-
-    for (const e of edges) {
-        if (!e.from || !e.to) continue
-
-        const a = nodes.get(e.from as string | number)
-        const b = nodes.get(e.to as string | number)
-        if (!a || !b) continue
-
-        const rFrom = nodeRadii[a.id] || nodeRadius
-        const rTo = nodeRadii[b.id] || nodeRadius
-
-        let fromX = a.x, fromY = a.y
-        if (e.fromSide === 'top') fromY -= rFrom
-        else if (e.fromSide === 'right') fromX += rFrom
-        else if (e.fromSide === 'bottom') fromY += rFrom
-        else if (e.fromSide === 'left') fromX -= rFrom
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1
-            fromX = a.x + (dx / d) * rFrom
-            fromY = a.y + (dy / d) * rFrom
-        }
-
-        let toX = b.x, toY = b.y
-        if (e.toSide === 'top') toY -= rTo
-        else if (e.toSide === 'right') toX += rTo
-        else if (e.toSide === 'bottom') toY += rTo
-        else if (e.toSide === 'left') toX -= rTo
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1
-            toX = b.x - (dx / d) * rTo
-            toY = b.y - (dy / d) * rTo
-        }
-
-        const dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY)
-
-        if (dist <= threshold) {
-            const fromDist = distanceTo(worldPos, { x: fromX, y: fromY })
-            const toDist = distanceTo(worldPos, { x: toX, y: toY })
-
-            if (fromDist <= toDist) {
-                return { node: a, side: e.fromSide || 'right', hx: fromX, hy: fromY }
-            } else {
-                return { node: b, side: e.toSide || 'left', hx: toX, hy: toY }
-            }
-        }
-    }
-
-    return null
-}
-
-
-function HandleFloatingEdge(worldPos: Coordinate) {
-    if (!floatingEdge || !previousEdgeFromFloating) {
-        return
-    }
-    const targetNode = FindNodeAt(worldPos.x, worldPos.y)
-    if (!targetNode) {
-        RemoveEdge(floatingEdge.id)
-        return
-    }
-
-    // Delete the floating edge
-    RemoveEdge(floatingEdge.id)
-    // If dropping on original node(s), recreate original edge
-    if (floatingEdgeDirection === Direction.to && targetNode.id === previousEdgeFromFloating.to) {
-        CreateEdge(previousEdgeFromFloating)
-        return
-    }
-    if (floatingEdgeDirection === Direction.from && targetNode.id === previousEdgeFromFloating.from) {
-        CreateEdge(previousEdgeFromFloating)
-        return
-    }
-    // Dropping on a different node - create new edge with swapped endpoint
-    const nodes = GetNodes()
-    const otherNodeId = floatingEdgeDirection === Direction.to
-        ? previousEdgeFromFloating.from
-        : previousEdgeFromFloating.to
-    const otherNode = nodes.get(otherNodeId as string | number)
-    if (!otherNode) {
-        return
-    }
-    const nearest = findNearestHandle(targetNode, otherNode.x, otherNode.y)
-    if (!nearest) {
-        return
-    }
-    const newEdge: SkillEdge = {
-        id: floatingEdge.id,
-        from: floatingEdgeDirection === Direction.from ? targetNode.id : previousEdgeFromFloating.from,
-        to: floatingEdgeDirection === Direction.to ? targetNode.id : previousEdgeFromFloating.to,
-        fromSide: floatingEdgeDirection === Direction.from ? nearest.side as any : previousEdgeFromFloating.fromSide,
-        toSide: floatingEdgeDirection === Direction.to ? nearest.side as any : previousEdgeFromFloating.toSide,
-        fromX: undefined,
-        fromY: undefined,
-        toX: undefined,
-        toY: undefined,
-    }
-    CreateEdge(newEdge)
-}
-
-
-
-export function MouseEventToWorldCoordinate(e: MouseEvent): Coordinate | null {
-    // TODO: wrap this up somewhere reusably
-    const canvas = view.canvas
-    if (!canvas) return null
-
-    const rect = canvas.getBoundingClientRect();
-    return screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-
 }

@@ -18,7 +18,6 @@ import {
     clearSelection,
     hitNode,
     isDragging,
-    isDraggingNode,
     isDraggingEdgeEndpoint,
     draggingEdgeEndpoint,
     requestRender,
@@ -124,7 +123,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         e.preventDefault();
         e.stopPropagation();
 
-        if (isDraggingNode) {
+        if (isDragging) {
             const worldPos = screenToWorldCoordinate(e.clientX, e.clientY);
             if (worldPos && _pointerDownNodeId) {
                 updateNodeDrag(worldPos);
@@ -183,7 +182,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         clearLongPressTimer();
 
-        if (isDraggingNode) {
+        if (isDragging) {
             endNodeDrag();
             _pointerDownNodeId = null;
             _pointerDownPos = null;
