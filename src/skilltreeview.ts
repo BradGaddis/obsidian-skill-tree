@@ -69,7 +69,7 @@ export class SkillTreeView extends ItemView {
             this.clickCleanup = InitClickHandler(this).cleanup
         }
 
-        if (Platform.isMobile || Platform.isDesktop) {
+        if (Platform.isMobile || Platform.isMobileApp) {
             this.touchCleanup = InitTouchHandler(this).cleanup
         }
 
