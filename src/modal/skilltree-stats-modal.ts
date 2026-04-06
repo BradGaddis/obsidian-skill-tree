@@ -97,39 +97,71 @@ export function SkillModalDescription(node: SkillNode, modal: HTMLElement) {
     }
 }
 
-export function SkillModalTasks(node: SkillNode, modal: HTMLElement) {
-    const tasks = node.tasks || [];
-    if (tasks.length === 0) return;
+export async function SkillModalTasks(node: SkillNode, modal: HTMLElement) {
+    if (!node.fileLink) return;
+    
+    if (!view.isTasksPluginInstalled()) return;
 
-    const completedTasks = tasks.filter((t: any) => t.completed).length;
-    const totalTasks = tasks.length;
+    const tasksHeader = modal.createEl('h4', { text: 'Tasks' });
+    tasksHeader.style.margin = '8px 20px 4px 20px';
 
-    const tasksHeader = modal.createEl('h4', { text: `Tasks (${completedTasks}/${totalTasks})` });
-    tasksHeader.style.margin = '12px 20px 8px 20px';
-    tasksHeader.style.fontSize = '14px';
+    const tasksWrap = modal.createDiv();
+    tasksWrap.style.margin = '0 20px 12px 20px';
 
-    const tasksContainer = modal.createEl('div');
-    tasksContainer.style.margin = '0 20px 12px 20px';
-    tasksContainer.style.maxHeight = '200px';
-    tasksContainer.style.overflowY = 'auto';
+    let sourcePath = node.fileLink.trim();
+    if (sourcePath.startsWith('/')) sourcePath = sourcePath.substring(1);
+    let candidate = sourcePath;
+    if (!candidate.endsWith('.md')) candidate = candidate + '.md';
+    let fileObj = view.app.vault.getAbstractFileByPath(candidate) as TFile | null;
+    if (!fileObj && sourcePath && !sourcePath.endsWith('.md')) {
+        fileObj = view.app.vault.getAbstractFileByPath(sourcePath) as TFile | null;
+    }
 
-    for (const task of tasks) {
-        const taskItem = tasksContainer.createEl('div');
-        taskItem.style.display = 'flex';
-        taskItem.style.alignItems = 'center';
-        taskItem.style.padding = '4px 0';
-        taskItem.style.gap = '8px';
+    let targetPathForQuery = '';
+    if (node.fileLink) {
+        targetPathForQuery = node.fileLink.trim();
+        if (targetPathForQuery.startsWith('/')) targetPathForQuery = targetPathForQuery.substring(1);
+    } else if (fileObj) {
+        targetPathForQuery = fileObj.path;
+    } else {
+        targetPathForQuery = candidate;
+    }
+    if (!targetPathForQuery.endsWith('.md')) targetPathForQuery = targetPathForQuery + '.md';
+    const safePath = String(targetPathForQuery).replace(/"/g, '\\"');
+    const tasksBlock = `\`\`\`tasks
+filter by function task.path == "${safePath}"
+short mode
+group by priority
+group by function task.heading != null ? task.heading : ""
+hide backlink
+show tree
+\`\`\``;
 
-        const checkbox = taskItem.createEl('span');
-        checkbox.textContent = task.completed ? '☑' : '☐';
-        checkbox.style.fontSize = '16px';
-        checkbox.style.color = task.completed ? 'var(--text-success)' : 'var(--text-muted)';
+    try {
+        const renderSource = fileObj ? fileObj.path : candidate;
+        await (MarkdownRenderer as any).renderMarkdown(tasksBlock, tasksWrap, renderSource, view);
 
-        const taskText = taskItem.createEl('span');
-        taskText.textContent = task.text || '';
-        taskText.style.fontSize = '13px';
-        taskText.style.color = task.completed ? 'var(--text-muted)' : 'var(--text-normal)';
-        taskText.style.textDecoration = task.completed ? 'line-through' : 'none';
+        const debounce = (fn: (...args: any[]) => void, ms = 200) => {
+            let t: any = null;
+            return (...args: any[]) => {
+                if (t) clearTimeout(t);
+                t = setTimeout(() => fn(...args), ms);
+            };
+        };
+
+        const refreshFromTasks = debounce(async () => {
+            try {
+                await LoadNodeTasks(node);
+                Render();
+            } catch (e) { }
+        }, 200);
+
+        const observer = new MutationObserver((mutations) => {
+            refreshFromTasks();
+        });
+        observer.observe(tasksWrap, { childList: true, subtree: true });
+    } catch (e) {
+        console.error('Failed to render tasks query:', e);
     }
 }
 

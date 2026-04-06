@@ -80,6 +80,7 @@ export class SkillNode implements ISkillNode {
         if (this.userCompletable && this.state === "complete") {
             return
         }
+        console.log("is something messing this up")
         this.state = "in-progress"
     }
 
@@ -121,7 +122,7 @@ export class SkillNode implements ISkillNode {
     validate(): void {
         if (SkillNode.validating.has(this.id)) return;
 
-        // SkillNode.validating.add(this.id);
+        SkillNode.validating.add(this.id);
 
         const oldState = this.state;
 
@@ -140,7 +141,7 @@ export class SkillNode implements ISkillNode {
 
         this.cascadeTo()
 
-        // SkillNode.validating.delete(this.id);
+        SkillNode.validating.delete(this.id);
     }
 
     getStructuralType(): NodeType {

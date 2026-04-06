@@ -136,6 +136,7 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
         node.state = stateSelect.value as any;
         import("src/recorder").then(m => m.SaveNodes());
         import("src/renderer").then(m => m.Render());
+        import("src/dialog/json-editor").then(m => m.RefreshJsonEditor());
     };
 }
 

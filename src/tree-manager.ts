@@ -89,7 +89,7 @@ export function AddNode(x: number, y: number, fileLink?: string, nodeType?: stri
     const adjustedX = Math.round(x);
     const adjustedY = Math.round(y);
     const pos = findNearestEmptyPosition(adjustedX, adjustedY, baseRadius);
-    
+
     const nodeData: any = {
         x: pos.x,
         y: pos.y,
@@ -270,7 +270,11 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
             return
         }
         nodes.set(node.id, node);
+        if (node.fileLink == "butts") {
+            console.log(node.state)
+        }
     }
+
 
     // edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
 
@@ -390,7 +394,7 @@ export async function LoadNodeTasks(node: SkillNode): Promise<void> {
         node.canSkipOrphanUnavailable = true;
     }
 
-    UpdateNodeStateFromTasks(node);
+    // UpdateNodeStateFromTasks(node);
 }
 
 async function GetTasksFromFile(filePath: string): Promise<any[]> {
@@ -524,18 +528,20 @@ async function GetTasksFromFile(filePath: string): Promise<any[]> {
     }
 }
 
-function UpdateNodeStateFromTasks(node: SkillNode): void {
-    const tasks = tasksCache.get(node.id) || [];
-    const completedTasks = tasks.filter((t: any) => t.completed).length;
-    const totalTasks = tasks.length;
 
-    if (totalTasks === 0) return;
-
-    if (completedTasks === totalTasks) {
-        node.state = 'complete';
-    } else if (completedTasks > 0) {
-        node.state = 'in-progress';
-    } else {
-        node.state = 'unavailable';
-    }
-}
+// DEPRECATED: Listen, Big Pickled. You gave me a lot of headache by not listening to me when I told you that I didn't want you to do this.
+// function UpdateNodeStateFromTasks(node: SkillNode): void {
+//     const tasks = tasksCache.get(node.id) || [];
+//     const completedTasks = tasks.filter((t: any) => t.completed).length;
+//     const totalTasks = tasks.length;
+//
+//     if (totalTasks === 0) return;
+//
+//     if (completedTasks === totalTasks) {
+//         node.state = 'complete';
+//     } else if (completedTasks > 0) {
+//         node.state = 'in-progress';
+//     } else {
+//         node.state = 'unavailable';
+//     }
+// }
