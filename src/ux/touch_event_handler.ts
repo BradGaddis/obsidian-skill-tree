@@ -1,9 +1,11 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { GetSelectedNodeId, SetSelectedNodeID } from "../tree_manager";
+import { SaveNodes } from "../recorder";
 import { CenterOnNode, Render } from "../renderer";
 import { InitZoomHandler } from "./zoom";
 import { createStatsModal } from "../modal/skilltree_stats_modal";
 import { createEditModal } from "../modal/skilltree_edit_modal";
+import { getCheckboxAtWorld, initEventUtils } from "./event_utils";
 import { 
     initInputHandler,
     isInEditMode,
@@ -48,6 +50,7 @@ let _wasLongPress = false;
 export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
     initInputHandler(skillTreeView);
+    initEventUtils(skillTreeView);
 
     const canvas = view.canvas;
     if (!canvas) return { cleanup: () => { } };
@@ -96,6 +99,17 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
         if (!worldPos) return;
+
+        // Check for checkbox hit
+        const checkboxHit = getCheckboxAtWorld(worldPos);
+        if (checkboxHit && checkboxHit.userCompletable) {
+            if (checkboxHit.state === 'in-progress') {
+                checkboxHit.state = 'complete';
+            }
+            Render();
+            SaveNodes();
+            return;
+        }
 
         // Check for edge endpoint (floating edge dragging)
         const edgeEndpointHit = findEdgeEndpointAt(worldPos);

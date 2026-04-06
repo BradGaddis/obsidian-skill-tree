@@ -26,7 +26,7 @@ export function openSkillModal(modal: HTMLElement, options: ModalStyleOptions = 
 
 export function closeSkillModal(view: SkillTreeView, modal: HTMLElement): void {
     modal.remove();
-    view.removeOutsideClickHandler();
+    removeOutsideClickHandler();
 }
 
 export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key: string): void {
