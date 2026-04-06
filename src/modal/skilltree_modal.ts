@@ -183,8 +183,7 @@ export function installOutsideClickHandler(modalEl: HTMLElement) {
                 }
             }
             
-            view.closeAllModals();
-            view.removeOutsideClickHandler();
+            closeAllModals();
         } catch (e) { }
     };
     view.modalOutsideListener = listener;
@@ -223,4 +222,24 @@ export function createModalFooter(modal: HTMLElement, buttons: ModalButton[]): H
     }
     
     return footer;
+}
+
+export function closeAllModals(): void {
+    try {
+        if (view.containerEl) {
+            const nodeModal = view.containerEl.querySelectorAll('.skill-tree-node-modal');
+            nodeModal.forEach((n) => n.remove());
+        }
+        const bodyModals = document.querySelectorAll('.skill-tree-node-modal');
+        bodyModals.forEach((n) => n.remove());
+    } catch (e) { }
+    removeOutsideClickHandler();
+}
+
+export function removeOutsideClickHandler(): void {
+    if (view.modalOutsideListener) {
+        document.removeEventListener('pointerdown', view.modalOutsideListener);
+        document.removeEventListener('touchstart', view.modalOutsideListener);
+        view.modalOutsideListener = null;
+    }
 }

@@ -69,7 +69,6 @@ export class SkillTreeView extends ItemView {
         }
 
         if (Platform.isMobile || Platform.isMobileApp) {
-            console.log("Plaform is mobile")
             this.uxCleanup = InitTouchHandler(this).cleanup
         }
 
@@ -109,31 +108,6 @@ export class SkillTreeView extends ItemView {
         await this.plugin.saveSettings();
         UpdateToolbarUI();
         Render();
-    }
-
-    // TODO: maybe move into modal module
-    closeAllModals() {
-        // Remove any modal elements from the container or the document body
-        try {
-            // Look in the container first
-            if (this.containerEl) {
-                const nodeModal = this.containerEl.querySelectorAll('.skill-tree-node-modal');
-                nodeModal.forEach((n) => n.remove());
-            }
-            // Also remove any modals appended to document body
-            const bodyModals = document.querySelectorAll('.skill-tree-node-modal');
-            bodyModals.forEach((n) => n.remove());
-        } catch (e) { }
-        // also remove any outside-click listener
-        this.removeOutsideClickHandler();
-    }
-
-    // TODO: maybe move into modal module
-    removeOutsideClickHandler() {
-        if (this.modalOutsideListener) {
-            document.removeEventListener('pointerdown', this.modalOutsideListener);
-            this.modalOutsideListener = null;
-        }
     }
 
 

@@ -1,6 +1,6 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, ModalButton } from "./skilltree_modal";
+import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, ModalButton, closeAllModals } from "./skilltree_modal";
 import { fuzzyMatch, getVaultFiles } from "../dialog/fuzzy_search";
 import { GetNodes, RemoveNode } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
@@ -324,7 +324,7 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
 }
 
 export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLElement {
-    view.closeAllModals();
+    closeAllModals();
     const modal = createSkillModal();
 
     const container = view.canvasWrap || view.containerEl;

@@ -1,5 +1,6 @@
 import { SkillTreeView } from "../skilltreeview";
 import { getVaultFiles } from "./fuzzy_search";
+import { closeAllModals } from "../modal/skilltree_modal";
 import {
     createAddNodeModal,
     createAddNodeHeader,
@@ -21,7 +22,7 @@ export function OpenAddNodeDialog() {
     const container = view.canvasWrap || view.containerEl;
     if (!container) return;
 
-    view.closeAllModals();
+    closeAllModals();
 
     const modal = createAddNodeModal(container);
     const header = createAddNodeHeader(modal);
