@@ -85,7 +85,7 @@ export function CreateEdge(edge: SkillEdge) {
 }
 
 export function FindNearestHandleOnNode(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
-    const r = (nodeRadii[targetNode.id] || nodeRadius) + handleRadius;
+    const r = nodeRadii[targetNode.id] || nodeRadius;
     const handles = [
         { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
         { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
@@ -244,25 +244,31 @@ export function FindEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
 export function UpdateConnectedEdgesToNearestHandles(node: SkillNode): void {
     for (const edge of edges) {
         if (edge.from === node.id) {
-            edge.fromX = node.x;
-            edge.fromY = node.y;
-            const nearest = FindNearestHandleOnNode(node, node.x, node.y);
-            if (nearest) {
-                edge.fromSide = nearest.side as any;
+            const toNode = nodes.get(edge.to as string | number);
+            if (toNode) {
+                const nearest = FindNearestHandleOnNode(node, toNode.x, toNode.y);
+                if (nearest) {
+                    edge.fromX = nearest.hx;
+                    edge.fromY = nearest.hy;
+                    edge.fromSide = nearest.side as any;
+                }
             }
         }
         if (edge.to === node.id) {
-            edge.toX = node.x;
-            edge.toY = node.y;
-            const nearest = FindNearestHandleOnNode(node, node.x, node.y);
-            if (nearest) {
-                edge.toSide = nearest.side as any;
+            const fromNode = nodes.get(edge.from as string | number);
+            if (fromNode) {
+                const nearest = FindNearestHandleOnNode(node, fromNode.x, fromNode.y);
+                if (nearest) {
+                    edge.toX = nearest.hx;
+                    edge.toY = nearest.hy;
+                    edge.toSide = nearest.side as any;
+                }
             }
         }
     }
 }
 
-export function AddNode(x: number, y: number, fileLink?: string, nodeType?: string): SkillNode {
+export function AddNode(x: number, y: number, fileLink?: string, nodeType?: string): SkillNode | null {
     const baseRadius = view.settings.nodeRadius || 40;
     const adjustedX = Math.round(x);
     const adjustedY = Math.round(y);
