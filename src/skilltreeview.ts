@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, Platform, WorkspaceLeaf } from "obsidian";
 import SkillTreePlugin, { defaultSettings } from "./main";
 import { VIEW_TYPE_SKILLTREE } from "./constants";
 import { Coordinate, Mode } from "./types";
@@ -61,7 +61,10 @@ export class SkillTreeView extends ItemView {
         InitNodeListModal(this)
         InitJSONEditor(this)
         InitRenderer(this)
-        this.clickCleanup = InitClickHandler(this).cleanup
+
+        if (Platform.isDesktop) {
+            this.clickCleanup = InitClickHandler(this).cleanup
+        }
 
         await this.loadSettings();
         Recenter()

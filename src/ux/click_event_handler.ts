@@ -13,9 +13,6 @@ import { InitZoomHandler } from "./zoom";
 import { SkillEdge } from "src/interfaces";
 import { Direction, Direction as EdgeDirection } from "src/enums";
 
-// Hit detection constants - base threshold plus scale factor for larger nodes
-const HANDLE_HIT_BASE = 20;
-const HANDLE_HIT_SCALE = 2;
 
 let view: SkillTreeView;
 
@@ -60,7 +57,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
-        isDragging = true
         if (e.button === 2 && hitNode) {
             SetSelectedNodeID(hitNode.id)
             // CenterOnNode(hitNode)
@@ -71,7 +67,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const edgeHandle = getEdgeEndpointAtWorld(worldPos)
         if (edgeHandle) {
             RecordSnapshot()
-            isDragging = true
             floatingEdge = FindEdgeAtHandle(edgeHandle)
             if (floatingEdge) {
                 floatingEdgeDirection = GetEdgeDirection(floatingEdge, edgeHandle.node)
@@ -82,12 +77,12 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (!hitNode) return
 
+        isDragging = true
         console.log(hitNode)
 
         const handle = getHandleAtWorld(worldPos)
         if (!handle) {
             RecordSnapshot()
-            isDragging = true
             return
         }
 
@@ -104,7 +99,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         floatingEdge = FindEdgeAtHandle(handle)
 
         if (floatingEdge) {
-            isDragging = true
             floatingEdgeDirection = GetEdgeDirection(floatingEdge, handle.node)
             previousEdgeFromFloating = JSON.parse(JSON.stringify(floatingEdge))
             return // remove
@@ -114,7 +108,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         setEdgeDragFrom(handle)
         setEdgeDragTarget(worldPos)
-        // Render()
     };
 
     // TODO: fix for node dragging
