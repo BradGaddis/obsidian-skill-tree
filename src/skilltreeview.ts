@@ -21,8 +21,7 @@ import { InitTouchHandler } from "./ux/touch_event_handler";
 // TODO: fix radius storage in settings
 
 export class SkillTreeView extends ItemView {
-    private clickCleanup: (() => void) | null = null;
-    private touchCleanup: (() => void) | null = null;
+    private uxCleanup: (() => void) | null = null;
 
     private _scale: number = 1
     get scale(): number { return this._scale }
@@ -66,11 +65,12 @@ export class SkillTreeView extends ItemView {
         InitRenderer(this)
 
         if (Platform.isDesktop) {
-            this.clickCleanup = InitClickHandler(this).cleanup
+            this.uxCleanup = InitClickHandler(this).cleanup
         }
 
         if (Platform.isMobile || Platform.isMobileApp) {
-            this.touchCleanup = InitTouchHandler(this).cleanup
+            console.log("Plaform is mobile")
+            this.uxCleanup = InitTouchHandler(this).cleanup
         }
 
         await this.loadSettings();
@@ -78,8 +78,7 @@ export class SkillTreeView extends ItemView {
     }
 
     protected async onClose(): Promise<void> {
-        this.clickCleanup?.();
-        this.touchCleanup?.();
+        this.uxCleanup?.();
         this.resizeObserver?.disconnect();
     }
 

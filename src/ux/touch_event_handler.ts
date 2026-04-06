@@ -14,6 +14,7 @@ import {
     startEdgeDrag,
     startNodeDrag,
     updateFloatingEdge,
+    updateNodeDrag,
     setEdgeDragFrom,
     setEdgeDragTarget,
     getEdgeDragFrom,
@@ -177,13 +178,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         // Node dragging
         if (isDragging && _touchDownNodeId) {
-            // We don't need to find the node at current position, just update position directly
-            const node = findNodeAt(worldPos.x, worldPos.y);
-            if (node && node.id === _touchDownNodeId) {
-                node.x = worldPos.x;
-                node.y = worldPos.y;
-                Render();
-            }
+            updateNodeDrag(worldPos);
             return;
         }
 
