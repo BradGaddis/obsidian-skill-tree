@@ -60,6 +60,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
+        isDragging = true
         if (e.button === 2 && hitNode) {
             SetSelectedNodeID(hitNode.id)
             // CenterOnNode(hitNode)
@@ -80,6 +81,8 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         }
 
         if (!hitNode) return
+
+        console.log(hitNode)
 
         const handle = getHandleAtWorld(worldPos)
         if (!handle) {
@@ -196,6 +199,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     };
 
+
     canvas.addEventListener('mousedown', onMouseDown);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.addEventListener('mouseup', onMouseUp);
@@ -221,17 +225,16 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     document.addEventListener('keydown', onKeyDown);
 
 
-    const panCleanup = InitPanHandler(view,
-        () => {
-            return (hitNode == null && !isDragging)
-        }
-    ).cleanup;
-
     const zoomCleanup = InitZoomHandler(view, {
         minScale: 0.3,
         maxScale: 3
     }).cleanup;
 
+    const panCleanup = InitPanHandler(view,
+        () => {
+            return (hitNode == null && !isDragging)
+        }
+    ).cleanup;
     return {
         cleanup: () => {
             panCleanup();

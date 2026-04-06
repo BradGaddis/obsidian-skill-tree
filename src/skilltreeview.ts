@@ -15,13 +15,11 @@ import { InitJSONEditor } from "./dialog/json_editor";
 
 import { modeToggleBtn } from "./toolbar";
 
-// import { InitPanHandler } from "./ux/panning";
-// import { InitZoomHandler } from "./ux/zoom";
-import { edgeDragFrom, hitNode, InitClickHandler } from "./ux/click_event_handler";
+import { InitClickHandler } from "./ux/click_event_handler";
+
+// TODO: fix radius storage in settings
 
 export class SkillTreeView extends ItemView {
-    // private panCleanup: (() => void) | null = null;
-    // private zoomCleanup: (() => void) | null = null;
     private clickCleanup: (() => void) | null = null;
 
     private _scale: number = 1

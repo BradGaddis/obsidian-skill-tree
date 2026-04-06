@@ -80,7 +80,7 @@ export class SkillNode implements ISkillNode {
         if (this.userCompletable && this.state === "complete") {
             return
         }
-        console.log("is something messing this up")
+
         this.state = "in-progress"
     }
 
