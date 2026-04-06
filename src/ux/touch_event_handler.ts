@@ -1,61 +1,48 @@
 import { SkillTreeView } from "src/skilltreeview";
-import { SkillNode } from "src/skill_nodes/skill_node";
-import { Handle } from "../types";
-import {
+import { GetSelectedNodeId, SetSelectedNodeID } from "../tree_manager";
+import { CenterOnNode, Render } from "../renderer";
+import { InitZoomHandler } from "./zoom";
+import { createStatsModal } from "../modal/skilltree_stats_modal";
+import { createEditModal } from "../modal/skilltree_edit_modal";
+import { 
     initInputHandler,
+    isInEditMode,
     screenToWorldCoordinate,
     findNodeAt,
     findHandleAt,
     findEdgeEndpointAt,
-    isInEditMode,
     startEdgeDrag,
-    updateFloatingEdge,
     startNodeDrag,
-    updateNodeDrag,
-    endNodeDrag,
-    handleEdgeEndpointDrag,
-    completeEdgeDrag,
-    resetDragState,
-    selectNode,
-    clearSelection,
-    isDragging,
-    isDraggingEdgeEndpoint,
-    draggingEdgeEndpoint,
-    requestRender,
+    updateFloatingEdge,
     setEdgeDragFrom,
     setEdgeDragTarget,
     getEdgeDragFrom,
-    getEdgeDragTarget,
+    resetDragState,
+    completeEdgeDrag,
     handleFloatingEdge,
-    getView
+    isDragging,
+    isDraggingEdgeEndpoint
 } from "./input_handler";
-import { GetSelectedNodeId } from "../tree_manager";
-import { CenterOnNode } from "../renderer";
-import { InitZoomHandler } from "./zoom";
-import { createStatsModal } from "../modal/skilltree_stats_modal";
-import { createEditModal } from "../modal/skilltree_edit_modal";
-import { getFloatingEdge } from "./event_utils";
 
 let view: SkillTreeView;
-
-let _touchDownPos: { x: number, y: number } | null = null;
-let _longPressTimer: number | null = null;
-let _isPanning = false;
-let _isPinning = false;
-let _initialPinchDistance: number = 0;
-let _initialPinchScale: number = 1;
-let _lastTapTime: number = 0;
-let _lastTapPos: { x: number, y: number } | null = null;
-let _pendingDoubleTap: boolean = false;
-let _touchDownNodeId: string | number | null = null;
-let _wasLongPress: boolean = false;
-let _touchDownEdgeEndpoint: Handle | null = null;
-let _touchStartPos: { x: number, y: number } | null = null;
 
 const TAP_THRESHOLD = 10;
 const DOUBLE_TAP_TIME = 300;
 const DOUBLE_TAP_DIST = 30;
 const LONG_PRESS_TIME = 400;
+
+let _touchStartPos: { x: number, y: number } | null = null;
+let _touchDownPos: { x: number, y: number } | null = null;
+let _longPressTimer: number | null = null;
+let _isPanning = false;
+let _isPinning = false;
+let _initialPinchDistance = 0;
+let _initialPinchScale = 1;
+let _lastTapTime = 0;
+let _lastTapPos: { x: number, y: number } | null = null;
+let _pendingDoubleTap = false;
+let _touchDownNodeId: string | number | null = null;
+let _wasLongPress = false;
 
 export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
@@ -74,6 +61,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     };
 
     const onTouchStart = (e: TouchEvent): void => {
+        // Handle pinch zoom
         if (e.touches.length === 2) {
             e.preventDefault();
             _isPinning = true;
@@ -96,66 +84,75 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             view.touchActive = false;
         }
 
-        _touchDownPos = { x: touch.clientX, y: touch.clientY };
         _touchStartPos = { x: touch.clientX, y: touch.clientY };
+        _touchDownPos = { x: touch.clientX, y: touch.clientY };
         _isPanning = false;
         _pendingDoubleTap = false;
         _touchDownNodeId = null;
         _wasLongPress = false;
 
-        if (isInEditMode()) {
-            const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
-            if (!worldPos) return;
+        if (!isInEditMode()) return;
 
-            const edgeEndpointHit = findEdgeEndpointAt(worldPos);
-            if (edgeEndpointHit) {
-                _touchDownEdgeEndpoint = edgeEndpointHit;
+        const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
+        if (!worldPos) return;
 
-                _longPressTimer = window.setTimeout(() => {
-                    if (_touchDownEdgeEndpoint) {
+        // Check for edge endpoint (floating edge dragging)
+        const edgeEndpointHit = findEdgeEndpointAt(worldPos);
+        if (edgeEndpointHit) {
+            _longPressTimer = window.setTimeout(() => {
+                if (edgeEndpointHit) {
+                    _wasLongPress = true;
+                    startEdgeDrag(edgeEndpointHit);
+                    Render();
+                }
+                _longPressTimer = null;
+            }, LONG_PRESS_TIME);
+            return;
+        }
+
+        // Check for node handle (new edge creation)
+        const handle = findHandleAt(worldPos);
+        if (handle) {
+            setEdgeDragFrom(handle);
+            setEdgeDragTarget(worldPos);
+            Render();
+            return;
+        }
+
+        // Check for node (node dragging)
+        const hit = findNodeAt(worldPos.x, worldPos.y);
+        if (!hit) {
+            // No node hit - don't return, allow panning to happen on move
+        } else {
+            // Track for double tap
+            const now = Date.now();
+            const distSinceLastTap = _lastTapPos
+                ? Math.hypot(touch.clientX - _lastTapPos.x, touch.clientY - _lastTapPos.y)
+                : Infinity;
+
+            if (_lastTapTime > 0 && (now - _lastTapTime) < DOUBLE_TAP_TIME && distSinceLastTap < DOUBLE_TAP_DIST) {
+                _pendingDoubleTap = true;
+            }
+
+            // Long press to start dragging
+            _touchDownNodeId = hit.id;
+            _longPressTimer = window.setTimeout(() => {
+                if (_touchDownNodeId && !isDragging) {
+                    const node = findNodeAt(worldPos.x, worldPos.y);
+                    if (node && node.id === _touchDownNodeId) {
                         _wasLongPress = true;
-                        startEdgeDrag(_touchDownEdgeEndpoint);
-                        requestRender();
-                    }
-                    _longPressTimer = null;
-                }, LONG_PRESS_TIME);
-            } else {
-                const hit = findNodeAt(worldPos.x, worldPos.y);
-                if (hit) {
-                    const handleHit = findHandleAt(worldPos);
-
-                    const now = Date.now();
-                    const distSinceLastTap = _lastTapPos
-                        ? Math.hypot(touch.clientX - _lastTapPos.x, touch.clientY - _lastTapPos.y)
-                        : Infinity;
-
-                    if (_lastTapTime && (now - _lastTapTime) < DOUBLE_TAP_TIME && distSinceLastTap < DOUBLE_TAP_DIST) {
-                        _pendingDoubleTap = true;
-                    }
-
-                    if (!handleHit) {
-                        _touchDownNodeId = hit.id;
-                        _longPressTimer = window.setTimeout(() => {
-                            if (_touchDownNodeId && !isDragging) {
-                                const node = findNodeAt(worldPos.x, worldPos.y);
-                                if (node && node.id === _touchDownNodeId) {
-                                    _wasLongPress = true;
-                                    _lastTapTime = 0;
-                                    _lastTapPos = null;
-                                    selectNode(node);
-                                    startNodeDrag(node);
-                                    requestRender();
-                                }
-                            }
-                            _longPressTimer = null;
-                        }, LONG_PRESS_TIME);
+                        _lastTapTime = 0;
+                        _lastTapPos = null;
+                        startNodeDrag(node);
                     }
                 }
-            }
+                _longPressTimer = null;
+            }, LONG_PRESS_TIME);
         }
     };
 
     const onTouchMove = (e: TouchEvent): void => {
+        // Handle pinch zoom
         if (_isPinning && e.touches.length === 2) {
             e.preventDefault();
             const currentDistance = getTouchDistance(e.touches);
@@ -163,7 +160,6 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             let newScale = _initialPinchScale * scale;
             newScale = Math.max(0.3, Math.min(3, newScale));
             view.scale = newScale;
-            requestRender();
             return;
         }
 
@@ -173,69 +169,49 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         e.preventDefault();
 
         const touch = e.touches[0];
+        const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
+        if (!worldPos) return;
 
         // Update floating edge while dragging
-        const worldPosCheck = screenToWorldCoordinate(touch.clientX, touch.clientY);
-        if (worldPosCheck) {
-            updateFloatingEdge(worldPosCheck);
-        }
+        updateFloatingEdge(worldPos);
 
-        if (isDragging) {
-            const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
-            if (worldPos && _touchDownNodeId) {
-                updateNodeDrag(worldPos);
+        // Node dragging
+        if (isDragging && _touchDownNodeId) {
+            // We don't need to find the node at current position, just update position directly
+            const node = findNodeAt(worldPos.x, worldPos.y);
+            if (node && node.id === _touchDownNodeId) {
+                node.x = worldPos.x;
+                node.y = worldPos.y;
+                Render();
             }
             return;
         }
 
-        if (isDraggingEdgeEndpoint || draggingEdgeEndpoint) {
-            const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
-            if (worldPos) {
-                handleEdgeEndpointDrag(worldPos);
-            }
-            return;
-        }
-
-        // Update edge drag target while dragging
+        // Edge target update while dragging new edge
         if (getEdgeDragFrom()) {
-            const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
-            if (worldPos) {
-                setEdgeDragTarget(worldPos);
-                requestRender();
-            }
+            setEdgeDragTarget(worldPos);
+            Render();
             return;
         }
 
+        // Check movement distance
         const dx = touch.clientX - _touchDownPos.x;
         const dy = touch.clientY - _touchDownPos.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist > TAP_THRESHOLD && !isDragging && !_isPinning && !isDraggingEdgeEndpoint && !draggingEdgeEndpoint) {
+        // Clear long press timer once we move past threshold
+        if (dist > TAP_THRESHOLD && _longPressTimer) {
             clearLongPressTimer();
             _touchDownNodeId = null;
+        }
 
-            // Check for panning first (empty space)
-            if (!getEdgeDragFrom()) {
-                const worldPos = screenToWorldCoordinate(_touchDownPos.x, _touchDownPos.y);
-                if (worldPos) {
-                    const hit = findNodeAt(worldPos.x, worldPos.y);
-                    const handleHit = findHandleAt(worldPos);
-                    if (!hit && !handleHit) {
-                        _isPanning = true;
-                    }
-                }
-            }
+        if (dist > TAP_THRESHOLD && !isDragging && !isDraggingEdgeEndpoint) {
+            // Start panning if not on node/handle
+            const hit = findNodeAt(worldPos.x, worldPos.y);
+            const handleHit = findHandleAt(worldPos);
 
-            // Only check for handles if NOT panning
-            if (!_isPanning && isInEditMode()) {
-                const worldPos = screenToWorldCoordinate(_touchDownPos.x, _touchDownPos.y);
-                if (worldPos) {
-                    const handleHit = findHandleAt(worldPos);
-                    if (handleHit) {
-                        setEdgeDragFrom(handleHit);
-                        setEdgeDragTarget(worldPos);
-                    }
-                }
+            if (!hit && !handleHit && !getEdgeDragFrom()) {
+                _isPanning = true;
             }
 
             if (_isPanning) {
@@ -244,13 +220,13 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
                 view.offset.x += moveDx;
                 view.offset.y += moveDy;
                 _touchStartPos = { x: touch.clientX, y: touch.clientY };
-                requestRender();
-                return;
+                Render();
             }
         }
     };
 
     const onTouchEnd = (e: TouchEvent): void => {
+        // Handle pinch zoom end
         if (_isPinning && e.touches.length < 2) {
             _isPinning = false;
         }
@@ -261,8 +237,9 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         clearLongPressTimer();
 
         const touch = e.changedTouches[0];
+        const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
 
-        // Check for panning first - don't handle floating edges when panning
+        // Check for panning
         const dx = touch.clientX - _touchDownPos.x;
         const dy = touch.clientY - _touchDownPos.y;
         const dist = Math.hypot(dx, dy);
@@ -273,70 +250,51 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             return;
         }
 
-        // Handle floating edge (edge endpoint drag reattachment or removal)
-        const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
-        if (worldPos && !getFloatingEdge()) {
+        // Handle floating edge (floating edge dragging)
+        if (worldPos) {
             handleFloatingEdge(worldPos);
         }
 
-        if (isDragging) {
-            endNodeDrag();
-            _touchDownNodeId = null;
-            _touchDownPos = null;
-            _wasLongPress = false;
-            return;
-        }
-
-        if (isDraggingEdgeEndpoint || draggingEdgeEndpoint) {
-            resetDragState();
-            _touchDownPos = null;
-            return;
-        }
-
-        if (_isPanning) {
-            _isPanning = false;
-            _touchDownPos = null;
-            return;
-        }
-
-        if (getEdgeDragFrom() && getEdgeDragTarget() && worldPos) {
+        // Handle new edge creation
+        if (getEdgeDragFrom() && worldPos) {
             completeEdgeDrag(worldPos);
+            Render();
         }
 
         resetDragState();
 
+        // If moved past threshold, don't process tap
         if (dist > TAP_THRESHOLD) {
             _touchDownPos = null;
             return;
         }
 
+        // Tap handling
         if (worldPos) {
             const hit = findNodeAt(worldPos.x, worldPos.y);
 
-            // Quick double tap: open editor modal
+            // Double tap: open editor modal
             if (hit && _pendingDoubleTap && !_wasLongPress) {
                 _pendingDoubleTap = false;
                 _lastTapTime = 0;
                 _lastTapPos = null;
-                createEditModal(getView(), hit);
+                createEditModal(view, hit);
                 _touchDownPos = null;
                 return;
             }
 
-            // Single tap
+            // Single tap: select and center
             if (hit && !_wasLongPress) {
                 const wasSelected = GetSelectedNodeId() === hit.id;
                 selectNode(hit);
                 CenterOnNode(hit);
-                requestRender();
 
                 // Second tap on same node: open stats modal
                 if (wasSelected) {
-                    createStatsModal(getView(), hit);
+                    createStatsModal(view, hit);
                 }
             } else if (!hit && !_wasLongPress) {
                 clearSelection();
-                requestRender();
             }
         }
 
@@ -345,14 +303,17 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         _touchDownPos = null;
         _touchDownNodeId = null;
         _wasLongPress = false;
-
-        // Delay clearing touch active to prevent synthetic clicks from other handlers
-        setTimeout(() => {
-            view.touchActive = false;
-        }, 500);
     };
 
-    // Prevent synthetic click events after touch
+    const selectNode = (node: any): void => {
+        SetSelectedNodeID(node.id);
+    };
+
+    const clearSelection = (): void => {
+        SetSelectedNodeID(null);
+    };
+
+    // Prevent synthetic click events
     const onClick = (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -363,7 +324,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     canvas.addEventListener('touchmove', onTouchMove, { passive: false });
     canvas.addEventListener('touchend', onTouchEnd, { passive: false });
 
-    // Reset touchActive when touching outside canvas (allows modal outside click to work)
+    // Reset touchActive when touching outside canvas
     const onDocumentTouchStart = (e: TouchEvent) => {
         if (e.target === canvas || canvas.contains(e.target as Node)) return;
         view.touchActive = false;
