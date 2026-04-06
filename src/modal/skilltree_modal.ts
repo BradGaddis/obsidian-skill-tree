@@ -173,17 +173,23 @@ export function installOutsideClickHandler(modalEl: HTMLElement) {
         try {
             const target = ev.target as Node | null;
             if (!target) return;
+            
+            // Check if touching on modal
             const openModals = Array.from(document.querySelectorAll('.skill-tree-node-modal')) as HTMLElement[];
             if (openModals.length === 0) return;
             for (const m of openModals) {
-                if (m.contains(target)) return;
+                if (m.contains(target)) {
+                    return;
+                }
             }
+            
             view.closeAllModals();
             view.removeOutsideClickHandler();
         } catch (e) { }
     };
     view.modalOutsideListener = listener;
     document.addEventListener('pointerdown', listener);
+    document.addEventListener('touchstart', listener, { passive: true });
 }
 
 export interface ModalButton {

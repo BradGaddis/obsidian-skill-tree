@@ -83,7 +83,6 @@ export function findHandleAt(worldPos: Coordinate): Handle | null {
             const dist2 = dx * dx + dy * dy;
 
             if (dist2 <= Math.sqrt(r) + r) {
-                console.log("hit handle")
                 return { node, side: h.side as 'top' | 'right' | 'bottom' | 'left', hx: h.hx, hy: h.hy };
             }
         }
@@ -94,7 +93,8 @@ export function findHandleAt(worldPos: Coordinate): Handle | null {
 export function findEdgeEndpointAt(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     const edges = GetEdges();
-    const threshold = 20 / view.scale;
+    const scale = view?.scale || 1;
+    const threshold = 30 / scale;
 
     for (const e of edges) {
         if (!e.from || !e.to) continue;
@@ -174,6 +174,7 @@ export function updateFloatingEdge(worldPos: Coordinate): void {
 export function startNodeDrag(node: SkillNode): void {
     RecordSnapshot();
     hitNode = node;
+    isDragging = true;
 }
 
 export function updateNodeDrag(worldPos: Coordinate): void {

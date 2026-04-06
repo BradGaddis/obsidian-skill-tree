@@ -39,6 +39,7 @@ export class SkillTreeView extends ItemView {
 
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
+    touchActive: boolean = false;
 
     selectedNodeId: string | null = null;
     _lastKnownNodeIds: Map<string, string | number> = new Map();
