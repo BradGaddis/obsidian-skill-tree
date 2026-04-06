@@ -1,6 +1,6 @@
 import { nodeRadii, nodeRadius } from "src/renderer";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { GetNodes } from "../tree-manager";
+import { GetNodes } from "../tree_manager";
 
 let view: any;
 

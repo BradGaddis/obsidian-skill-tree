@@ -1,6 +1,6 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { SkillTreeData } from "src/interfaces";
-import { UpdateTreeSelector, GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "../tree-manager";
+import { UpdateTreeSelector, GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "../tree_manager";
 import { SaveNodes } from "../recorder";
 import { Render } from "../renderer";
 

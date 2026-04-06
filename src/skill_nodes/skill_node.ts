@@ -2,8 +2,8 @@ import { NodeState, NodeType, NodeShape } from "./types";
 import { ISkillNode } from "./interfaces";
 import { SkillTask } from "../interfaces";
 import { SkillTreeView } from "src/skilltreeview";
-import { GetEdges, GetNodes } from "src/tree-manager";
-import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree-stats-modal";
+import { GetEdges, GetNodes } from "src/tree_manager";
+import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree_stats_modal";
 
 // TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {

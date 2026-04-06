@@ -5,12 +5,12 @@ import { Coordinate, Mode } from "./types";
 import { SkillTreeSettings } from "./main";
 import { InitRecorder } from "./recorder";
 import { InitRenderer, Recenter, Render, UpdateToolbarUI } from "./renderer";
-import { InitTreeManager } from "./tree-manager";
+import { InitTreeManager } from "./tree_manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
-import { InitSkillTreeModal } from "./modal/skilltree-modal"
-import { InitStatsModal } from "./modal/skilltree-stats-modal"
-import { InitNodeListModal } from "./modal/skilltree-pane"
+import { InitSkillTreeModal } from "./modal/skilltree_modal"
+import { InitStatsModal } from "./modal/skilltree_stats_modal"
+import { InitNodeListModal } from "./modal/skilltree_pane"
 import { InitJSONEditor } from "./dialog/json_editor";
 
 import { modeToggleBtn } from "./toolbar";

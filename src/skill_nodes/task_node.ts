@@ -1,6 +1,6 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "./skill_node";
-import { tasksCache } from "src/tree-manager";
+import { tasksCache } from "src/tree_manager";
 
 export class TaskNode extends SkillNode {
     // TODO: remove this, as class alone defines the node type

@@ -1,6 +1,6 @@
 import { SkillEdge, SkillTreeData, SkillTask } from "./interfaces";
 import { SaveNodes } from "./recorder";
-import { nodeRadii, nodeRadius as defaultRadius, Recenter, Render } from "src/renderer";
+import { nodeRadii, nodeRadius, handleRadius, Recenter, Render } from "src/renderer";
 import { CheckpointNode } from "./skill_nodes/checkpoint_node";
 import { OptionalNode } from "./skill_nodes/optional_node";
 import { RepeatingNode } from "./skill_nodes/repeating_node";
@@ -8,10 +8,10 @@ import { SkillNode } from "./skill_nodes/skill_node";
 import { TaskNode } from "./skill_nodes/task_node";
 import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
-import { Handle } from "./types";
+import { Handle, Coordinate } from "./types";
 import { Direction } from "./enums";
 import { TFile } from "obsidian";
-import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/file-watcher";
+import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/file_watcher";
 import { InitCollisionDetector, findNearestEmptyPosition } from "./utils/collision";
 
 
@@ -82,6 +82,184 @@ export function RemoveNode(nodeId: string | number): void {
 
 export function CreateEdge(edge: SkillEdge) {
     edges.push(edge)
+}
+
+export function FindNearestHandleOnNode(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
+    const r = (nodeRadii[targetNode.id] || nodeRadius) + handleRadius;
+    const handles = [
+        { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
+        { side: 'right', hx: targetNode.x + r, hy: targetNode.y },
+        { side: 'bottom', hx: targetNode.x, hy: targetNode.y + r },
+        { side: 'left', hx: targetNode.x - r, hy: targetNode.y },
+    ];
+
+    let nearest: { side: string, hx: number, hy: number } | null = null;
+    let minDist = Infinity;
+
+    for (const h of handles) {
+        const dx = h.hx - refX;
+        const dy = h.hy - refY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = h;
+        }
+    }
+    return nearest;
+}
+
+export function FindNearestHandleToPosition(worldPos: Coordinate): Handle | null {
+    const nodes = GetNodes();
+    let nearest: { node: SkillNode; side: 'top' | 'right' | 'bottom' | 'left'; hx: number; hy: number } | null = null;
+    let minDist = Infinity;
+
+    for (const node of nodes.values()) {
+        const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
+        const handles = [
+            { side: 'top' as const, hx: node.x, hy: node.y - r },
+            { side: 'right' as const, hx: node.x + r, hy: node.y },
+            { side: 'bottom' as const, hx: node.x, hy: node.y + r },
+            { side: 'left' as const, hx: node.x - r, hy: node.y },
+        ];
+
+        for (const h of handles) {
+            const dx = worldPos.x - h.hx;
+            const dy = worldPos.y - h.hy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = { node, side: h.side, hx: h.hx, hy: h.hy };
+            }
+        }
+    }
+
+    return nearest;
+}
+
+export function FindHandleAtWorld(worldPos: Coordinate): Handle | null {
+    const nodes = GetNodes();
+    for (const node of nodes.values()) {
+        const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
+        const handles = [
+            { side: 'top', hx: node.x, hy: node.y - r },
+            { side: 'right', hx: node.x + r, hy: node.y },
+            { side: 'bottom', hx: node.x, hy: node.y + r },
+            { side: 'left', hx: node.x - r, hy: node.y },
+        ];
+
+        for (const h of handles) {
+            const dx = worldPos.x - h.hx;
+            const dy = worldPos.y - h.hy;
+            const dist2 = dx * dx + dy * dy;
+            const handleThreshold = handleRadius;
+
+            if (dist2 <= handleThreshold * handleThreshold) {
+                return { node, side: h.side as 'top' | 'right' | 'bottom' | 'left', hx: h.hx, hy: h.hy };
+            }
+        }
+    }
+    return null;
+}
+
+export function FindEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
+    const nodes = GetNodes();
+    const edges = GetEdges();
+    const threshold = 20 / view.scale;
+
+    for (const e of edges) {
+        if (!e.from || !e.to) continue;
+
+        const a = nodes.get(e.from as string | number);
+        const b = nodes.get(e.to as string | number);
+        if (!a || !b) continue;
+
+        const rFrom = nodeRadii[a.id] || nodeRadius;
+        const rTo = nodeRadii[b.id] || nodeRadius;
+
+        let fromX = a.x, fromY = a.y;
+        if (e.fromSide === 'top') fromY -= rFrom;
+        else if (e.fromSide === 'right') fromX += rFrom;
+        else if (e.fromSide === 'bottom') fromY += rFrom;
+        else if (e.fromSide === 'left') fromX -= rFrom;
+        else {
+            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+            fromX = a.x + (dx / d) * rFrom;
+            fromY = a.y + (dy / d) * rFrom;
+        }
+
+        let toX = b.x, toY = b.y;
+        if (e.toSide === 'top') toY -= rTo;
+        else if (e.toSide === 'right') toX += rTo;
+        else if (e.toSide === 'bottom') toY += rTo;
+        else if (e.toSide === 'left') toX -= rTo;
+        else {
+            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+            toX = b.x - (dx / d) * rTo;
+            toY = b.y - (dy / d) * rTo;
+        }
+
+        const pointToSegmentDistance = (px: number, py: number, x1: number, y1: number, x2: number, y2: number): number => {
+            const A = px - x1;
+            const B = py - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            if (lenSq !== 0) param = dot / lenSq;
+            let xx, yy;
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            const ddx = px - xx;
+            const ddy = py - yy;
+            return Math.sqrt(ddx * ddx + ddy * ddy);
+        };
+
+        const dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY);
+
+        if (dist <= threshold) {
+            const distanceTo = (p1: Coordinate, p2: { x: number, y: number }) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            const fromDist = distanceTo(worldPos, { x: fromX, y: fromY });
+            const toDist = distanceTo(worldPos, { x: toX, y: toY });
+
+            if (fromDist <= toDist) {
+                return { node: a, side: (e.fromSide || 'right') as 'top' | 'right' | 'bottom' | 'left', hx: fromX, hy: fromY };
+            } else {
+                return { node: b, side: (e.toSide || 'left') as 'top' | 'right' | 'bottom' | 'left', hx: toX, hy: toY };
+            }
+        }
+    }
+
+    return null;
+}
+
+export function UpdateConnectedEdgesToNearestHandles(node: SkillNode): void {
+    for (const edge of edges) {
+        if (edge.from === node.id) {
+            edge.fromX = node.x;
+            edge.fromY = node.y;
+            const nearest = FindNearestHandleOnNode(node, node.x, node.y);
+            if (nearest) {
+                edge.fromSide = nearest.side as any;
+            }
+        }
+        if (edge.to === node.id) {
+            edge.toX = node.x;
+            edge.toY = node.y;
+            const nearest = FindNearestHandleOnNode(node, node.x, node.y);
+            if (nearest) {
+                edge.toSide = nearest.side as any;
+            }
+        }
+    }
 }
 
 export function AddNode(x: number, y: number, fileLink?: string, nodeType?: string): SkillNode {

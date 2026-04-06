@@ -1,11 +1,11 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, ModalButton } from "./skilltree-modal";
-import { fuzzyMatch, getVaultFiles } from "../dialog/fuzzy-search";
-import { GetNodes, RemoveNode } from "../tree-manager";
+import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, ModalButton } from "./skilltree_modal";
+import { fuzzyMatch, getVaultFiles } from "../dialog/fuzzy_search";
+import { GetNodes, RemoveNode } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
 import { Render } from "../renderer";
-import { validateFrontmatter } from "../utils/frontmatter-validator";
+import { validateFrontmatter } from "../utils/frontmatter_validator";
 
 function handleRelinkClick(
     view: SkillTreeView,
@@ -136,7 +136,7 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
         node.state = stateSelect.value as any;
         import("src/recorder").then(m => m.SaveNodes());
         import("src/renderer").then(m => m.Render());
-        import("src/dialog/json-editor").then(m => m.RefreshJsonEditor());
+        import("src/dialog/json_editor").then(m => m.RefreshJsonEditor());
     };
 }
 

@@ -1,6 +1,6 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize, screenToWorld, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
+import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree_manager";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { Coordinate, Handle } from "src/types";
 import { SkillEdge } from "src/interfaces";

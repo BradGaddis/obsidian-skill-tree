@@ -1,5 +1,5 @@
 import { SkillTreeView } from "src/skilltreeview";
-import { GetNodes, GetEdges } from "../tree-manager";
+import { GetNodes, GetEdges } from "../tree_manager";
 import { CenterOnNode, Render } from "../renderer";
 import { SkillNode } from "src/skill_nodes/skill_node";
 

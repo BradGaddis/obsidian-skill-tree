@@ -1,5 +1,5 @@
 import { SkillTreeView } from "src/skilltreeview";
-import { GetNodes, LoadNodeTasks } from "../tree-manager";
+import { GetNodes, LoadNodeTasks } from "../tree_manager";
 
 let view: SkillTreeView;
 let fileWatcherRef: any = null;

@@ -17,13 +17,13 @@ import {
     SwitchTree,
     CreateTree,
     AddNode,
-} from "./tree-manager"
+} from "./tree_manager"
 import { Recenter, Render, screenToWorld, UpdateToolbarUI } from "./renderer";
 import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
 import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
-import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor } from "./dialog/json_editor";
-import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree-pane";
+import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
+import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree_pane";
 
 // TODO: bulletproof these later
 export let modeToggleBtn: HTMLButtonElement
@@ -311,7 +311,7 @@ function AddEditModeButton(txt: string, title: string): void {
 function SetupEditAsJSONButton() {
     AddEditModeButton('Edit as JSON', 'Edit nodes as JSON')
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        OpenJSONEditor();
+        OpenJsonEditor();
     };
 }
 

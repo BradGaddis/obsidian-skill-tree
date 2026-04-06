@@ -1,6 +1,6 @@
 import { SkillTreeView } from "./skilltreeview";
 import { Render } from "./renderer";
-import { GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "./tree-manager";
+import { GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "./tree_manager";
 import { HISTORY_UPPER_BOUNDS } from "./constants";
 
 let view: SkillTreeView

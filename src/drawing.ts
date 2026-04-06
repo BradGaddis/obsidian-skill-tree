@@ -2,7 +2,7 @@ import { nodeRadii, nodeRadius, fontSize } from "./renderer";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { NodeShape } from "./skill_nodes/types";
 import { SkillTreeView } from "./skilltreeview";
-import { GetSelectedNodeId } from "./tree-manager";
+import { GetSelectedNodeId } from "./tree_manager";
 
 let view: SkillTreeView;
 

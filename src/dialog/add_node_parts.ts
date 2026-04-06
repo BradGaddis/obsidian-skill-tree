@@ -1,6 +1,6 @@
 import { SkillTreeView } from "../skilltreeview";
-import { fuzzyMatch, getVaultFiles } from "./fuzzy-search";
-import { GetNodes, AddNode } from "../tree-manager";
+import { fuzzyMatch, getVaultFiles } from "./fuzzy_search";
+import { GetNodes, AddNode } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
 import { Render, screenToWorld } from "../renderer";
 

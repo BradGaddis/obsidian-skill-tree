@@ -2,8 +2,8 @@ import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO } from "src/constants";
 import { TFile } from "obsidian";
-import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter } from "./skilltree-modal";
-import { tasksCache, GetNodeTasks, LoadNodeTasks } from "../tree-manager";
+import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter } from "./skilltree_modal";
+import { tasksCache, GetNodeTasks, LoadNodeTasks } from "../tree_manager";
 import { Render } from "../renderer";
 import { MarkdownRenderer } from "obsidian";
 

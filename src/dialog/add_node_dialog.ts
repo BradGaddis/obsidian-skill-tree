@@ -1,5 +1,5 @@
 import { SkillTreeView } from "../skilltreeview";
-import { getVaultFiles } from "./fuzzy-search";
+import { getVaultFiles } from "./fuzzy_search";
 import {
     createAddNodeModal,
     createAddNodeHeader,

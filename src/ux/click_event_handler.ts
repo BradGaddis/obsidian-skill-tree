@@ -1,10 +1,10 @@
 import { CenterOnNode, Render, nodeRadius, nodeRadii, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { SetSelectedNodeID, FindNodeAt, GetSelectedNodeId, RemoveNode } from "../tree-manager";
+import { SetSelectedNodeID, FindNodeAt, GetSelectedNodeId, RemoveNode } from "../tree_manager";
 import { RecordSnapshot, SaveNodes } from "../recorder";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { createStatsModal } from "../modal/skilltree-stats-modal";
-import { createEditModal } from "../modal/skilltree-edit-modal";
+import { createStatsModal } from "../modal/skilltree_stats_modal";
+import { createEditModal } from "../modal/skilltree_edit_modal";
 import { Coordinate } from "src/types";
 import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
@@ -62,19 +62,28 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (handle) {
             setIsDragging(true)
-            console.log("by this point, we SHOULD be drawing an edge")
             RecordSnapshot();
             setEdgeDragFrom(handle);
             setEdgeDragTarget(worldPos);
         }
 
-        if (hitNode) {
-            setIsDragging(true)
-            startNodeDrag(hitNode);
-            RecordSnapshot();
-            return;
+        if (!hitNode) return;
+
+        setIsDragging(true)
+
+        const r = nodeRadii[hitNode.id] || nodeRadius
+
+        const dist = Math.hypot(worldPos.x - hitNode.x, worldPos.y - hitNode.y)
+
+        const edgeThreshold = 15 / view.scale
+
+        if (Math.abs(dist - r) >= edgeThreshold) {
+            console.log("TODO check that this radius is correct")
+            // return
         }
 
+        startNodeDrag(hitNode);
+        RecordSnapshot();
 
 
 

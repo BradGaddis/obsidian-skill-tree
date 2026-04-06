@@ -2,7 +2,7 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodes } from "./tree-manager";
+import { GetEdges, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/input_handler";
@@ -234,6 +234,9 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
+    for (let node of nodes) {
+        UpdateConnectedEdgesToNearestHandles(node)
+    }
 
     for (let node of nodes) {
         node.updateRelationShips()

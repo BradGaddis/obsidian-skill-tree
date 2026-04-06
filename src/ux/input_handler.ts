@@ -1,6 +1,6 @@
 import { Render, nodeRadius, nodeRadii, screenToWorld, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, SetSelectedNodeID } from "../tree-manager";
+import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, SetSelectedNodeID, FindNearestHandleOnNode } from "../tree_manager";
 import { RecordSnapshot, SaveNodes } from "../recorder";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { Coordinate, Handle } from "src/types";
@@ -279,6 +279,7 @@ export function handleFloatingEdge(worldPos: Coordinate): void {
     }
 
     const targetNode = FindNodeAt(worldPos.x, worldPos.y);
+
     if (!targetNode) {
         RemoveEdge(floatingEdge.id);
         return;
@@ -286,22 +287,16 @@ export function handleFloatingEdge(worldPos: Coordinate): void {
 
     RemoveEdge(floatingEdge.id);
 
-    if (floatingEdgeDirection === Direction.to && targetNode.id === previousEdgeFromFloating.to) {
-        CreateEdge(previousEdgeFromFloating);
-        return;
-    }
-
-    if (floatingEdgeDirection === Direction.from && targetNode.id === previousEdgeFromFloating.from) {
-        CreateEdge(previousEdgeFromFloating);
-        return;
-    }
-
     const nodes = GetNodes();
+
     const otherNodeId = floatingEdgeDirection === Direction.to ? previousEdgeFromFloating.from : previousEdgeFromFloating.to;
+
     const otherNode = nodes.get(otherNodeId as string | number);
+
     if (!otherNode) return;
 
     const nearest = findNearestHandleOnNode(targetNode, otherNode.x, otherNode.y);
+
     if (!nearest) return;
 
     const newEdge: SkillEdge = {
@@ -311,6 +306,7 @@ export function handleFloatingEdge(worldPos: Coordinate): void {
         fromSide: floatingEdgeDirection === Direction.from ? nearest.side as any : previousEdgeFromFloating.fromSide,
         toSide: floatingEdgeDirection === Direction.to ? nearest.side as any : previousEdgeFromFloating.toSide,
     };
+
     CreateEdge(newEdge);
 }
 
