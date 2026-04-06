@@ -102,7 +102,7 @@ export class RepeatingNode extends SkillNode {
         super.validate()
         if (this.shouldResetRepeat() && this.state !== 'on-hold') {
             this.state = 'in-progress'
-            this.cascadeFromNode()
+            this.cascadeFrom()
         }
     }
 

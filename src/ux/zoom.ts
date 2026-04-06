@@ -1,5 +1,5 @@
 
-import { Render } from "src/renderer";
+import { Render, screenToWorld } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
 
 // TODO: add to settings
@@ -37,7 +37,7 @@ export function InitZoomHandler(skillTreeView: SkillTreeView, config: ZoomConfig
                     // Zoom toward cursor position
                     const cursorX = e.clientX - rect.left;
                     const cursorY = e.clientY - rect.top;
-                    const worldBefore = view.screenToWorld({ x: cursorX, y: cursorY });
+                    const worldBefore = screenToWorld({ x: cursorX, y: cursorY });
                     // Apply delta with clamping
                     const clampedDelta = Math.max(-0.5, Math.min(0.5, scrollDelta));
                     const factor = 1 + clampedDelta;

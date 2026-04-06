@@ -1,16 +1,21 @@
-import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize } from "src/renderer";
+import { CenterOnNode, Render, nodeRadius, nodeRadii, fontSize, screenToWorld, handleRadius } from "src/renderer";
 import { SkillTreeView } from "src/skilltreeview";
-import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection } from "../tree-manager";
+import { SetSelectedNodeID, FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, GetSelectedNodeId, RemoveNode, isPositionOccupied, findNearestEmptyPosition } from "../tree-manager";
+import { pushNodeFromCollision } from "../utils/collision";
 import { RecordSnapshot, SaveNodes } from "../recorder";
 import { distanceTo, pointToSegmentDistance } from "../utils";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { createStatsModal } from "../modal/stilltree-stats-modal";
+import { createStatsModal } from "../modal/skilltree-stats-modal";
 import { createEditModal } from "../modal/skilltree-edit-modal";
 import { Coordinate, Handle } from "src/types";
 import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
 import { SkillEdge } from "src/interfaces";
 import { Direction, Direction as EdgeDirection } from "src/enums";
+
+// Hit detection constants - base threshold plus scale factor for larger nodes
+const HANDLE_HIT_BASE = 20;
+const HANDLE_HIT_SCALE = 2;
 
 let view: SkillTreeView;
 
@@ -31,19 +36,16 @@ let floatingEdgeDirection: EdgeDirection
 let isDragging: boolean
 
 
-
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
     const canvas = view.canvas;
     if (!canvas) return { cleanup: () => { } };
 
     const onMouseDown = (e: MouseEvent) => {
-        if (view.settings.mode !== "edit") return
-
         const rect = canvas.getBoundingClientRect();
-        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
-        // Check for checkbox click first
+        // Check for checkbox click first (works in both edit and view mode)
         const checkboxHit = getCheckboxAtWorld(worldPos)
         if (checkboxHit && checkboxHit.userCompletable) {
             if (checkboxHit.state === 'in-progress') {
@@ -53,6 +55,8 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             SaveNodes()
             return
         }
+
+        if (view.settings.mode !== "edit") return
 
         hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
@@ -113,7 +117,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     // TODO: fix for node dragging
     const onMouseMove = (e: MouseEvent) => {
         const rect = canvas.getBoundingClientRect();
-        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
         if (floatingEdge) {
             if (floatingEdgeDirection === Direction.from) {
@@ -130,8 +134,9 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         }
 
         if (isDragging && hitNode) {
-            hitNode.x = worldPos.x
-            hitNode.y = worldPos.y
+            const newPos = pushNodeFromCollision(worldPos.x, worldPos.y, hitNode);
+            hitNode.x = newPos.x;
+            hitNode.y = newPos.y;
             Render()
             return
         }
@@ -152,7 +157,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     const onMouseUp = (e: MouseEvent) => {
         const rect = canvas.getBoundingClientRect();
-        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
 
         HandleFloatingEdge(worldPos)
 
@@ -173,7 +178,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     const onClick = (e: MouseEvent) => {
         const rect = canvas.getBoundingClientRect();
-        const worldPos = view.screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        const worldPos = screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         const hitNode = FindNodeAt(worldPos.x, worldPos.y);
 
         if (!hitNode) {
@@ -196,6 +201,24 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('click', onClick);
 
+    const onKeyDown = (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            return;
+        }
+
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            const selectedId = GetSelectedNodeId();
+            if (selectedId && view.settings.mode === 'edit') {
+                RecordSnapshot();
+                RemoveNode(selectedId);
+                SetSelectedNodeID(null);
+                Render();
+                SaveNodes();
+            }
+        }
+    };
+    document.addEventListener('keydown', onKeyDown);
 
 
     const panCleanup = InitPanHandler(view,
@@ -217,6 +240,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             canvas.removeEventListener('mousemove', onMouseMove);
             canvas.removeEventListener('mouseup', onMouseUp);
             canvas.removeEventListener('click', onClick);
+            document.removeEventListener('keydown', onKeyDown);
         }
     };
 }
@@ -233,7 +257,10 @@ function getHandleAtWorld(coords: Coordinate): Handle | null {
             { side: 'bottom', hx: node.x, hy: node.y + r },
             { side: 'left', hx: node.x - r, hy: node.y },
         ]
-        const handleThreshold = 20 / view.scale
+        // TODO: fix this. it's hard to hit when zoomed all the way out
+        // Threshold scales with node radius - larger nodes need bigger hit targets
+        const handleThreshold = handleRadius * 2
+
         for (const h of handles) {
             const dx = coords.x - h.hx
             const dy = coords.y - h.hy
@@ -465,4 +492,16 @@ function HandleFloatingEdge(worldPos: Coordinate) {
         toY: undefined,
     }
     CreateEdge(newEdge)
+}
+
+
+
+export function MouseEventToWorldCoordinate(e: MouseEvent): Coordinate | null {
+    // TODO: wrap this up somewhere reusably
+    const canvas = view.canvas
+    if (!canvas) return null
+
+    const rect = canvas.getBoundingClientRect();
+    return screenToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+
 }

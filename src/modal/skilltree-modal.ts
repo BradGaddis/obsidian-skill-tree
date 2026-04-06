@@ -3,14 +3,18 @@ import { DEFAULT_MODAL_STYLES } from "src/constants";
 import { SkillTreeView } from "src/skilltreeview";
 import { ensureModalInViewport } from "src/utils";
 
+let view: SkillTreeView
 
-export function createSkillModal(view: SkillTreeView): HTMLElement {
+export function InitSkillTreeModal(skillTreeView: SkillTreeView) {
+    view = skillTreeView;
+}
+
+export function createSkillModal(): HTMLElement {
     const container = view.canvasWrap || view.containerEl;
     return container.createEl('div', { cls: 'skill-tree-node-modal' });
 }
 
 export function openSkillModal(modal: HTMLElement, options: ModalStyleOptions = {}): void {
-    // view.closeAllModals();
     Object.assign(modal.style, {
         display: 'flex',
         ...DEFAULT_MODAL_STYLES,
@@ -35,29 +39,21 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
         modal.style.transform = 'none';
     };
 
-    // Apply saved position if present. Positions are stored relative to the
-    // modal's parent (usually `canvasWrap`). For older absolute values we
-    // attempt to convert them into parent-relative coordinates.
     const saved = view.plugin.settings.modalPositions[key];
     if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
         const parent = modal.parentElement || document.body;
         const parentRect = parent.getBoundingClientRect();
 
-        // Start with saved values
         let left = saved.left;
         let top = saved.top;
 
-        // If saved coordinates look like viewport coordinates (larger than parent's bounds),
-        // convert them to parent-relative by subtracting parent origin.
         if (left > parentRect.right || top > parentRect.bottom) {
             left = Math.round(saved.left - parentRect.left);
             top = Math.round(saved.top - parentRect.top);
         }
 
-        // If coordinates were previously stored as center coords, try to convert
         const w = modal.offsetWidth || 0;
         const h = modal.offsetHeight || 0;
-        // If left/top appear to be near center (heuristic), convert to top-left
         if (w && h && Math.abs(left - Math.round(parentRect.width / 2)) < 8) {
             left = Math.max(8, Math.round(left - w / 2));
         }
@@ -67,7 +63,6 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
 
         applyPosition(left, top);
     } else {
-        // No saved position - center the modal in the viewport
         requestAnimationFrame(() => {
             const rect = modal.getBoundingClientRect();
             applyPosition(
@@ -84,29 +79,21 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
     let initialPointerX = 0;
     let initialPointerY = 0;
 
-    // Prevent browser from hijacking touch gestures (scroll, nav, etc.)
     modal.style.touchAction = 'none';
 
     const onPointerDown = (e: PointerEvent) => {
-        // Only respond to primary button
         if ((e as any).button !== undefined && (e as any).button !== 0) return;
 
-        // If the pointerdown originated on an interactive/control element, don't start a drag.
-        // prevents clicks on inputs, buttons, anchors, selects, textareas, or contenteditable
-        // from initiating the modal move.
         try {
             const target = e.target as Element | null;
             if (target) {
                 const interactive = target.closest('input,textarea,select,button,a,[contenteditable="true"]');
                 if (interactive) return;
             }
-        } catch (err) {
-            // ignore
-        }
+        } catch (err) { }
 
         dragging = true;
         activePointerId = e.pointerId;
-        // Store initial position and pointer position
         initialLeft = modal.offsetLeft || parseFloat(modal.style.left) || 0;
         initialTop = modal.offsetTop || parseFloat(modal.style.top) || 0;
         initialPointerX = e.clientX;
@@ -118,9 +105,7 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
 
     const onPointerMove = (e: PointerEvent) => {
         if (!dragging) return;
-        // Only respond to moves from the active pointer
         if (activePointerId !== null && e.pointerId !== activePointerId) return;
-        // Move modal by the same amount the pointer moved
         const deltaX = e.clientX - initialPointerX;
         const deltaY = e.clientY - initialPointerY;
         const newLeft = Math.max(8, Math.round(initialLeft + deltaX));
@@ -137,7 +122,6 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
         dragging = false;
         activePointerId = null;
         try { modal.releasePointerCapture(e.pointerId); } catch (e) { }
-        // Persist top-left position relative to parent so it remains correct inside canvasWrap
         try {
             const parent = modal.parentElement || document.body;
             const parentRect = parent.getBoundingClientRect();
@@ -157,13 +141,11 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
         try { modal.releasePointerCapture(e.pointerId); } catch (e) { }
     };
 
-    // Use capture so the modal gets the initial pointerdown before child elements
     modal.addEventListener('pointerdown', onPointerDown, { capture: true });
     window.addEventListener('pointermove', onPointerMove, { passive: false });
     window.addEventListener('pointerup', onPointerUp, { passive: false });
     window.addEventListener('pointercancel', onPointerCancel, { passive: false });
 
-    // Remove listeners when modal is removed
     const observer = new MutationObserver((mutations) => {
         for (const m of mutations) {
             for (const node of Array.from(m.removedNodes)) {
@@ -180,11 +162,59 @@ export function makeModalDraggable(view: SkillTreeView, modal: HTMLElement, key:
         observer.observe(modal.parentElement, { childList: true });
     }
 
-    // Ensure modal stays within viewport bounds
     requestAnimationFrame(() => {
-        ensureModalInViewport(modal); //TODO get from skilltreeview
+        ensureModalInViewport(modal);
     });
 }
 
+export function installOutsideClickHandler(modalEl: HTMLElement) {
+    if (view.modalOutsideListener) return;
+    const listener = (ev: Event) => {
+        try {
+            const target = ev.target as Node | null;
+            if (!target) return;
+            const openModals = Array.from(document.querySelectorAll('.skill-tree-node-modal')) as HTMLElement[];
+            if (openModals.length === 0) return;
+            for (const m of openModals) {
+                if (m.contains(target)) return;
+            }
+            view.closeAllModals();
+            view.removeOutsideClickHandler();
+        } catch (e) { }
+    };
+    view.modalOutsideListener = listener;
+    document.addEventListener('pointerdown', listener);
+}
 
+export interface ModalButton {
+    text: string;
+    onClick: () => void;
+    variant?: 'primary' | 'secondary' | 'danger';
+    disabled?: boolean;
+}
 
+export function createModalFooter(modal: HTMLElement, buttons: ModalButton[]): HTMLElement {
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    
+    const footer = modal.createEl('div');
+    footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--background-modifier-border);background:var(--background-secondary);flex-shrink:0;margin-top:auto;';
+    
+    for (const btn of buttons) {
+        const button = footer.createEl('button', { text: btn.text }) as HTMLButtonElement;
+        
+        if (btn.variant === 'danger') {
+            button.style.cssText = 'padding:8px 16px;background:none;border:1px solid var(--text-error);color:var(--text-error);border-radius:4px;cursor:pointer;';
+        } else if (btn.variant === 'primary') {
+            button.style.cssText = 'padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+        } else {
+            button.style.cssText = 'padding:8px 16px;background:var(--background-secondary);color:var(--text-normal);border:1px solid var(--background-modifier-border);border-radius:4px;cursor:pointer;';
+        }
+        
+        if (btn.disabled) button.disabled = true;
+        
+        button.onclick = btn.onClick;
+    }
+    
+    return footer;
+}

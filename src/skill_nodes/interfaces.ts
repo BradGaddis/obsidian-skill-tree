@@ -1,4 +1,5 @@
 import { NodeShape, NodeState } from "./types";
+import { SkillTask } from "../interfaces";
 
 export interface ISkillNode {
     /** Unique identifier for this node (string or number) */
@@ -19,16 +20,16 @@ export interface ISkillNode {
     shape?: NodeShape
     /** Whether user can manually complete this node (only regular nodes) */
     userCompletable?: boolean;
-    /** Whether this node can be complete when orphaned (tree-link, nodes-with-tasks) */
-    canSkipOrphanUnavailable?: boolean;
     /** Child nodes (transient) */
     to?: ISkillNode[];
     /** Parent nodes (transient) */
     from?: ISkillNode[];
     /** Whether this node has tasks */
-    hasTasks?: boolean;
+    hasTasks?: boolean; // TODO: check if we should remove this
     /** Label for display */
     label?: string;
     /** Validates its own state */
     validate?: () => void;
+    /** Tasks from linked file */
+    tasks?: SkillTask[];
 }

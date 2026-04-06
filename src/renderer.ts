@@ -2,13 +2,12 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodes, GetSelectedNodeId } from "./tree-manager";
+import { GetEdges, GetNodes } from "./tree-manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/click_event_handler";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox } from "./drawing";
 import { Coordinate } from "./types";
-import { SaveNodes } from "./recorder";
 
 
 let view: SkillTreeView
@@ -16,6 +15,7 @@ const dpr = window.devicePixelRatio || 1;
 
 export let nodeRadius: number
 export let nodeRadii: Record<string | number, number> = {}
+export let handleRadius: number
 let allNodeRadii: Map<string | number, number> = new Map()
 
 export let leftWorld: number = 0
@@ -165,6 +165,28 @@ export function Recenter(delta: number = 1) {
 // }
 
 
+function calculateNodeRadius(node: SkillNode, context: CanvasRenderingContext2D): number {
+    const label = node.fileLink?.replace(/\.md$/, '') || '[Unlinked]';
+    const words = label.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    for (let i = 0; i < words.length; i += 4) {
+        lines.push(words.slice(i, i + 4).join(' '));
+    }
+
+    context.font = `${fontSize / view.scale}px sans-serif`;
+    let maxWidth = 0;
+    for (const line of lines) {
+        const width = context.measureText(line).width;
+        if (width > maxWidth) maxWidth = width;
+    }
+
+    const padding = 16 / view.scale;
+    const textBasedRadius = (maxWidth / 2) + padding;
+
+    return Math.max(nodeRadius, textBasedRadius);
+}
+
+
 function UpdateInRAFID() {
 
     frameDelta = Date.now() - lastTimeStamp
@@ -196,9 +218,15 @@ function UpdateInRAFID() {
     bottomWorld = (clientH - view.offset.y) / view.scale;
 
     nodeRadius = view.settings.nodeRadius
+    handleRadius = view.settings.handleRadius / view.scale / dpr
 
     const nodes = Array.from(GetNodes().values())
 
+    // Clear and recalculate radii for all nodes based on text width
+    nodeRadii = {};
+    for (const node of nodes) {
+        nodeRadii[node.id] = calculateNodeRadius(node, context);
+    }
 
     styleDef = SKILL_TREE_STYLES[view.settings.style as keyof typeof SKILL_TREE_STYLES];
 
@@ -210,9 +238,11 @@ function UpdateInRAFID() {
     for (let node of nodes) {
         node.updateRelationShips()
     }
-    for (let node of nodes) {
-        if (node.getStructuralType() == "start" || node.getNodeType() == "orphaned")
+
+    for (const node of nodes) {
+        if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
             node.validate()
+        }
     }
 
     // TODO: interlock these so nodes from nodes draw over the line and to nodes draw behind before line 
@@ -300,10 +330,11 @@ function RenderEdgeLines() {
             if (!a) continue;
             sx1 = a.x;
             sy1 = a.y;
-            if (e.fromSide === 'top') sy1 -= nodeRadius;
-            else if (e.fromSide === 'right') sx1 += nodeRadius;
-            else if (e.fromSide === 'bottom') sy1 += nodeRadius;
-            else if (e.fromSide === 'left') sx1 -= nodeRadius;
+            const rFrom = nodeRadii[a.id] || nodeRadius;
+            if (e.fromSide === 'top') sy1 -= rFrom;
+            else if (e.fromSide === 'right') sx1 += rFrom;
+            else if (e.fromSide === 'bottom') sy1 += rFrom;
+            else if (e.fromSide === 'left') sx1 -= rFrom;
         }
 
         else {
@@ -324,16 +355,17 @@ function RenderEdgeLines() {
             if (!b) continue;
             sx2 = b.x;
             sy2 = b.y;
-            if (e.toSide === 'top') sy2 -= nodeRadius;
-            else if (e.toSide === 'right') sx2 += nodeRadius;
-            else if (e.toSide === 'bottom') sy2 += nodeRadius;
-            else if (e.toSide === 'left') sx2 -= nodeRadius;
+            const rTo = nodeRadii[b.id] || nodeRadius;
+            if (e.toSide === 'top') sy2 -= rTo;
+            else if (e.toSide === 'right') sx2 += rTo;
+            else if (e.toSide === 'bottom') sy2 += rTo;
+            else if (e.toSide === 'left') sx2 -= rTo;
         }
         else {
             continue; // No end position available
         }
 
-        // Override endpoint position if this edge is being dragged
+        // Override endpoint position if view edge is being dragged
         if (draggingEdgeEndpoint && draggingEdgeEndpoint.edgeId === e.id && edgeDragSourcePos) {
             if (draggingEdgeEndpoint.which === 'from') {
                 sx1 = edgeDragSourcePos.x;
@@ -439,10 +471,9 @@ function RenderNodes(nodes: SkillNode[]) {
         DrawNode(n, r);
         DrawCheckBox(n);
 
-        // TODO: fix this logic to determine if a file is ACTUALLY linked
-        let isUnlinked: boolean = n.fileLink == '';
-        const lines = SetupLabelLines(n, isUnlinked)
-        RenderNodeLabel(n, lines, isUnlinked)
+        // TODO: fix view logic to determine if a file is ACTUALLY linked
+        const lines = SetupLabelLines(n)
+        RenderNodeLabel(n, lines)
     }
 }
 
@@ -474,16 +505,14 @@ function FillNodeState(n: SkillNode) {
 
 }
 
-function SetupLabelLines(n: SkillNode, isUnlinked: boolean): string[] {
+function SetupLabelLines(n: SkillNode): string[] {
     const context = view.context
     if (!context) return []
 
-    // TODO: test this when I can actuall add a link again
-    let label = isUnlinked ? n.fileLink : n.fileLink || '' + ' [Unlinked]';
+    const nodeType = (n as any).nodeTypeName || 'Node';
+    const label = n.fileLink?.replace(/\.md$/, '') || '[Unlinked]';
 
-
-
-    let lines: string[] = [];
+    let lines: string[] = [nodeType];
     const words = (label || '').split(/\s+/).filter(Boolean);
 
     for (let i = 0; i < words.length; i += 4) {
@@ -492,13 +521,13 @@ function SetupLabelLines(n: SkillNode, isUnlinked: boolean): string[] {
     return lines
 }
 
-function RenderNodeLabel(n: SkillNode, lines: string[], isUnlinked: boolean) {
+function RenderNodeLabel(n: SkillNode, lines: string[]) {
     const context = view.context
     if (!context) return
 
 
     const lineHeight = fontSize / view.scale;
-    const totalLines = lines.length + (isUnlinked ? 1 : 0);
+    const totalLines = lines.length;
 
     // The lines starts drawing here
     let firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2;
@@ -531,27 +560,28 @@ function RenderNodeHandles(nodes: SkillNode[]) {
     const context = view.context
     if (!context) return
 
-    const handleRadius = view.settings.handleRadius / view.scale / dpr
+    handleRadius = view.settings.handleRadius / view.scale / dpr
 
     // TODO: allow the user to change the css of the handles
     for (let node of nodes) {
+        const r = nodeRadii[node.id] || nodeRadius;
         context.strokeStyle = '#2563eb';
         context.lineWidth = 2.5 / view.scale;
         context.fillStyle = '#ffffff';
         context.beginPath();
-        context.arc(node.x, node.y - nodeRadius, handleRadius, 0, Math.PI * 2);
+        context.arc(node.x, node.y - r, handleRadius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
         context.beginPath();
-        context.arc(node.x + nodeRadius, node.y, handleRadius, 0, Math.PI * 2);
+        context.arc(node.x + r, node.y, handleRadius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
         context.beginPath();
-        context.arc(node.x, node.y + nodeRadius, handleRadius, 0, Math.PI * 2);
+        context.arc(node.x, node.y + r, handleRadius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
         context.beginPath();
-        context.arc(node.x - nodeRadius, node.y, handleRadius, 0, Math.PI * 2);
+        context.arc(node.x - r, node.y, handleRadius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
     }
@@ -567,6 +597,16 @@ export function CenterOnNode(node: SkillNode) {
     view.offset.y = canvasHeight / 2 - node.y * view.scale;
 
     Render();
+}
+
+// TODO: maybe move into render module
+export function worldToScreen(worldCoords: Coordinate) {
+    return { x: worldCoords.x * view.scale + view.offset.x, y: worldCoords.y * view.scale + view.offset.y };
+}
+
+// TODO: maybe move into render module
+export function screenToWorld(screenCoords: Coordinate) {
+    return { x: (screenCoords.x - view.offset.x) / view.scale, y: (screenCoords.y - view.offset.y) / view.scale };
 }
 
 

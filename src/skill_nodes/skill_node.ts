@@ -1,10 +1,9 @@
 import { NodeState, NodeType, NodeShape } from "./types";
 import { ISkillNode } from "./interfaces";
+import { SkillTask } from "../interfaces";
 import { SkillTreeView } from "src/skilltreeview";
-import { TFile } from "obsidian";
-import { GetEdges, GetNodes, tasksCache } from "src/tree-manager";
-import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO, STATS_MODAL_ROW_DOM_EL_INFO } from "../constants"
-import { OptionalNode } from "./optional_node";
+import { GetEdges, GetNodes } from "src/tree-manager";
+import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree-stats-modal";
 
 // TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {
@@ -22,13 +21,15 @@ export class SkillNode implements ISkillNode {
 
 
     heldState: NodeState | null = null;
+    previousState: NodeState | null = null
     exp: number;
     fileLink?: string;
     shape: NodeShape;
-    canSkipOrphanUnavailable: boolean = false;
 
     to: SkillNode[] = [];
     from: SkillNode[] = [];
+    canSkipOrphanUnavailable: boolean = false;
+    tasks: SkillTask[] = [];
 
     constructor(data: Partial<ISkillNode> = {}) {
         this.id = data.id ?? crypto.randomUUID()
@@ -39,7 +40,6 @@ export class SkillNode implements ISkillNode {
         this.exp = data.exp ?? 0;
         this.fileLink = data.fileLink;
         this.shape = data.shape ?? 'circle';
-        this.canSkipOrphanUnavailable = data.canSkipOrphanUnavailable ?? false;
     }
 
     protected allNonOptionalFromsComplete(): boolean {
@@ -116,9 +116,14 @@ export class SkillNode implements ISkillNode {
 
     }
 
-    validate(): void {
-        const nodeStructuralType = this.getStructuralType()
+    private static validating = new Set<string | number>();
 
+    validate(): void {
+        if (SkillNode.validating.has(this.id)) return;
+
+        // SkillNode.validating.add(this.id);
+
+        const oldState = this.state;
 
         switch (this.getStructuralType()) {
             case "orphaned":
@@ -132,7 +137,10 @@ export class SkillNode implements ISkillNode {
                 this.validateEndNode()
                 break;
         }
+
         this.cascadeTo()
+
+        // SkillNode.validating.delete(this.id);
     }
 
     getStructuralType(): NodeType {
@@ -155,8 +163,16 @@ export class SkillNode implements ISkillNode {
             return
         }
         for (const to of this.to) {
-
             to.validate();
+        }
+    }
+
+    protected cascadeFrom(): void {
+        if (this.from.length == 0) {
+            return
+        }
+        for (const from of this.from) {
+            from.validate();
         }
     }
 
@@ -172,12 +188,6 @@ export class SkillNode implements ISkillNode {
         return this.to.some(from => {
             // TODO: 
             // return from.repeating && from.state === 'in-progress';
-        });
-    }
-
-    protected hasIncompleteFrom(): boolean {
-        return this.to.some(child => {
-            return child.state == 'in-progress';
         });
     }
 
@@ -200,7 +210,6 @@ export class SkillNode implements ISkillNode {
             exp: this.exp,
             fileLink: this.fileLink,
             shape: this.shape,
-            canSkipOrphanUnavailable: this.canSkipOrphanUnavailable,
         };
     }
 
@@ -209,25 +218,8 @@ export class SkillNode implements ISkillNode {
         return new SkillNode(data)
     }
 
-
-    // MAJOR TODO:  fit this to node class
-    // TODO: factor out styling
     async setStatsModalContents(view: SkillTreeView, modal: HTMLElement) {
-
-        // TODO: refactor this for user preference
-        const selectedStyle = view.settings.style
-
-        modal.style.border = '2px solid var(--interactive-accent)';
-        modal.style.background = 'linear-gradient(135deg, var(--background-primary) 0%, rgba(255,255,255,0.02) 100%)';
-        modal.style.boxShadow = '0 8px 24px rgba(0,0,0,0.25)';
-
-
-        // TODO: move into some modal header function
-        const header = modal.createDiv();
-        header.style.display = 'flex';
-        header.style.justifyContent = 'space-between';
-        header.style.alignItems = 'center';
-        header.style.margin = '0 20px 8px 20px';
+        const header = SkillModalHeader(modal)
 
         // Title: prefer the node's filename (no directories or .md); fallback to display label
         const titleText = this.fileLink ? (() => {
@@ -239,96 +231,12 @@ export class SkillNode implements ISkillNode {
             if (fname.toLowerCase().endsWith('.md')) fname = fname.slice(0, -3);
             return fname;
         })() : (this.fileLink || 'Node');
-        header.createEl('h3', { text: titleText }).style.margin = '0';
-
-        // Add note link in bottom right if there's a file link
-        const headerRight = header.createDiv();
-        headerRight.style.display = 'flex';
-        headerRight.style.flexDirection = 'column';
-        headerRight.style.alignItems = 'flex-end';
-
-        modal.createEl('span', { text: 'Stats' }).style.fontWeight = '600';
-
-        // TODO: refactor into seperate method and deal with this try/catch
-        //
-        // Description: read from frontmatter `skilltree-node-desc` if available
-        try {
-            let descText = 'no description';
-            if (this.fileLink) {
-                let normalizedPath = this.fileLink.trim();
-                if (normalizedPath.startsWith('/')) normalizedPath = normalizedPath.substring(1);
-                if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
-                const file = view.plugin.app.vault.getAbstractFileByPath(normalizedPath);
-                if (file && file instanceof TFile) {
-                    const fm = view.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
-                    const fmDesc = fm?.['skilltree-node-desc'];
-                    if (fmDesc && typeof fmDesc === 'string' && fmDesc.trim()) descText = fmDesc.trim();
-                }
-            }
-            const descHeader = modal.createEl('h4', { text: 'Description' });
-            descHeader.style.margin = '8px 20px 4px 20px';
-            const descEl = modal.createDiv({ text: descText });
-            descEl.style.margin = '0 20px 8px 20px';
-            descEl.style.fontSize = '13px';
-            descEl.style.color = 'var(--text-muted)';
-        } catch (e) {
-            // ignore description failures. Should be blank
-        }
-
-        if (!this.fileLink) {
-            return
-        }
-
-        // TODO: factor out
-        const openBtn = headerRight.createEl('button', { text: 'Open Note' });
-        openBtn.style.fontSize = '12px';
-        openBtn.style.color = 'var(--text-accent)';
-        openBtn.style.background = 'transparent';
-        openBtn.style.border = 'none';
-        openBtn.style.cursor = 'pointer';
-        openBtn.style.marginTop = '4px';
-        openBtn.style.padding = '4px 6px';
-
-        openBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                let normalizedPath = this.fileLink!.trim();
-                if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
-                const file = view.app.vault.getAbstractFileByPath(normalizedPath);
-                if (file && file instanceof TFile) {
-                    try {
-                        // Mark that we should recenter when this view regains focus
-                        // this._recenterOnFocus = true;
-                        // await this.app.workspace.openLinkText(node.fileLink!, '', false);
-                        // await this.updateFileFrontmatterWithNodeId(node.fileLink, node.id);
-                    } catch (err) {
-
-                    }
-                } else {
-                    // this.showCreateFileModal(node);
-                }
-            } catch (err) {
-
-            }
-        });
-    }
-
-    // TODO: factor out
-    // Show the node's XP worth instead of a level icon
-    createExpBadge(el: HTMLElement) {
-        const expBadge = el.createDiv(STATS_MODAL_EXP_BADGE_DOM_EL_INFO);
-        expBadge.textContent = `${this.exp} XP`;
-        expBadge.style.padding = '8px 12px';
-        expBadge.style.borderRadius = '999px';
-        expBadge.style.background = 'linear-gradient(90deg, rgba(100,150,255,0.95), rgba(80,120,240,0.9))';
-        expBadge.style.color = '#fff';
-        expBadge.style.fontWeight = '700';
-
-        // Only show the stylized exp badge
-        el.appendChild(expBadge);
-    }
-
-    async setEditModalContents(view: SkillTreeView, modal: HTMLElement) {
+        SkillModalSetHeaderText(header, titleText)
+        const headerRight = SkillModalHeaderRight(header)
+        SkillModalStatsSpan(modal)
+        SkillModalStatsDescription(this, modal)
+        SkillModalTasks(this, modal)
+        await SkillModalOpenFileButton(this, headerRight)
     }
 
 }

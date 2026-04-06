@@ -16,12 +16,14 @@ import {
     GetTreesLinkingToCurrent,
     SwitchTree,
     CreateTree,
+    AddNode,
 } from "./tree-manager"
-import { Recenter, Render, UpdateToolbarUI } from "./renderer";
-import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddNodeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
+import { Recenter, Render, screenToWorld, UpdateToolbarUI } from "./renderer";
+import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
+import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
-import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor as RefreshJSONEditor } from "./json_editor";
-import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal";
+import { OpenJsonEditor as OpenJSONEditor, RefreshJsonEditor } from "./dialog/json_editor";
+import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree-pane";
 
 // TODO: bulletproof these later
 export let modeToggleBtn: HTMLButtonElement
@@ -49,6 +51,7 @@ export function InitToolBar(skillTreeView: SkillTreeView) {
     view = skillTreeView
     view.containerEl.empty();
     isMobile = TestIsMobile(); //currently not used for anything. just here for later
+    InitAddNodeDialog(view)
     toolbar = view.containerEl.createEl('div', TOOLBAR_DOM_EL_INFO);
     toolbar.style.display = 'flex'
     toolbar.style.marginTop = isMobile ? '60px' : '0px';
@@ -164,21 +167,16 @@ function SetupAddEmptyButton() {
     AddEditModeButton('Add Empty', 'Add a node with a file link')
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
         RecordSnapshot();
+        let worldPos = { x: 200, y: 150 };
         if (view.canvas) {
             const rect = view.canvas.getBoundingClientRect();
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            const worldPos = view.screenToWorld({ x: centerX, y: centerY });
-            // TODO: Refactor into Graph or something?
-            // view.addNodeAt(worldPos.x, worldPos.y);
-        } else {
-            // view.addNodeAt(200, 150);
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
         }
+        AddNode(worldPos.x, worldPos.y);
         await SaveNodes();
         Render();
-        RefreshJSONEditor();
+        RefreshJsonEditor();
     };
-
 }
 
 function SetupAddOptionalButton() {
@@ -188,14 +186,12 @@ function SetupAddOptionalButton() {
         let worldPos = { x: 200, y: 150 };
         if (view.canvas) {
             const rect = view.canvas.getBoundingClientRect();
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            worldPos = view.screenToWorld({ x: centerX, y: centerY });
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
         }
-        // view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'OptionalNode', optional: true, state: 'in-progress', exp: 0 });
+        AddNode(worldPos.x, worldPos.y, undefined, 'OptionalNode');
         await SaveNodes();
         Render();
-        RefreshJSONEditor();
+        RefreshJsonEditor();
     };
 }
 
@@ -206,22 +202,33 @@ function SetupAddCheckpointButton() {
         let worldPos = { x: 200, y: 150 };
         if (view.canvas) {
             const rect = view.canvas.getBoundingClientRect();
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-            worldPos = view.screenToWorld({ x: centerX, y: centerY });
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
         }
-        // view.addNodeAt(worldPos.x, worldPos.y, { nodeType: 'CheckpointNode', checkpoint: true, shape: 'diamond', exp: 0 });
-        // await SaveNodes();
+        AddNode(worldPos.x, worldPos.y, undefined, 'CheckpointNode');
+        await SaveNodes();
         Render();
-        RefreshJSONEditor();
+        RefreshJsonEditor();
     };
 }
 
 function SetupAddSubTreeButton() {
+    const canvas = view.canvas
+    if (!canvas) return;
     AddEditModeButton('Add Sub Tree(Tree Link)', 'Add a link to another skill tree')
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        console.log("TODO")
-        // view.openAddTreeLinkModal();
+        RecordSnapshot();
+        let worldPos = { x: 200, y: 150 };
+        if (view.canvas) {
+            const rect = canvas.getBoundingClientRect();
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+        }
+        AddNode(worldPos.x, worldPos.y, undefined, 'TreeLinkNode', {
+            treeLink: view.settings.currentTreeName,
+            canSkipOrphanUnavailable: true,
+        });
+        await SaveNodes();
+        Render();
+        RefreshJsonEditor();
     };
 }
 
@@ -234,7 +241,7 @@ function SetupAddRepeatingButton() {
             const rect = view.canvas.getBoundingClientRect();
             const centerX = rect.width / 2;
             const centerY = rect.height / 2;
-            worldPos = view.screenToWorld({ x: centerX, y: centerY });
+            worldPos = screenToWorld({ x: centerX, y: centerY });
         }
         OpenAddRepeatingNodeDialog(worldPos.x, worldPos.y);
     };

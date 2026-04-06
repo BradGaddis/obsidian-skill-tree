@@ -1,6 +1,6 @@
-import { SkillEdge, SkillTreeData } from "./interfaces";
+import { SkillEdge, SkillTreeData, SkillTask } from "./interfaces";
 import { SaveNodes } from "./recorder";
-import { nodeRadii, nodeRadius as defaultRadius } from "src/renderer";
+import { nodeRadii, nodeRadius as defaultRadius, Recenter, Render } from "src/renderer";
 import { CheckpointNode } from "./skill_nodes/checkpoint_node";
 import { OptionalNode } from "./skill_nodes/optional_node";
 import { RepeatingNode } from "./skill_nodes/repeating_node";
@@ -11,6 +11,8 @@ import { SkillTreeView } from "./skilltreeview";
 import { Handle } from "./types";
 import { Direction } from "./enums";
 import { TFile } from "obsidian";
+import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/file-watcher";
+import { InitCollisionDetector, findNearestEmptyPosition } from "./utils/collision";
 
 
 // TODO: Try exporting nodes as a uniform `SkillNode`
@@ -30,11 +32,17 @@ let selectedNodeId: string | number | null
  * Maps node ID to an array of task objects. Avoids re-reading files
  * on every render. Cleared when files change.
  */
-export let tasksCache: Map<string | number, any[]> = new Map();
+export let tasksCache: Map<string | number, SkillTask[]> = new Map();
+
+export function GetNodeTasks(nodeId: string | number): SkillTask[] {
+    return tasksCache.get(nodeId) || [];
+}
 
 
 export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
     view = skillTreeView
+    InitFileWatcher(skillTreeView)
+    InitCollisionDetector(skillTreeView)
     await LoadTree()
     await LoadAllNodeTasks()
     SetupFileWatchers()
@@ -67,14 +75,24 @@ export function RemoveEdge(edgeId: number) {
     edges = edges.filter(e => e.id !== edgeId)
 }
 
+export function RemoveNode(nodeId: string | number): void {
+    nodes.delete(nodeId);
+    edges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
+}
+
 export function CreateEdge(edge: SkillEdge) {
     edges.push(edge)
 }
 
 export function AddNode(x: number, y: number, fileLink?: string, nodeType?: string): SkillNode {
+    const baseRadius = view.settings.nodeRadius || 40;
+    const adjustedX = Math.round(x);
+    const adjustedY = Math.round(y);
+    const pos = findNearestEmptyPosition(adjustedX, adjustedY, baseRadius);
+    
     const nodeData: any = {
-        x,
-        y,
+        x: pos.x,
+        y: pos.y,
         state: 'unavailable',
     };
 
@@ -132,72 +150,46 @@ export function GetTreeCount(): number {
 }
 
 export async function DeleteTree(name: string) {
-    // const wasCurrentTree = view.settings.currentTreeName === name;
-    //
-    // // Delete the tree from settings - ensure it's actually removed
-    // if (view.settings.trees[name]) {
-    //     delete view.settings.trees[name];
-    // }
-    //
-    // // Verify deletion
-    // if (view.settings.trees[name]) {
-    //     console.error('Failed to delete tree:', name);
-    //     return;
-    // }
-    //
-    // if (wasCurrentTree) {
-    //     // Switch to first available tree (but don't save the deleted tree first)
-    //     const remainingTrees = Object.keys(view.settings.trees);
-    //     if (remainingTrees.length > 0) {
-    //         const firstTree = remainingTrees[0];
-    //         // Switch without saving the deleted tree
-    //         view.settings.currentTreeName = firstTree;
-    //         if (!view.settings.trees[firstTree]) {
-    //             view.settings.trees[firstTree] = {
-    //                 name: firstTree,
-    //                 nodes: [],
-    //                 edges: []
-    //             };
-    //         }
-    //         // Load new tree
-    //         await view.loadNodes();
-    //
-    //         // Clean up file watchers for old nodes
-    //         view._fileWatchers.forEach((watcher) => {
-    //             view.app.vault.off('modify', watcher);
-    //         });
-    //         view._fileWatchers.clear();
-    //         view._tasksCache.clear();
-    //
-    //         // Reload tasks for new tree
-    //         await view.loadAllNodeTasks();
-    //     } else {
-    //         // No trees left - create a default one
-    //         view.settings.trees['default'] = {
-    //             name: 'default',
-    //             nodes: [],
-    //             edges: []
-    //         };
-    //         view.settings.currentTreeName = 'default';
-    //         await view.loadNodes();
-    //
-    //         // Clean up file watchers
-    //         view._fileWatchers.forEach((watcher) => {
-    //             view.app.vault.off('modify', watcher);
-    //         });
-    //         view._fileWatchers.clear();
-    //         view._tasksCache.clear();
-    //
-    //         // Reload tasks
-    //         await view.loadAllNodeTasks();
-    //     }
-    //
-    //     await view.plugin.saveSettings();
-    //     view.requestRender();
-    // } else {
-    //     // Not the current tree, just save settings
-    //     await view.plugin.saveSettings();
-    // }
+    const wasCurrentTree = view.settings.currentTreeName === name;
+
+    if (view.settings.trees[name]) {
+        delete view.settings.trees[name];
+    }
+
+    if (wasCurrentTree) {
+        const remainingTrees = Object.keys(view.settings.trees);
+        if (remainingTrees.length > 0) {
+            const firstTree = remainingTrees[0];
+            view.settings.currentTreeName = firstTree;
+            if (!view.settings.trees[firstTree]) {
+                view.settings.trees[firstTree] = {
+                    name: firstTree,
+                    nodes: [],
+                    edges: []
+                };
+            }
+            await LoadTree();
+            await LoadAllNodeTasks();
+            CleanupFileWatchers();
+            SetupFileWatchers();
+            Recenter();
+            Render();
+        } else {
+            view.settings.trees['default'] = {
+                name: 'default',
+                nodes: [],
+                edges: []
+            };
+            view.settings.currentTreeName = 'default';
+            await LoadTree();
+            CleanupFileWatchers();
+            SetupFileWatchers();
+            Recenter();
+            Render();
+        }
+    }
+
+    await view.plugin.saveSettings();
 }
 
 
@@ -207,9 +199,9 @@ export function UpdateTreeSelector(select: HTMLSelectElement) {
     for (const treeName of Object.keys(view.settings.trees)) {
         const option = select.createEl('option', { text: treeName });
         option.value = treeName;
-        // if (treeName === view.settings.currentTreeName) {
-        //     option.selected = true;
-        // }
+        if (treeName === view.settings.currentTreeName) {
+            option.selected = true;
+        }
     }
     const newTreeOption = select.createEl('option', { text: '+ New Tree...' });
     newTreeOption.value = '__NEW_TREE__';
@@ -220,70 +212,32 @@ export async function CreateTree(treeName: string) {
 }
 
 export async function SwitchTree(treeName: string) {
-    // // Save current tree
-    // await SaveNodes();
-    //
-    // // Switch to new tree
-    // view.settings.currentTreeName = treeName;
-    // if (!view.settings.trees[treeName]) {
-    //     view.settings.trees[treeName] = {
-    //         name: treeName,
-    //         nodes: [],
-    //         edges: []
-    //     };
+    view.settings.currentTreeName = treeName;
+    if (!view.settings.trees[treeName]) {
+        view.settings.trees[treeName] = {
+            name: treeName,
+            nodes: [],
+            edges: []
+        };
+    }
+
+    await LoadTree();
+    await LoadAllNodeTasks();
+
+    CleanupFileWatchers();
+    SetupFileWatchers();
+
+    // for (const node of nodes.values()) {
+    //     node.updateRelationShips()
     // }
-    //
-    // // Load new tree
-    // await view.loadNodes();
-    //
-    // // Clean up file watchers for old nodes
-    // view._fileWatchers.forEach((watcher) => {
-    //     if (typeof watcher === 'function') {
-    //         watcher();
+    // for (const node of nodes.values()) {
+    //     if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
+    //         node.validate()
     //     }
-    // });
-    // view._fileWatchers.clear();
-    // view._tasksCache.clear();
-    // view.nodeRadii = {};
-    //
-    // // Reload tasks for new tree
-    // await view.loadAllNodeTasks();
-    // // Recenter view on the new tree: center on nodes' bounding box or origin
-    // try {
-    //     if (view.canvas) {
-    //         if (view.nodes && view.nodes.length > 0) {
-    //             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    //             for (const n of view.nodes) {
-    //                 if (typeof n.x === 'number') {
-    //                     minX = Math.min(minX, n.x);
-    //                     maxX = Math.max(maxX, n.x);
-    //                 }
-    //                 if (typeof n.y === 'number') {
-    //                     minY = Math.min(minY, n.y);
-    //                     maxY = Math.max(maxY, n.y);
-    //                 }
-    //             }
-    //             if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
-    //                 view.centerAndZoomOnPoint(0, 0, 1.0);
-    //             } else {
-    //                 const cx = (minX + maxX) / 2;
-    //                 const cy = (minY + maxY) / 2;
-    //                 // Default zoom to 1.0 for new tree view
-    //                 view.centerAndZoomOnPoint(cx, cy, 1.0);
-    //             }
-    //         } else {
-    //             view.centerAndZoomOnPoint(0, 0, 1.0);
-    //         }
-    //     }
-    // } catch (e) {
-    //     // ignore recenter errors
     // }
-    //
-    // await view.plugin.saveSettings();
-    // vth.saveNodesiew.updateGoToLinkedBtnVisibility();
-    // view.updateLinkedTreeBanner();
-    // view.updateOrphanJumpBtnVisibility();
-    // view.requestRender();
+
+    Recenter();
+    Render();
 }
 
 async function LoadTree() {
@@ -425,11 +379,12 @@ export async function LoadAllNodeTasks(): Promise<void> {
     }
 }
 
-async function LoadNodeTasks(node: SkillNode): Promise<void> {
+export async function LoadNodeTasks(node: SkillNode): Promise<void> {
     if (!node.fileLink) return;
 
     const tasks = await GetTasksFromFile(node.fileLink);
     tasksCache.set(node.id, tasks);
+    node.tasks = tasks;
 
     if (tasks.length > 0) {
         node.canSkipOrphanUnavailable = true;
@@ -439,39 +394,134 @@ async function LoadNodeTasks(node: SkillNode): Promise<void> {
 }
 
 async function GetTasksFromFile(filePath: string): Promise<any[]> {
-    const tasks: any[] = [];
-
     try {
         let normalizedPath = filePath.trim();
+        if (normalizedPath.startsWith('/')) {
+            normalizedPath = normalizedPath.substring(1);
+        }
         if (!normalizedPath.endsWith('.md')) {
             normalizedPath = normalizedPath + '.md';
         }
 
-        const file = view.app.vault.getAbstractFileByPath(normalizedPath);
-        if (!file || !(file instanceof TFile)) {
-            return tasks;
+        let file = view.app.vault.getAbstractFileByPath(normalizedPath);
+        if (!file && !filePath.endsWith('.md')) {
+            file = view.app.vault.getAbstractFileByPath(filePath.trim());
+            if (file) {
+                normalizedPath = filePath.trim();
+            }
+        }
+
+        if (!file) {
+            return [];
+        }
+
+        if (!(file instanceof TFile)) {
+            return [];
         }
 
         const content = await view.app.vault.read(file);
+        let tasksFromAPI: any[] = [];
+
+        if (view.isDataviewPluginInstalled()) {
+            try {
+                const dv = (view.app as any).plugins.plugins.dataview?.api;
+                if (dv) {
+                    const page = dv.page(normalizedPath) || dv.page(file.path) || dv.page((file as any).basename);
+                    const dvTasks = page?.file?.tasks;
+                    if (dvTasks && dvTasks.length > 0) {
+                        tasksFromAPI = dvTasks.map((t: any, idx: number) => {
+                            const status = (t.status || '').toString().toLowerCase();
+                            const completedFlag = !!t.completed || ['x', 'done', 'completed', 'true', '✔'].includes(status);
+                            return {
+                                id: idx,
+                                text: t.text || t.description || '',
+                                completed: completedFlag,
+                                line: t.line ?? -1,
+                                originalTask: t,
+                                exp: 10
+                            };
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Dataview failed to parse tasks, falling back:', e);
+            }
+        }
+
+        if (tasksFromAPI.length === 0 && view.isTasksPluginInstalled()) {
+            const tasksPlugin = (view.app as any).plugins.plugins.tasks;
+            if (tasksPlugin?.api && typeof tasksPlugin.api.parseTasks === 'function') {
+                try {
+                    const parsedTasks = tasksPlugin.api.parseTasks(content);
+                    if (parsedTasks && parsedTasks.length > 0) {
+                        tasksFromAPI = parsedTasks.map((t: any, idx: number) => {
+                            const stat = (t.status || '').toString().toLowerCase();
+                            const done = !!t.completed || ['x', 'done', 'completed', 'true', '✔'].includes(stat);
+                            return {
+                                id: idx,
+                                text: t.description || t.text || '',
+                                completed: done,
+                                line: t.line || idx,
+                                originalTask: t,
+                                exp: 10
+                            };
+                        });
+                    }
+                } catch (e) {
+                }
+            }
+        }
+
+        if (tasksFromAPI.length > 0) {
+            return tasksFromAPI;
+        }
+
+        const tasks: any[] = [];
         const lines = content.split('\n');
+        let index = 0;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const checkboxMatch = line.match(/^(\s*)([-*+])\s*\[([ xX])\]\s*(.*)$/);
-            if (checkboxMatch) {
+            let taskMatch = line.match(/^(\s*)[-*]\s*\[([ xX])\]\s+(.+)$/);
+            if (!taskMatch) {
+                taskMatch = line.match(/^(\s*)[-*]\[([ xX])\]\s+(.+)$/);
+            }
+            if (!taskMatch) {
+                taskMatch = line.match(/^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$/);
+            }
+
+            if (taskMatch) {
+                const indentStr = taskMatch[1];
+                let indent = 0;
+                for (let k = 0; k < indentStr.length; k++) {
+                    if (indentStr[k] === '\t') {
+                        indent += 2;
+                    } else if (indentStr[k] === ' ') {
+                        indent += 1;
+                    }
+                }
+                const token = taskMatch[2].toLowerCase();
+                const isCompleted = token === 'x' || token === '✔' || token === '1';
+                const taskText = taskMatch[3].trim();
                 tasks.push({
-                    completed: checkboxMatch[3].toLowerCase() === 'x',
-                    text: checkboxMatch[4].trim(),
+                    id: index++,
+                    text: taskText,
+                    completed: isCompleted,
                     line: i,
-                    filePath: normalizedPath
+                    originalLine: line,
+                    indent: indent,
+                    parentIndex: null as number | null,
+                    children: [] as number[],
+                    exp: 10
                 });
             }
         }
+
+        return tasks;
     } catch (e) {
         console.log('[Tasks] Error loading file:', filePath, e);
+        return [];
     }
-
-    return tasks;
 }
 
 function UpdateNodeStateFromTasks(node: SkillNode): void {
@@ -487,39 +537,5 @@ function UpdateNodeStateFromTasks(node: SkillNode): void {
         node.state = 'in-progress';
     } else {
         node.state = 'unavailable';
-    }
-}
-
-let fileWatcherRef: any = null;
-
-export function SetupFileWatchers(): void {
-    if (fileWatcherRef) {
-        view.app.vault.offref(fileWatcherRef);
-    }
-
-    const listener = async (file: any) => {
-        const normalizedPath = file.path;
-        
-        for (const node of nodes.values()) {
-            if (!node.fileLink) continue;
-
-            let nodeFilePath = node.fileLink.trim();
-            if (!nodeFilePath.endsWith('.md')) {
-                nodeFilePath = nodeFilePath + '.md';
-            }
-
-            if (nodeFilePath === normalizedPath) {
-                await LoadNodeTasks(node);
-            }
-        }
-    };
-
-    fileWatcherRef = view.app.vault.on('modify', listener);
-}
-
-export function CleanupFileWatchers(): void {
-    if (fileWatcherRef) {
-        view.app.vault.offref(fileWatcherRef);
-        fileWatcherRef = null;
     }
 }

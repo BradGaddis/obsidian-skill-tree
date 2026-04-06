@@ -1,5 +1,19 @@
 import { SkillNode } from "./skill_nodes/skill_node";
 
+export interface SkillTask {
+    id: number;
+    text: string;
+    completed: boolean;
+    line: number;
+    exp?: number;
+    originalTask?: any;
+    indent?: number;
+    parentIndex?: number | null;
+    children?: number[];
+    filePath?: string;
+    originalLine?: string;
+}
+
 export interface CustomTheme {
     /** Unique identifier for this theme */
     id: string;

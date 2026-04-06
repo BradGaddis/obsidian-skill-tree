@@ -8,8 +8,10 @@ import { InitRenderer, Recenter, Render, UpdateToolbarUI } from "./renderer";
 import { InitTreeManager } from "./tree-manager";
 import { InitToolBar } from "./toolbar";
 import { InitDialog } from "./dialog";
-import { InitSkillModal } from "./modal";
-import { InitJSONEditor } from "./json_editor";
+import { InitSkillTreeModal } from "./modal/skilltree-modal"
+import { InitStatsModal } from "./modal/skilltree-stats-modal"
+import { InitNodeListModal } from "./modal/skilltree-pane"
+import { InitJSONEditor } from "./dialog/json_editor";
 
 import { modeToggleBtn } from "./toolbar";
 
@@ -38,10 +40,8 @@ export class SkillTreeView extends ItemView {
     _jsonTextarea: HTMLTextAreaElement | null = null;
     modalOutsideListener: ((e: Event) => void) | null = null;
 
-    // TODO: implement
-    _fileWatchers: Map<string, () => void> = new Map();
-
     selectedNodeId: string | null = null;
+    _lastKnownNodeIds: Map<string, string | number> = new Map();
 
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
@@ -52,23 +52,15 @@ export class SkillTreeView extends ItemView {
         this.plugin = plugin;
     }
 
-    // TODO: maybe move into render module
-    worldToScreen(worldCoords: Coordinate) {
-        return { x: worldCoords.x * this.scale + this.offset.x, y: worldCoords.y * this.scale + this.offset.y };
-    }
-
-    // TODO: maybe move into render module
-    screenToWorld(screenCoords: Coordinate) {
-        return { x: (screenCoords.x - this.offset.x) / this.scale, y: (screenCoords.y - this.offset.y) / this.scale };
-    }
-
 
     protected async onOpen(): Promise<void> {
         InitRecorder(this)
         await InitTreeManager(this) // this must be called before InitToolBar
         InitToolBar(this)
         InitDialog(this)
-        InitSkillModal(this)
+        InitSkillTreeModal(this)
+        InitStatsModal(this)
+        InitNodeListModal(this)
         InitJSONEditor(this)
         InitRenderer(this)
         this.clickCleanup = InitClickHandler(this).cleanup
@@ -136,25 +128,6 @@ export class SkillTreeView extends ItemView {
         }
     }
 
-    // TODO: maybe move into modal module
-    installOutsideClickHandler(modalEl: HTMLElement) {
-        if (this.modalOutsideListener) return;
-        const listener = (ev: Event) => {
-            try {
-                const target = ev.target as Node | null;
-                if (!target) return;
-                const openModals = Array.from(document.querySelectorAll('.skill-tree-node-modal')) as HTMLElement[];
-                if (openModals.length === 0) return;
-                for (const m of openModals) {
-                    if (m.contains(target)) return;
-                }
-                this.closeAllModals();
-                this.removeOutsideClickHandler();
-            } catch (e) { }
-        };
-        this.modalOutsideListener = listener;
-        document.addEventListener('pointerdown', listener);
-    }
 
     isTasksPluginInstalled(): boolean {
         try {
