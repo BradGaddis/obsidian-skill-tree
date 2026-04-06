@@ -338,6 +338,3 @@ export function getView(): SkillTreeView {
     return view;
 }
 
-export function requestRender(): void {
-    Render();
-}

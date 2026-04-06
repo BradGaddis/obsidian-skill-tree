@@ -6,7 +6,7 @@ import { InitZoomHandler } from "./zoom";
 import { createStatsModal } from "../modal/skilltree_stats_modal";
 import { createEditModal } from "../modal/skilltree_edit_modal";
 import { getCheckboxAtWorld, initEventUtils } from "./event_utils";
-import { 
+import {
     initInputHandler,
     isInEditMode,
     screenToWorldCoordinate,
@@ -175,6 +175,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             let newScale = _initialPinchScale * scale;
             newScale = Math.max(0.3, Math.min(3, newScale));
             view.scale = newScale;
+            Render()
             return;
         }
 
