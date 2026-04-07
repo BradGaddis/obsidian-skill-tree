@@ -15,7 +15,7 @@ import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/fi
 import { InitCollisionDetector, findNearestEmptyPosition } from "./utils/collision";
 
 
-// TODO: Try exporting nodes as a uniform `SkillNode`
+// TODO: deal with the lazy evaluation issue
 
 let view: SkillTreeView
 let currentTree: SkillTreeData
@@ -25,18 +25,10 @@ let edges: SkillEdge[] = [];
 
 let selectedNodeId: string | number | null
 
-// Cache for tasks per node
-/**
- * Cached tasks for each node, loaded from linked files.
- *
- * Maps node ID to an array of task objects. Avoids re-reading files
- * on every render. Cleared when files change.
- */
-export let tasksCache: Map<string | number, SkillTask[]> = new Map();
 
-export function GetNodeTasks(nodeId: string | number): SkillTask[] {
-    return tasksCache.get(nodeId) || [];
-}
+// export function GetNodeTasks(nodeId: string | number): SkillTask[] {
+//     return tasksCache.get(nodeId) || [];
+// }
 
 
 export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<void> {
@@ -75,9 +67,19 @@ export function RemoveEdge(edgeId: number) {
     edges = edges.filter(e => e.id !== edgeId)
 }
 
+export function ReplaceNode(nodeId: string | number, newNode: SkillNode) {
+    nodes.set(nodeId, newNode)
+}
+
 export function RemoveNode(nodeId: string | number): void {
+    // Remove this node from other nodes' to/from arrays to allow GC
+    for (const node of nodes.values()) {
+        node.to = node.to.filter(n => n.id !== nodeId);
+        node.from = node.from.filter(n => n.id !== nodeId);
+    }
+
     nodes.delete(nodeId);
-    edges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
+    // edges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
 }
 
 export function CreateEdge(edge: SkillEdge) {
@@ -278,19 +280,19 @@ export function AddNode(x: number, y: number, fileLink?: string, nodeType?: stri
         x: pos.x,
         y: pos.y,
         state: 'unavailable',
+        nodeType: nodeType || 'BaseNode',
     };
 
     if (fileLink) {
         nodeData.fileLink = fileLink;
     }
 
-    if (nodeType) {
-        nodeData.nodeType = nodeType;
-    }
-
     const node = NodeFromJSON(nodeData);
     if (node) {
         nodes.set(node.id, node);
+        if (node.fileLink) {
+            LoadNodeTasks(node);
+        }
         return node;
     }
 
@@ -464,7 +466,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
 
 }
 
-function NodeFromJSON(data: any): any {
+export function NodeFromJSON(data: any): any {
     if (data.nodeType) {
         switch (data.nodeType) {
             case "BaseNode":
@@ -511,7 +513,7 @@ export function GetNodeAtWorld(x: number, y: number): SkillNode | null {
     return null;
 }
 
-export function GetNodeByID(id: string): SkillNode | null {
+export function GetNodeByID(id: string | number): SkillNode | null {
     const node = nodes.get(id);
     if (!node) return null;
     return node;
@@ -571,7 +573,7 @@ export async function LoadNodeTasks(node: SkillNode): Promise<void> {
     if (!node.fileLink) return;
 
     const tasks = await GetTasksFromFile(node.fileLink);
-    tasksCache.set(node.id, tasks);
+    // tasksCache.set(node.id, tasks);
     node.tasks = tasks;
 
     if (tasks.length > 0) {
@@ -579,6 +581,17 @@ export async function LoadNodeTasks(node: SkillNode): Promise<void> {
     }
 
     // UpdateNodeStateFromTasks(node);
+}
+
+export async function OnNodeFileChanged(node: SkillNode): Promise<void> {
+    if (node.fileLink) {
+        await LoadNodeTasks(node);
+    } else {
+        node.tasks = [];
+        node.canSkipOrphanUnavailable = false;
+    }
+    await SaveNodes();
+    Render();
 }
 
 async function GetTasksFromFile(filePath: string): Promise<any[]> {
@@ -617,7 +630,8 @@ async function GetTasksFromFile(filePath: string): Promise<any[]> {
                     const page = dv.page(normalizedPath) || dv.page(file.path) || dv.page((file as any).basename);
                     const dvTasks = page?.file?.tasks;
                     if (dvTasks && dvTasks.length > 0) {
-                        tasksFromAPI = dvTasks.map((t: any, idx: number) => {
+                        const tasksArray = dvTasks.values ? [...dvTasks.values] : [...dvTasks];
+                        tasksFromAPI = tasksArray.map((t: any, idx: number) => {
                             const status = (t.status || '').toString().toLowerCase();
                             const completedFlag = !!t.completed || ['x', 'done', 'completed', 'true', '✔'].includes(status);
                             return {

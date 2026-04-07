@@ -1,5 +1,7 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { GetNodes, LoadNodeTasks } from "../tree_manager";
+import { SaveNodes } from "../recorder";
+import { Render } from "../renderer";
 
 let view: SkillTreeView;
 let fileWatcherRef: any = null;
@@ -12,7 +14,6 @@ export function SetupFileWatchers(): void {
     if (fileWatcherRef) {
         view.app.vault.offref(fileWatcherRef);
     }
-
     const listener = async (file: any) => {
         const normalizedPath = file.path;
         const nodes = GetNodes();
@@ -27,10 +28,12 @@ export function SetupFileWatchers(): void {
 
             if (nodeFilePath === normalizedPath) {
                 await LoadNodeTasks(node);
+                await SaveNodes();
             }
         }
-    };
 
+        Render();
+    };
     fileWatcherRef = view.app.vault.on('modify', listener);
 }
 

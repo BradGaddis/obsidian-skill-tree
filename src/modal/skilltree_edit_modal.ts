@@ -2,7 +2,7 @@ import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, ModalButton, closeAllModals } from "./skilltree_modal";
 import { fuzzyMatch, getVaultFiles } from "../dialog/fuzzy_search";
-import { GetNodes, RemoveNode } from "../tree_manager";
+import { GetNodes, RemoveNode, OnNodeFileChanged } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
 import { Render } from "../renderer";
 import { validateFrontmatter } from "../utils/frontmatter_validator";
@@ -22,6 +22,7 @@ function handleRelinkClick(
         
         const oldFileLink = node.fileLink;
         node.fileLink = path;
+        OnNodeFileChanged(node);
         
         if (oldFileLink) {
             const oldPath = oldFileLink.endsWith('.md') ? oldFileLink : oldFileLink + '.md';
@@ -107,6 +108,7 @@ function showSuggestions(
             fileInput.value = match.replace(/\.md$/, '');
             suggestions.style.display = 'none';
             node.fileLink = match.replace(/\.md$/, '');
+            OnNodeFileChanged(node);
             import("src/recorder").then(m => m.SaveNodes());
             import("src/renderer").then(m => m.Render());
         });
@@ -293,6 +295,7 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
         const existing = view.app.vault.getAbstractFileByPath(path);
         if (existing) {
             node.fileLink = path.replace('.md', '');
+            OnNodeFileChanged(node);
             import("src/recorder").then(m => m.SaveNodes());
             import("src/renderer").then(m => m.Render());
             return;
@@ -303,6 +306,7 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
         try {
             await view.app.vault.create(path, initialContent);
             node.fileLink = path.replace('.md', '');
+            OnNodeFileChanged(node);
             import("src/recorder").then(m => m.SaveNodes());
             import("src/renderer").then(m => m.Render());
             warning.style.display = 'none';
@@ -318,6 +322,7 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
 
     fileInput.addEventListener('change', () => {
         node.fileLink = fileInput.value.trim() || undefined;
+        OnNodeFileChanged(node);
         import("src/recorder").then(m => m.SaveNodes());
         import("src/renderer").then(m => m.Render());
     });

@@ -2,7 +2,7 @@ import { NodeState, NodeType, NodeShape } from "./types";
 import { ISkillNode } from "./interfaces";
 import { SkillTask } from "../interfaces";
 import { SkillTreeView } from "src/skilltreeview";
-import { GetEdges, GetNodes } from "src/tree_manager";
+import { AddNode, GetEdges, GetNodeByID, GetNodes, RemoveNode, ReplaceNode } from "src/tree_manager";
 import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree_stats_modal";
 
 // TODO: Maybe change to base skill node
@@ -119,12 +119,33 @@ export class SkillNode implements ISkillNode {
 
     private static validating = new Set<string | number>();
 
+
+    async validateHasTasks() {
+        if (!this.tasks || this.tasks.length === 0) return
+
+        const { TaskNode } = await import("./task_node");
+
+        const toNodes = [...this.to];
+        const fromNodes = [...this.from];
+
+        const newTaskNode = new TaskNode(this as any);
+
+        newTaskNode.to = toNodes;
+        newTaskNode.from = fromNodes;
+        newTaskNode.previousType = this.nodeTypeName
+
+        ReplaceNode(this.id, newTaskNode)
+
+    }
+
     validate(): void {
+
         if (SkillNode.validating.has(this.id)) return;
+
+        this.validateHasTasks()
 
         SkillNode.validating.add(this.id);
 
-        const oldState = this.state;
 
         switch (this.getStructuralType()) {
             case "orphaned":
@@ -159,7 +180,7 @@ export class SkillNode implements ISkillNode {
         return this.getStructuralType();
     }
 
-    protected cascadeTo(): void {
+    cascadeTo(): void {
         if (this.to.length == 0) {
             return
         }
@@ -168,13 +189,14 @@ export class SkillNode implements ISkillNode {
         }
     }
 
-    protected cascadeFrom(): void {
+    protected informFromNodes(): void {
         if (this.from.length == 0) {
             return
         }
-        for (const from of this.from) {
-            from.validate();
-        }
+        // TODO: Grab info from 'from' nodes to populate stats modal
+        // for (const from of this.from) {
+        //     from.validate();
+        // }
     }
 
     protected hasUnavailableFroms(): boolean {
@@ -208,14 +230,15 @@ export class SkillNode implements ISkillNode {
             y: this.y,
             state: this.state,
             heldState: this.heldState,
+            previousState: this.previousState,
             exp: this.exp,
             fileLink: this.fileLink,
             shape: this.shape,
+            tasks: this.tasks,
         };
     }
 
     static fromJSON(data: any): SkillNode {
-
         return new SkillNode(data)
     }
 
