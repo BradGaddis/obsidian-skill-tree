@@ -9,6 +9,7 @@ import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos }
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
 import { Coordinate } from "./types";
 import { getFloatingEdge } from "./ux/event_utils";
+import { GetNodeLabelInfo } from "./utils/node_label";
 
 
 let view: SkillTreeView
@@ -514,23 +515,8 @@ function SetupLabelLines(n: SkillNode): string[] {
     const context = view.context
     if (!context) return []
 
-    let label = '';
-    if (n.displayText && n.displayText.trim()) {
-        label = n.displayText;
-    } else if (n.fileLink) {
-        const filename = n.fileLink.split('/').pop()?.replace('.md', '') || n.fileLink;
-        label = filename;
-    } else {
-        label = '[unlinked]';
-    }
-
-    let lines: string[] = [];
-    const words = (label || '').split(/\s+/).filter(Boolean);
-
-    for (let i = 0; i < words.length; i += 4) {
-        lines.push(words.slice(i, i + 4).join(' '));
-    }
-    return lines
+    const labelInfo = GetNodeLabelInfo(n);
+    return labelInfo.lines;
 }
 
 function RenderNodeLabel(n: SkillNode, lines: string[]) {

@@ -3,6 +3,7 @@ import { SkillNode } from "./skill_nodes/skill_node";
 import { NodeShape } from "./skill_nodes/types";
 import { SkillTreeView } from "./skilltreeview";
 import { GetSelectedNodeId } from "./tree_manager";
+import { GetNodeLabelInfo } from "./utils/node_label";
 
 let view: SkillTreeView;
 
@@ -205,22 +206,8 @@ export function DrawCheckBox(n: SkillNode) {
     // Calculate text position to place checkbox below text
     const lineHeight = fontSize / view.scale
     
-    let label = '';
-    if (n.displayText && n.displayText.trim()) {
-        label = n.displayText;
-    } else if (n.fileLink) {
-        const filename = n.fileLink.split('/').pop()?.replace('.md', '') || n.fileLink;
-        label = filename;
-    } else {
-        label = '[unlinked]';
-    }
-    
-    const words = (label || '').split(/\s+/).filter(Boolean)
-    const lines: string[] = []
-    for (let i = 0; i < words.length; i += 4) {
-        lines.push(words.slice(i, i + 4).join(' '))
-    }
-    const totalLines = lines.length + (label === '[unlinked]' ? 1 : 0)
+    const labelInfo = GetNodeLabelInfo(n);
+    const totalLines = labelInfo.lines.length + (labelInfo.label === '[unlinked]' ? 1 : 0)
     const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2
     const textBottomY = firstLineY + totalLines * lineHeight
 
