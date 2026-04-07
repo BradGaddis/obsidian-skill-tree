@@ -18,7 +18,7 @@ export class SkillNode implements ISkillNode {
     id: string | number;
     x: number;
     y: number;
-    state: NodeState;
+    state: NodeState = "unavailable";
 
 
     heldState: NodeState | null = null;
@@ -84,7 +84,7 @@ export class SkillNode implements ISkillNode {
             return
         }
 
-        this.state = "in-progress"
+        this.state = "inProgress"
     }
 
     validateIntermediateNode() {
@@ -94,7 +94,7 @@ export class SkillNode implements ISkillNode {
         else if (this.allNonOptionalFromsComplete()) {
             // Only set to in-progress if not already complete (user manually marked it)
             if (this.state !== "complete") {
-                this.state = "in-progress"
+                this.state = "inProgress"
             }
         }
         else {
@@ -111,7 +111,7 @@ export class SkillNode implements ISkillNode {
         else if (this.allNonOptionalFromsComplete()) {
             // Only set to in-progress if not already complete (user manually marked it)
             if (this.state !== "complete") {
-                this.state = "in-progress"
+                this.state = "inProgress"
             }
         }
         else {
@@ -207,7 +207,7 @@ export class SkillNode implements ISkillNode {
     }
 
     protected hasOnHoldFrom(): boolean {
-        return this.to.some(from => from.state === 'on-hold');
+        return this.to.some(from => from.state === 'onHold');
     }
 
     protected hasRepeatingInProgressFrom(): boolean {

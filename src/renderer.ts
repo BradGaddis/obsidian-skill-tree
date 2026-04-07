@@ -2,11 +2,11 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
+import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/input_handler";
-import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox } from "./drawing";
+import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
 import { Coordinate } from "./types";
 
 
@@ -383,55 +383,62 @@ function RenderEdgeLines() {
         let edgeColor: string;
 
 
+
         if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
             edgeColor = styleDef.edgeColor;
         } else {
             edgeColor = '#666';
         }
 
-        context.beginPath();
-        context.strokeStyle = edgeColor;
+
+        // TODO: implement against nodes
+        const gradient = context.createLinearGradient(sx1, sy1, sx2, sy2);
+
+        const fromNode = GetNodeByID(e.from)
+        const fromState = fromNode?.state
+
+        const toNode = GetNodeByID(e.to)
+        const toState = toNode?.state
+
+
+        const fromNodeColor = fromNode?.colorOverride[fromState].fill
+        const toNodeColor = toNode?.colorOverride[toState].fill
+
+        const blend = (cA: string, cB: string, t: number, a = 1) => {
+            try {
+                const pa = parseColor(cA) || { r: 255, g: 255, b: 255 };
+                const pb = parseColor(cB) || { r: 255, g: 255, b: 255 };
+                const r = Math.round(pa.r * (1 - t) + pb.r * t);
+                const g = Math.round(pa.g * (1 - t) + pb.g * t);
+                const b = Math.round(pa.b * (1 - t) + pb.b * t);
+                return `rgba(${r}, ${g}, ${b}, ${a})`;
+            } catch (ex) {
+                return cA;
+            }
+        };
+
+
+        if (fromNodeColor && toNodeColor) {
+
+            gradient.addColorStop(0, fromNodeColor);
+            gradient.addColorStop(0.25, blend(fromNodeColor, toNodeColor, 0.25, 0.95));
+            gradient.addColorStop(0.5, blend(fromNodeColor, toNodeColor, 0.5, 0.85));
+            gradient.addColorStop(0.75, blend(fromNodeColor, toNodeColor, 0.75, 0.95));
+            gradient.addColorStop(1, toNodeColor);
+        }
+
+
         context.lineWidth = edgeLineWidth;
+        context.strokeStyle = fromNodeColor && toNodeColor ? gradient : edgeColor;
+
+        context.beginPath();
 
         // TODO: add settings so user can choose to draw straight or Orthogonal
-        drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth, edgeColor);
+        drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth, toNodeColor || fromNodeColor);
 
         context.restore();
     }
-    //
-    // // Render floating edge (one end follows mouse)
-    // if (floatingEdge && edgeDragSourcePos) {
-    //     const nodes = GetNodes()
-    //
-    //     // Get the node that the edge is from (if it exists)
-    //     let sx1 = edgeDragSourcePos.x
-    //     let sy1 = edgeDragSourcePos.y
-    //     let sx2 = edgeDragSourcePos.x
-    //     let sy2 = edgeDragSourcePos.y
-    //
-    //     if (floatingEdge.from) {
-    //         const fromNode = nodes.get(floatingEdge.from as string | number)
-    //         if (fromNode) {
-    //             const rFrom = nodeRadii[fromNode.id] || nodeRadius
-    //             sx1 = fromNode.x
-    //             sy1 = fromNode.y
-    //             if (floatingEdge.fromSide === 'top') sy1 -= rFrom
-    //             else if (floatingEdge.fromSide === 'right') sx1 += rFrom
-    //             else if (floatingEdge.fromSide === 'bottom') sy1 += rFrom
-    //             else if (floatingEdge.fromSide === 'left') sx1 -= rFrom
-    //         }
-    //     }
-    //
-    //     // The other end follows mouse
-    //     sx2 = edgeDragSourcePos.x
-    //     sy2 = edgeDragSourcePos.y
-    //
-    //     context.save()
-    //     context.strokeStyle = '#2563eb'
-    //     context.lineWidth = edgeLineWidth
-    //     drawOrthogonalArrow(context, sx1, sy1, sx2, sy2, edgeLineWidth)
-    //     context.restore()
-    // }
+
 }
 
 // TODO: check culling. Not a problem while debugging very small trees
@@ -471,7 +478,6 @@ function FillNodeState(n: SkillNode) {
     if (!context || !styleDef) return
 
     const style = n.colorOverride
-    console.log(style)
 
     // TODO: handle extra-type cases
     switch (n.state) {
@@ -479,11 +485,11 @@ function FillNodeState(n: SkillNode) {
             context.fillStyle = style.complete.fill;
             context.strokeStyle = style.complete.stroke;
             break;
-        case "in-progress":
+        case "inProgress":
             context.fillStyle = style.inProgress.fill;
             context.strokeStyle = style.inProgress.stroke;
             break;
-        case "on-hold":
+        case "onHold":
             context.fillStyle = style.onHold.fill;
             context.strokeStyle = style.onHold.stroke;
             break;

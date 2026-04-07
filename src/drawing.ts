@@ -10,6 +10,26 @@ export function InitDrawing(SkillTreeView: SkillTreeView) {
     view = SkillTreeView
 }
 
+
+export function parseCSSColor(s: string) {
+    s = s.trim();
+    if (!s) return null;
+    if (s.startsWith('#')) {
+        const hex = s.slice(1);
+        const bigint = parseInt(hex.length === 3 ? hex.split('').map(c => c + c).join('') : hex, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return { r, g, b };
+    }
+    const m = s.match(/rgba?\(([^)]+)\)/i);
+    if (m) {
+        const parts = m[1].split(',').map(p => parseFloat(p));
+        return { r: parts[0], g: parts[1], b: parts[2] };
+    }
+    return null;
+}
+
 export function drawOrthogonalArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, lineWidth: number, color: string) {
     const headLen = lineWidth * 2.5;
     const midX = (x1 + x2) / 2;

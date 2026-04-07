@@ -456,9 +456,6 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
             return
         }
         nodes.set(node.id, node);
-        if (node.fileLink == "butts") {
-            console.log(node.state)
-        }
     }
 
 
@@ -513,7 +510,8 @@ export function GetNodeAtWorld(x: number, y: number): SkillNode | null {
     return null;
 }
 
-export function GetNodeByID(id: string | number): SkillNode | null {
+export function GetNodeByID(id: string | number | null): SkillNode | null {
+    if (!id) { console.log("Node Id should'nt have been null"); return null }
     const node = nodes.get(id);
     if (!node) return null;
     return node;
