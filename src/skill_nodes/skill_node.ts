@@ -43,6 +43,15 @@ export class SkillNode implements ISkillNode {
     canSkipOrphanUnavailable: boolean = false;
     tasks: SkillTask[] = [];
 
+    _userModified: boolean = false;
+    _fromNote: boolean = false;
+
+    get userModified(): boolean { return this._userModified; }
+    set userModified(val: boolean) { this._userModified = val; }
+
+    get fromNote(): boolean { return this._fromNote; }
+    set fromNote(val: boolean) { this._fromNote = val; }
+
     constructor(data: Partial<ISkillNode> = {}) {
         this.id = data.id ?? crypto.randomUUID()
         this.x = data.x ?? 0;

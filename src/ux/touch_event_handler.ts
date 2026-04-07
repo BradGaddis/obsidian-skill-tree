@@ -105,6 +105,8 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         if (checkboxHit && checkboxHit.userCompletable) {
             if (checkboxHit.state === 'inProgress') {
                 checkboxHit.state = 'complete';
+                checkboxHit.userModified = true;
+                checkboxHit.fromNote = false;
             }
             Render();
             SaveNodes();

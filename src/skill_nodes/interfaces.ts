@@ -35,4 +35,8 @@ export interface ISkillNode {
     tasks?: SkillTask[];
     /** Override color for node (if non-empty, overrides default state colors) */
     colorOverride: typeof SKILL_TREE_STYLES.gamified.nodeColors;
+    /** Flag set when user directly modifies state (click/touch/modal) */
+    userModified?: boolean;
+    /** Flag set when state was updated from note's frontmatter */
+    fromNote?: boolean;
 }

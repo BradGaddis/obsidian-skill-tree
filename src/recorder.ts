@@ -56,18 +56,32 @@ function ApplySnapshot(snap: any) {
 export async function SaveNodes() {
     try {
         const currentTree = view.settings.trees[view.settings.currentTreeName];
-        const nodes = Array.from(GetNodes().values());
+        const nodeList = Array.from(GetNodes().values());
         const edges = GetEdges();
         if (currentTree) {
-            currentTree.nodes = JSON.parse(JSON.stringify(nodes));
+            currentTree.nodes = JSON.parse(JSON.stringify(nodeList));
             currentTree.edges = JSON.parse(JSON.stringify(edges));
         } else {
             view.settings.trees[view.settings.currentTreeName] = {
                 name: view.settings.currentTreeName,
-                nodes: JSON.parse(JSON.stringify(nodes)),
+                nodes: JSON.parse(JSON.stringify(nodeList)),
                 edges: JSON.parse(JSON.stringify(edges))
             };
         }
+        
+        for (const node of nodeList) {
+            if (node.fileLink && node.userCompletable) {
+                try {
+                    const treeManager = await import("src/tree_manager");
+                    if (treeManager.SyncNodeMetadataToFile) {
+                        await treeManager.SyncNodeMetadataToFile(node);
+                    }
+                } catch (e) {
+                    console.warn('[SAVE] Failed to sync metadata to note:', e);
+                }
+            }
+        }
+        
         await view.plugin.saveSettings();
     } catch (e) {
         console.error('[SAVE] saveNodes failed', e);

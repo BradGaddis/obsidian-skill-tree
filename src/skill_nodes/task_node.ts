@@ -17,20 +17,12 @@ export class TaskNode extends SkillNode {
     }
 
     validate(): void {
-        for (let task of this.tasks) {
-            if (!task.completed) {
-                this.state = "inProgress"
-                this.cascadeTo()
-                return
-            }
-        }
-
-        this.state = "complete"
-        this.cascadeTo()
-
         if (!this.tasks || this.tasks.length === 0) {
             this.demoteToPreviousType();
         }
+        this.state = this.tasks.find(t => !t.completed) ? "inProgress" : "complete"
+        this.cascadeTo()
+
 
     }
 

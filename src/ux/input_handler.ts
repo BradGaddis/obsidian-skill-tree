@@ -187,10 +187,14 @@ export function updateNodeDrag(worldPos: Coordinate): void {
 }
 
 export function endNodeDrag(): void {
+    const node = hitNode;
     hitNode = null;
     isDragging = false;
     Render();
     SaveNodes();
+    if (node && node.fileLink && node.userCompletable) {
+        import("src/tree_manager").then(m => m.SyncNodeMetadataToFile(node));
+    }
 }
 
 export function handleEdgeEndpointDrag(worldPos: Coordinate): void {

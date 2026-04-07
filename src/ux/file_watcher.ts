@@ -1,9 +1,11 @@
 import { SkillTreeView } from "src/skilltreeview";
 import { SkillNode } from "src/skill_nodes/skill_node";
-import { GetNodes, LoadNodeTasks } from "../tree_manager";
+import { GetNodes, LoadNodeTasks, SyncNodeMetadataToFile } from "../tree_manager";
 import { SaveNodes } from "../recorder";
 import { Render } from "../renderer";
 import { TFile } from "obsidian";
+import { validateFrontmatter } from "../utils/frontmatter_validator";
+import { NodeState } from "../skill_nodes/types";
 
 let view: SkillTreeView;
 let fileWatcherRef: any = null;
@@ -40,8 +42,39 @@ export function SetupFileWatchers(): void {
 
         if (affectedNodes.length === 0) return;
 
+        const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
+        const validated = validateFrontmatter(fm);
+        const treeName = view.settings.currentTreeName;
+
         for (const node of affectedNodes) {
             await LoadNodeTasks(node);
+
+            if (!node.userCompletable) continue;
+            if (!validated.skilltreeNode || !validated.skilltreeTree) continue;
+            if (validated.skilltreeTree !== treeName) continue;
+            if (validated.skilltreeNode !== String(node.id)) continue;
+
+            if (!node.userModified) {
+                if (validated.skilltreeState) {
+                    node.state = validated.skilltreeState;
+                    node.fromNote = true;
+                }
+                if (validated.shape) {
+                    node.shape = validated.shape;
+                }
+                if (validated.exp !== undefined) {
+                    node.exp = validated.exp;
+                }
+                if (validated.x !== undefined) {
+                    node.x = validated.x;
+                }
+                if (validated.y !== undefined) {
+                    node.y = validated.y;
+                }
+
+                node.userModified = true;
+                node.fromNote = false;
+            }
         }
 
         await SaveNodes();

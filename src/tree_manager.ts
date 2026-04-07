@@ -446,6 +446,45 @@ async function LoadTree() {
     loadFromJSON(currentTree.nodes || [], currentTree.edges || []);
 
     edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
+
+    await LinkNodesFromNotes();
+}
+
+
+export async function LinkNodesFromNotes(): Promise<void> {
+    const treeName = view.settings.currentTreeName;
+    const allFiles = view.app.vault.getFiles();
+    const mdFiles = allFiles.filter(f => f instanceof TFile && f.path.endsWith('.md'));
+
+    for (const file of mdFiles) {
+        const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
+        if (!fm) continue;
+
+        const nodeId = fm['skilltree-node'];
+        const noteTree = fm['skilltree-tree'];
+        
+        if (!nodeId || !noteTree) continue;
+        if (noteTree !== treeName) continue;
+
+        const existingNode = nodes.get(nodeId);
+        if (existingNode) {
+            continue;
+        }
+
+        const nodePath = file.path.replace(/\.md$/, '');
+        
+        const newNode = AddNode(
+            Math.random() * 800 + 100,
+            Math.random() * 600 + 100,
+            nodePath,
+            'BaseNode'
+        );
+
+        if (newNode) {
+            newNode.id = nodeId;
+            await LoadNodeTasks(newNode);
+        }
+    }
 }
 
 
@@ -585,12 +624,50 @@ export async function LoadNodeTasks(node: SkillNode): Promise<void> {
 export async function OnNodeFileChanged(node: SkillNode): Promise<void> {
     if (node.fileLink) {
         await LoadNodeTasks(node);
+        if (node.userCompletable) {
+            await SyncNodeMetadataToFile(node);
+        }
     } else {
         node.tasks = [];
         node.canSkipOrphanUnavailable = false;
     }
     await SaveNodes();
     Render();
+}
+
+export async function SyncNodeMetadataToFile(node: SkillNode): Promise<void> {
+    if (!node.fileLink || !node.userCompletable) return;
+
+    try {
+        let normalizedPath = node.fileLink.trim();
+        if (normalizedPath.startsWith('/')) {
+            normalizedPath = normalizedPath.substring(1);
+        }
+        if (!normalizedPath.endsWith('.md')) {
+            normalizedPath = normalizedPath + '.md';
+        }
+
+        const file = view.app.vault.getAbstractFileByPath(normalizedPath);
+        if (!file || !(file instanceof TFile)) return;
+
+        const treeName = view.settings.currentTreeName;
+        const toIds = node.to.map(n => String(n.id)).filter(Boolean);
+        const fromIds = node.from.map(n => String(n.id)).filter(Boolean);
+
+        await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            frontmatter['skilltree-node'] = String(node.id);
+            frontmatter['skilltree-tree'] = treeName;
+            frontmatter['skilltree-state'] = node.state;
+            frontmatter['skilltree-exp'] = node.exp ?? 10;
+            frontmatter['skilltree-shape'] = node.shape;
+            frontmatter['skilltree-x'] = node.x;
+            frontmatter['skilltree-y'] = node.y;
+            frontmatter['skilltree-to'] = toIds;
+            frontmatter['skilltree-from'] = fromIds;
+        });
+    } catch (e) {
+        console.warn('[SyncNodeMetadata] Failed to sync to file:', e);
+    }
 }
 
 async function GetTasksFromFile(filePath: string): Promise<any[]> {
@@ -724,21 +801,3 @@ async function GetTasksFromFile(filePath: string): Promise<any[]> {
         return [];
     }
 }
-
-
-// DEPRECATED: Listen, Big Pickled. You gave me a lot of headache by not listening to me when I told you that I didn't want you to do this.
-// function UpdateNodeStateFromTasks(node: SkillNode): void {
-//     const tasks = tasksCache.get(node.id) || [];
-//     const completedTasks = tasks.filter((t: any) => t.completed).length;
-//     const totalTasks = tasks.length;
-//
-//     if (totalTasks === 0) return;
-//
-//     if (completedTasks === totalTasks) {
-//         node.state = 'complete';
-//     } else if (completedTasks > 0) {
-//         node.state = 'in-progress';
-//     } else {
-//         node.state = 'unavailable';
-//     }
-// }

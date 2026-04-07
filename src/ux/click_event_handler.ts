@@ -33,6 +33,8 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         if (checkboxHit && checkboxHit.userCompletable) {
             if (checkboxHit.state === 'inProgress') {
                 checkboxHit.state = 'complete';
+                checkboxHit.userModified = true;
+                checkboxHit.fromNote = false;
             }
             Render();
             SaveNodes();
@@ -119,7 +121,17 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             completeEdgeDrag(edgeDragTarget);
         }
 
+        const draggedNode = hitNode;
+        const wasDragging = isDragging;
+
         resetDragState();
+
+        if (draggedNode && wasDragging) {
+            SaveNodes();
+            if (draggedNode.fileLink && draggedNode.userCompletable) {
+                import("src/tree_manager").then(m => m.SyncNodeMetadataToFile(draggedNode));
+            }
+        }
     };
 
     const onClick = (e: MouseEvent) => {
