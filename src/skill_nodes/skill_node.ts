@@ -63,6 +63,15 @@ export class SkillNode implements ISkillNode {
     }
 
     updateRelationShips() {
+        if (this.state == "error" || !this.id) {
+            let edges = GetEdges().filter(e => e.from == this.id || e.to == this.id)
+            for (let edge of edges) {
+                import("src/tree_manager").then(m => m.RemoveEdge(edge.id));
+            }
+            this.from = []
+            this.to = []
+            return
+        }
         const edges = GetEdges();
         const nodes = GetNodes();
 
@@ -144,7 +153,10 @@ export class SkillNode implements ISkillNode {
     }
 
     validate(): void {
-        // TODO: implement error state
+        if (this.state == "error") {
+            return
+        }
+
         if (SkillNode.validating.has(this.id)) return;
 
         this.validateHasTasks()
