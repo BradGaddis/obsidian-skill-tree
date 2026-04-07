@@ -432,8 +432,6 @@ async function LoadTree() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
     if (!currentTree) {
-        console.log("current tree not available. using default")
-        // Initialize if tree doesn't exist
         view.settings.trees[view.settings.currentTreeName] = {
             name: view.settings.currentTreeName,
             nodes: [],
@@ -447,7 +445,35 @@ async function LoadTree() {
 
     edges = edges.filter(e => nodes.get(e.to) && nodes.get(e.from))
 
+    await ValidateLinkedFiles();
     await LinkNodesFromNotes();
+}
+
+
+export async function ValidateLinkedFiles(): Promise<number> {
+    let unlinkedCount = 0;
+    const allFiles = new Set(view.app.vault.getFiles().map(f => f.path));
+
+    for (const node of nodes.values()) {
+        if (!node.fileLink) continue;
+
+        let normalizedPath = node.fileLink.trim();
+        if (normalizedPath.startsWith('/')) {
+            normalizedPath = normalizedPath.substring(1);
+        }
+        if (!normalizedPath.endsWith('.md')) {
+            normalizedPath = normalizedPath + '.md';
+        }
+
+        if (!allFiles.has(normalizedPath)) {
+            node.fileLink = undefined;
+            node.tasks = [];
+            node.canSkipOrphanUnavailable = false;
+            unlinkedCount++;
+        }
+    }
+
+    return unlinkedCount;
 }
 
 
@@ -455,6 +481,8 @@ export async function LinkNodesFromNotes(): Promise<void> {
     const treeName = view.settings.currentTreeName;
     const allFiles = view.app.vault.getFiles();
     const mdFiles = allFiles.filter(f => f instanceof TFile && f.path.endsWith('.md'));
+
+    let linkedCount = 0;
 
     for (const file of mdFiles) {
         const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
@@ -467,15 +495,22 @@ export async function LinkNodesFromNotes(): Promise<void> {
         if (noteTree !== treeName) continue;
 
         const existingNode = nodes.get(nodeId);
-        if (existingNode) {
-            continue;
-        }
-
+        if (existingNode) continue;
+        
         const nodePath = file.path.replace(/\.md$/, '');
         
+        let x = 0;
+        let y = 0;
+        if (fm) {
+            const xVal = fm['skilltree-x'];
+            const yVal = fm['skilltree-y'];
+            if (typeof xVal === 'number') x = xVal;
+            if (typeof yVal === 'number') y = yVal;
+        }
+        
         const newNode = AddNode(
-            Math.random() * 800 + 100,
-            Math.random() * 600 + 100,
+            x,
+            y,
             nodePath,
             'BaseNode'
         );
@@ -483,6 +518,7 @@ export async function LinkNodesFromNotes(): Promise<void> {
         if (newNode) {
             newNode.id = nodeId;
             await LoadNodeTasks(newNode);
+            linkedCount++;
         }
     }
 }

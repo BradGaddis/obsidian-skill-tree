@@ -9,6 +9,7 @@ import { NodeState } from "../skill_nodes/types";
 
 let view: SkillTreeView;
 let fileWatcherRef: any = null;
+let deleteWatcherRef: any = null;
 
 export function InitFileWatcher(skillTreeView: SkillTreeView) {
     view = skillTreeView;
@@ -17,6 +18,9 @@ export function InitFileWatcher(skillTreeView: SkillTreeView) {
 export function SetupFileWatchers(): void {
     if (fileWatcherRef) {
         view.app.metadataCache.offref(fileWatcherRef);
+    }
+    if (deleteWatcherRef) {
+        view.app.vault.offref(deleteWatcherRef);
     }
 
     const listener = async (file: TFile) => {
@@ -81,12 +85,47 @@ export function SetupFileWatchers(): void {
         Render();
     };
 
+    const deleteListener = (file: TFile) => {
+        if (!(file instanceof TFile)) return;
+        if (!file.path.endsWith('.md')) return;
+
+        const normalizedPath = file.path;
+        const nodes = GetNodes();
+        let unlinkedCount = 0;
+
+        for (const node of nodes.values()) {
+            if (!node.fileLink) continue;
+
+            let nodeFilePath = node.fileLink.trim();
+            if (!nodeFilePath.endsWith('.md')) {
+                nodeFilePath = nodeFilePath + '.md';
+            }
+
+            if (nodeFilePath === normalizedPath) {
+                node.fileLink = undefined;
+                node.tasks = [];
+                node.canSkipOrphanUnavailable = false;
+                unlinkedCount++;
+            }
+        }
+
+        if (unlinkedCount > 0) {
+            SaveNodes();
+            Render();
+        }
+    };
+
     fileWatcherRef = view.app.metadataCache.on('changed', listener);
+    deleteWatcherRef = view.app.vault.on('delete', deleteListener);
 }
 
 export function CleanupFileWatchers(): void {
     if (fileWatcherRef) {
         view.app.metadataCache.offref(fileWatcherRef);
         fileWatcherRef = null;
+    }
+    if (deleteWatcherRef) {
+        view.app.vault.offref(deleteWatcherRef);
+        deleteWatcherRef = null;
     }
 }

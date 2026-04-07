@@ -145,7 +145,6 @@ function SetupJumpToOrphanButton() {
 }
 
 function updateOrphanJumpBtnVisibility() {
-    console.log('TODO')
 }
 
 function SetupJumpToNodeButton() {
@@ -407,7 +406,6 @@ function SetUpGoToLinkedButton() {
     goToLinkedBtn.title = 'Jump to a tree that links to view one';
 
     goToLinkedBtn.onclick = () => {
-        console.log("TODO")
         //   const linkingTrees = GetTreesLinkingToCurrent();
         //
         //   if (linkingTrees.length === 0) {

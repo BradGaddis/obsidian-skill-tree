@@ -172,7 +172,6 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         // Handle pinch zoom
         if (_isPinning && e.touches.length === 2) {
             e.preventDefault();
-            console.log("test")
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / _initialPinchDistance;
             let newScale = _initialPinchScale * scale;

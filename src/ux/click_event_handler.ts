@@ -80,7 +80,6 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         const edgeThreshold = 15 / view.scale
 
         if (Math.abs(dist - r) >= edgeThreshold) {
-            console.log("TODO check that this radius is correct")
             // return
         }
 
