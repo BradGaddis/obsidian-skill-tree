@@ -45,6 +45,7 @@ export class SkillNode implements ISkillNode {
 
     _userModified: boolean = false;
     _fromNote: boolean = false;
+    displayText?: string;
 
     get userModified(): boolean { return this._userModified; }
     set userModified(val: boolean) { this._userModified = val; }
@@ -62,6 +63,7 @@ export class SkillNode implements ISkillNode {
         this.fileLink = data.fileLink;
         this.shape = data.shape ?? 'hexagon';
         this.colorOverride = data.colorOverride ?? { ...SKILL_TREE_STYLES.gamified.nodeColors };
+        this.displayText = data.displayText;
     }
 
     protected allNonOptionalFromsComplete(): boolean {
@@ -270,6 +272,7 @@ export class SkillNode implements ISkillNode {
             shape: this.shape,
             tasks: this.tasks,
             colorOverride: this.colorOverride,
+            displayText: this.displayText,
         };
     }
 

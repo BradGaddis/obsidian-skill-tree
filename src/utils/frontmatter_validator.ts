@@ -16,6 +16,7 @@ export interface ValidatedFrontmatter {
   skilltreeFrom: string[];
   x?: number;
   y?: number;
+  displayText: string | null;
 }
 
 const VALID_SHAPES = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
@@ -55,6 +56,11 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
 
   const yRaw = fm['skilltree-y'];
   const y = (typeof yRaw === 'number' && !isNaN(yRaw)) ? yRaw : undefined;
+
+  const displayTextRaw = fm['skilltree-display-text'];
+  const displayText = (typeof displayTextRaw === 'string' && displayTextRaw.trim() !== '')
+    ? displayTextRaw.trim()
+    : null;
 
   const shapeRaw = fm['skilltree-shape'] ?? fm['shape'];
   const shape = (typeof shapeRaw === 'string' && VALID_SHAPES.includes(shapeRaw))
@@ -103,6 +109,7 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
     repeatLastCompleted,
     skilltreeTo,
     skilltreeFrom,
+    displayText,
   };
 }
 
@@ -123,6 +130,7 @@ function getDefaultValidated(): ValidatedFrontmatter {
     repeatLastCompleted: null,
     skilltreeTo: [],
     skilltreeFrom: [],
+    displayText: null,
   };
 }
 

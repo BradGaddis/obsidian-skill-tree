@@ -144,6 +144,32 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
     };
 }
 
+function createEditModalDisplayTextRow(content: HTMLElement, node: SkillNode): void {
+    const textRow = content.createEl('div');
+    textRow.style.cssText = 'margin-bottom:16px;';
+
+    const textLabel = textRow.createEl('label');
+    textLabel.textContent = 'Display Text';
+    textLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:500;';
+
+    const textInput = textRow.createEl('input') as HTMLInputElement;
+    textInput.type = 'text';
+    textInput.value = node.displayText || '';
+    textInput.placeholder = 'Leave empty to show file name';
+    textInput.style.cssText = 'width:100%;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);box-sizing:border-box;';
+
+    textInput.oninput = () => {
+        const val = textInput.value.trim();
+        node.displayText = val || undefined;
+        node.userModified = true;
+    };
+
+    textInput.onchange = () => {
+        import("src/recorder").then(m => m.SaveNodes());
+        import("src/renderer").then(m => m.Render());
+    };
+}
+
 function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node: SkillNode): void {
     const fileRow = content.createEl('div');
     fileRow.style.cssText = 'margin-bottom:12px;';
@@ -358,6 +384,7 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
     content.style.cssText = 'padding:12px 16px;overflow-y:auto;';
 
     createEditModalStateRow(content, node);
+    createEditModalDisplayTextRow(content, node);
     createEditModalFileRow(view, content, node);
 
     const footerButtons: ModalButton[] = [

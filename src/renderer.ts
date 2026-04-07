@@ -8,6 +8,7 @@ import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/input_handler";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
 import { Coordinate } from "./types";
+import { getFloatingEdge } from "./ux/event_utils";
 
 
 let view: SkillTreeView
@@ -237,6 +238,8 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
+
+    // if (getFloatingEdge()) {
     for (let node of nodes) {
         UpdateConnectedEdgesToNearestHandles(node)
     }
@@ -244,13 +247,13 @@ function UpdateInRAFID() {
     for (let node of nodes) {
         node.updateRelationShips()
     }
-
     for (const node of nodes) {
         if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
             node.validate()
         }
     }
 
+    // }
     RenderEdgeLines()
     RenderNodes(nodes)
     RenderTemporaryEdgeLine()
@@ -511,7 +514,15 @@ function SetupLabelLines(n: SkillNode): string[] {
     const context = view.context
     if (!context) return []
 
-    const label = n.fileLink?.replace(/\.md$/, '') || '[Unlinked]';
+    let label = '';
+    if (n.displayText && n.displayText.trim()) {
+        label = n.displayText;
+    } else if (n.fileLink) {
+        const filename = n.fileLink.split('/').pop()?.replace('.md', '') || n.fileLink;
+        label = filename;
+    } else {
+        label = '[unlinked]';
+    }
 
     let lines: string[] = [];
     const words = (label || '').split(/\s+/).filter(Boolean);

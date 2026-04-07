@@ -75,6 +75,9 @@ export function SetupFileWatchers(): void {
                 if (validated.y !== undefined) {
                     node.y = validated.y;
                 }
+                if (validated.displayText !== null) {
+                    node.displayText = validated.displayText || undefined;
+                }
 
                 node.userModified = true;
                 node.fromNote = false;

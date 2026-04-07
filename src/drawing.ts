@@ -204,14 +204,23 @@ export function DrawCheckBox(n: SkillNode) {
 
     // Calculate text position to place checkbox below text
     const lineHeight = fontSize / view.scale
-    const isUnlinked = n.fileLink === ''
-    const label = isUnlinked ? n.fileLink : n.fileLink || '' + ' [Unlinked]'
+    
+    let label = '';
+    if (n.displayText && n.displayText.trim()) {
+        label = n.displayText;
+    } else if (n.fileLink) {
+        const filename = n.fileLink.split('/').pop()?.replace('.md', '') || n.fileLink;
+        label = filename;
+    } else {
+        label = '[unlinked]';
+    }
+    
     const words = (label || '').split(/\s+/).filter(Boolean)
     const lines: string[] = []
     for (let i = 0; i < words.length; i += 4) {
         lines.push(words.slice(i, i + 4).join(' '))
     }
-    const totalLines = lines.length + (isUnlinked ? 1 : 0)
+    const totalLines = lines.length + (label === '[unlinked]' ? 1 : 0)
     const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2
     const textBottomY = firstLineY + totalLines * lineHeight
 

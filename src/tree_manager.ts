@@ -700,6 +700,11 @@ export async function SyncNodeMetadataToFile(node: SkillNode): Promise<void> {
             frontmatter['skilltree-y'] = node.y;
             frontmatter['skilltree-to'] = toIds;
             frontmatter['skilltree-from'] = fromIds;
+            if (node.displayText && node.displayText.trim()) {
+                frontmatter['skilltree-display-text'] = node.displayText;
+            } else {
+                delete frontmatter['skilltree-display-text'];
+            }
         });
     } catch (e) {
         console.warn('[SyncNodeMetadata] Failed to sync to file:', e);

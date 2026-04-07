@@ -39,4 +39,6 @@ export interface ISkillNode {
     userModified?: boolean;
     /** Flag set when state was updated from note's frontmatter */
     fromNote?: boolean;
+    /** Custom display text to show instead of fileLink */
+    displayText?: string;
 }
