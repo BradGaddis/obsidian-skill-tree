@@ -7,22 +7,36 @@ export class TaskNode extends SkillNode {
     readonly nodeTypeName = 'TaskNode';
     previousType: string
 
+    get userCompletable(): boolean {
+        return false
+    }
+
     constructor(data: Partial<TaskNode> = {}) {
         super(data);
         this.previousType = data?.previousType ?? ""
     }
 
     validate(): void {
+        for (let task of this.tasks) {
+            if (!task.completed) {
+                this.state == "in-progress"
+                this.cascadeTo()
+                return
+            }
+        }
+
+
         if (!this.tasks || this.tasks.length === 0) {
             this.demoteToPreviousType();
         }
+
+        this.state == "complete"
         this.cascadeTo()
     }
 
     async demoteToPreviousType(): Promise<void> {
         const treeModule = await import("src/tree_manager");
-        const GetNodes = treeModule.GetNodes;
-        const RemoveNode = treeModule.RemoveNode;
+
         const NodeFromJSON = treeModule.NodeFromJSON;
 
         const targetType = this.previousType || 'BaseNode';

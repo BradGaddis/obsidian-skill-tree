@@ -4,6 +4,7 @@ import { SkillTask } from "../interfaces";
 import { SkillTreeView } from "src/skilltreeview";
 import { AddNode, GetEdges, GetNodeByID, GetNodes, RemoveNode, ReplaceNode } from "src/tree_manager";
 import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree_stats_modal";
+import { SKILL_TREE_STYLES } from "src/styles";
 
 // TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {
@@ -25,6 +26,7 @@ export class SkillNode implements ISkillNode {
     exp: number;
     fileLink?: string;
     shape: NodeShape;
+    colorOverride: typeof SKILL_TREE_STYLES.gamified.nodeColors = { ...SKILL_TREE_STYLES.gamified.nodeColors };
 
     to: SkillNode[] = [];
     from: SkillNode[] = [];
@@ -40,6 +42,7 @@ export class SkillNode implements ISkillNode {
         this.exp = data.exp ?? 0;
         this.fileLink = data.fileLink;
         this.shape = data.shape ?? 'circle';
+        this.colorOverride = data.colorOverride ?? { ...SKILL_TREE_STYLES.gamified.nodeColors };
     }
 
     protected allNonOptionalFromsComplete(): boolean {
@@ -235,6 +238,7 @@ export class SkillNode implements ISkillNode {
             fileLink: this.fileLink,
             shape: this.shape,
             tasks: this.tasks,
+            colorOverride: this.colorOverride,
         };
     }
 

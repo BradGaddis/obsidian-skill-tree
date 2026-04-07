@@ -1,5 +1,6 @@
 import { NodeShape, NodeState } from "./types";
 import { SkillTask } from "../interfaces";
+import { SKILL_TREE_STYLES } from "src/styles";
 
 export interface ISkillNode {
     /** Unique identifier for this node (string or number) */
@@ -32,4 +33,6 @@ export interface ISkillNode {
     validate?: () => void;
     /** Tasks from linked file */
     tasks?: SkillTask[];
+    /** Override color for node (if non-empty, overrides default state colors) */
+    colorOverride: typeof SKILL_TREE_STYLES.gamified.nodeColors;
 }

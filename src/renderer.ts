@@ -470,24 +470,29 @@ function FillNodeState(n: SkillNode) {
     const context = view.context
     if (!context || !styleDef) return
 
-    const nodeState = n.state
+    const style = n.colorOverride
+    console.log(style)
+
     // TODO: handle extra-type cases
-    switch (nodeState) {
+    switch (n.state) {
         case "complete":
-            context.fillStyle = styleDef.nodeColors.complete.fill;
-            context.strokeStyle = styleDef.nodeColors.complete.stroke;
+            context.fillStyle = style.complete.fill;
+            context.strokeStyle = style.complete.stroke;
             break;
         case "in-progress":
-            context.fillStyle = styleDef.nodeColors.inProgress.fill;
-            context.strokeStyle = styleDef.nodeColors.inProgress.stroke;
+            context.fillStyle = style.inProgress.fill;
+            context.strokeStyle = style.inProgress.stroke;
             break;
         case "on-hold":
-            context.fillStyle = styleDef.nodeColors.onHold.fill;
-            context.strokeStyle = styleDef.nodeColors.onHold.stroke;
+            context.fillStyle = style.onHold.fill;
+            context.strokeStyle = style.onHold.stroke;
             break;
+        // case "invalid":
+        //     context.fillStyle = style.invalid.fill;
+        //     context.strokeStyle = style.invalid.stroke;
         default:
-            context.fillStyle = styleDef.nodeColors.unavailable.fill;
-            context.strokeStyle = styleDef.nodeColors.unavailable.stroke;
+            context.fillStyle = style.unavailable.fill;
+            context.strokeStyle = style.unavailable.stroke;
             break;
     }
 

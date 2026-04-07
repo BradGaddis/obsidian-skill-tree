@@ -1,5 +1,7 @@
 import { ModalStyleOptions } from "./types";
+
 export const VIEW_TYPE_SKILLTREE = 'skill-tree-view';
+
 export const DEFAULT_MODAL_STYLES: ModalStyleOptions = {
     position: "absolute",
     top: "60px",
