@@ -8,8 +8,8 @@ import { createEditModal } from "../modal/skilltree_edit_modal";
 import { Coordinate } from "src/types";
 import { InitPanHandler } from "./panning";
 import { InitZoomHandler } from "./zoom";
-import { initInputHandler, isInEditMode, screenToWorldCoordinate, findNodeAt, findHandleAt, findEdgeEndpointAt, hitNode, isDragging, edgeDragFrom, edgeDragTarget, resetDragState, setHitNode, setIsDragging, draggingEdgeEndpoint, edgeDragSourcePos, setEdgeDragFrom, setEdgeDragTarget, startNodeDrag, startEdgeDrag, handleEdgeEndpointDrag, updateFloatingEdge, completeEdgeDrag, handleFloatingEdge } from "./input_handler";
-import { getCheckboxAtWorld, completeEdgeCreation, initEventUtils } from "./event_utils";
+import { isInEditMode, screenToWorldCoordinate, findNodeAt, findHandleAt, findEdgeEndpointAt, hitNode, isDragging, edgeDragFrom, edgeDragTarget, resetDragState, setHitNode, setIsDragging, draggingEdgeEndpoint, edgeDragSourcePos, setEdgeDragFrom, setEdgeDragTarget, startNodeDrag, startEdgeDrag, handleEdgeEndpointDrag, updateFloatingEdge, completeEdgeDrag, handleFloatingEdge, initEventUtils } from "./event_utils";
+import { getCheckboxAtWorld, completeEdgeCreation } from "./event_utils";
 
 export { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos };
 
@@ -19,7 +19,6 @@ let nodeWasSelected: SkillNode | null = null;
 
 export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
-    initInputHandler(skillTreeView);
     initEventUtils(skillTreeView);
 
     const canvas = view.canvas;

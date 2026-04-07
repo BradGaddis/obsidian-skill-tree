@@ -6,6 +6,7 @@ export class OptionalNode extends SkillNode {
     readonly nodeTypeName = 'OptionalNode';
 
     shape: NodeShape = "square"
+    displayText?: string | undefined = "Optional";
 
     get userCompletable(): boolean {
         return false

@@ -5,27 +5,7 @@ import { CenterOnNode, Render } from "../renderer";
 import { InitZoomHandler } from "./zoom";
 import { createStatsModal } from "../modal/skilltree_stats_modal";
 import { createEditModal } from "../modal/skilltree_edit_modal";
-import { getCheckboxAtWorld, initEventUtils } from "./event_utils";
-import {
-    initInputHandler,
-    isInEditMode,
-    screenToWorldCoordinate,
-    findNodeAt,
-    findHandleAt,
-    findEdgeEndpointAt,
-    startEdgeDrag,
-    startNodeDrag,
-    updateFloatingEdge,
-    updateNodeDrag,
-    setEdgeDragFrom,
-    setEdgeDragTarget,
-    getEdgeDragFrom,
-    resetDragState,
-    completeEdgeDrag,
-    handleFloatingEdge,
-    isDragging,
-    isDraggingEdgeEndpoint
-} from "./input_handler";
+import { getCheckboxAtWorld, initEventUtils, isInEditMode, screenToWorldCoordinate, findNodeAt, findHandleAt, findEdgeEndpointAt, startEdgeDrag, startNodeDrag, updateFloatingEdge, updateNodeDrag, setEdgeDragFrom, setEdgeDragTarget, getEdgeDragFrom, resetDragState, completeEdgeDrag, handleFloatingEdge, isDragging, isDraggingEdgeEndpoint } from "./event_utils";
 
 let view: SkillTreeView;
 
@@ -49,7 +29,6 @@ let _wasLongPress = false;
 
 export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () => void } {
     view = skillTreeView;
-    initInputHandler(skillTreeView);
     initEventUtils(skillTreeView);
 
     const canvas = view.canvas;
