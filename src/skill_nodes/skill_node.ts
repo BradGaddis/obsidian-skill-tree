@@ -19,7 +19,15 @@ export class SkillNode implements ISkillNode {
     x: number;
     y: number;
 
-    state: NodeState = "unavailable";
+    _state: NodeState = "unavailable";
+
+    set state(val: NodeState) {
+        this._state = val
+    }
+
+    get state() {
+        return this._state
+    }
 
     shape: NodeShape = "hexagon"
 

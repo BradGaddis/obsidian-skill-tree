@@ -497,8 +497,8 @@ function FillNodeState(n: SkillNode) {
             context.strokeStyle = style.onHold.stroke;
             break;
         case "error":
-            context.fillStyle = style.invalid.fill;
-            context.strokeStyle = style.invalid.stroke;
+            context.fillStyle = style.error.fill;
+            context.strokeStyle = style.error.stroke;
         default:
             context.fillStyle = style.unavailable.fill;
             context.strokeStyle = style.unavailable.stroke;

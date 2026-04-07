@@ -126,7 +126,7 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
     const stateSelect = stateRow.createEl('select') as HTMLSelectElement;
     stateSelect.style.cssText = 'width:100%;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);';
 
-    const states = ['unavailable', 'in-progress', 'complete'];
+    const states = ['unavailable', 'inProgress', 'complete'];
     for (const s of states) {
         const opt = stateSelect.createEl('option');
         opt.value = s;

@@ -120,7 +120,7 @@ export function getCheckboxAtWorld(worldPos: Coordinate): SkillNode | null {
     const nodes = GetNodes()
     for (const node of nodes.values()) {
         if (!node.userCompletable) continue
-        if (node.state !== 'in-progress' && node.state !== 'complete') continue
+        if (node.state !== 'inProgress' && node.state !== 'complete') continue
 
         const r = nodeRadii[node.id] || nodeRadius
         const minScreenSize = 14

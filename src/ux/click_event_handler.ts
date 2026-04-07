@@ -31,7 +31,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const checkboxHit = getCheckboxAtWorld(worldPos);
         if (checkboxHit && checkboxHit.userCompletable) {
-            if (checkboxHit.state === 'in-progress') {
+            if (checkboxHit.state === 'inProgress') {
                 checkboxHit.state = 'complete';
             }
             Render();

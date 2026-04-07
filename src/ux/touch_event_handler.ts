@@ -103,7 +103,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         // Check for checkbox hit
         const checkboxHit = getCheckboxAtWorld(worldPos);
         if (checkboxHit && checkboxHit.userCompletable) {
-            if (checkboxHit.state === 'in-progress') {
+            if (checkboxHit.state === 'inProgress') {
                 checkboxHit.state = 'complete';
             }
             Render();

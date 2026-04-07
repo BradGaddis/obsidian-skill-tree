@@ -19,19 +19,19 @@ export class TaskNode extends SkillNode {
     validate(): void {
         for (let task of this.tasks) {
             if (!task.completed) {
-                this.state == "in-progress"
+                this.state = "inProgress"
                 this.cascadeTo()
                 return
             }
         }
 
+        this.state = "complete"
+        this.cascadeTo()
 
         if (!this.tasks || this.tasks.length === 0) {
             this.demoteToPreviousType();
         }
 
-        this.state == "complete"
-        this.cascadeTo()
     }
 
     async demoteToPreviousType(): Promise<void> {
@@ -68,7 +68,5 @@ export class TaskNode extends SkillNode {
         return new TaskNode(data);
     }
 
-    async setStatsModalContents(view: SkillTreeView, modal: HTMLElement) {
-    }
 }
 

@@ -88,8 +88,8 @@ export function DrawSelectedNode(node: SkillNode) {
         // TODO: fill out with specific states | add settings so users can change
         switch (node.state) {
             case "complete":
-            case "in-progress":
-            case "on-hold":
+            case "inProgress":
+            case "onHold":
             default:
                 context.strokeStyle = 'rgba(255,165,0,0.95)';
                 break;

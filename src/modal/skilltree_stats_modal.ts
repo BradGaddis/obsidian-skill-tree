@@ -98,8 +98,8 @@ export function SkillModalDescription(node: SkillNode, modal: HTMLElement) {
 }
 
 export async function SkillModalTasks(node: SkillNode, modal: HTMLElement) {
-    if (!node.fileLink) return;
-    
+    if (!node.fileLink || !node.tasks || node.tasks.length === 0) return;
+
     if (!view.isTasksPluginInstalled()) return;
 
     const tasksHeader = modal.createEl('h4', { text: 'Tasks' });
