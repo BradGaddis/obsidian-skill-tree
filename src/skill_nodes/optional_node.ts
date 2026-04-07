@@ -1,10 +1,11 @@
 import { SKILL_TREE_OPTIONAL_NODE_STYLE_OVERRIDE, SKILL_TREE_STYLES } from "src/styles";
 import { SkillNode } from "./skill_node";
+import { NodeShape } from "./types";
 
 export class OptionalNode extends SkillNode {
     readonly nodeTypeName = 'OptionalNode';
 
-
+    shape: NodeShape = "square"
 
     get userCompletable(): boolean {
         return false

@@ -18,14 +18,16 @@ export class SkillNode implements ISkillNode {
     id: string | number;
     x: number;
     y: number;
+
     state: NodeState = "unavailable";
+
+    shape: NodeShape = "hexagon"
 
 
     heldState: NodeState | null = null;
     previousState: NodeState | null = null
     exp: number;
     fileLink?: string;
-    shape: NodeShape;
     colorOverride: typeof SKILL_TREE_STYLES.gamified.nodeColors = { ...SKILL_TREE_STYLES.gamified.nodeColors };
 
     to: SkillNode[] = [];
@@ -41,7 +43,7 @@ export class SkillNode implements ISkillNode {
         this.heldState = data.heldState ?? null;
         this.exp = data.exp ?? 0;
         this.fileLink = data.fileLink;
-        this.shape = data.shape ?? 'circle';
+        this.shape = data.shape ?? 'hexagon';
         this.colorOverride = data.colorOverride ?? { ...SKILL_TREE_STYLES.gamified.nodeColors };
     }
 
@@ -142,7 +144,7 @@ export class SkillNode implements ISkillNode {
     }
 
     validate(): void {
-
+        // TODO: implement error state
         if (SkillNode.validating.has(this.id)) return;
 
         this.validateHasTasks()

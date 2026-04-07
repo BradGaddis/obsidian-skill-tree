@@ -115,12 +115,12 @@ export function DrawNodeShape(
         case 'diamond':
             DrawDiamond(ctx, x, y, radius);
             break;
-        // case 'square':
-        //     drawSquare(ctx, x, y, radius);
-        //     break;
-        // case 'repeat':
-        //     drawRepeat(ctx, x, y, radius);
-        //     break;
+        case 'square':
+            drawSquare(ctx, x, y, radius);
+            break;
+        case 'repeat': //TODO: make this something more reasonable
+            drawRepeat(ctx, x, y, radius);
+            break;
         case 'circle':
         default:
             ctx.beginPath();
@@ -130,6 +130,12 @@ export function DrawNodeShape(
     }
 }
 
+export function drawRepeat(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.arc(x, y, radius * 0.55, 0, Math.PI * 2, true);
+    ctx.closePath();
+}
 
 
 export function DrawHexagon(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
@@ -177,12 +183,18 @@ export function DrawStar(ctx: CanvasRenderingContext2D, x: number, y: number, ra
     ctx.closePath();
 }
 
+export function drawSquare(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+    ctx.beginPath();
+    const half = radius;
+    ctx.rect(x - half, y - half, half * 2, half * 2);
+    ctx.closePath();
+}
 
 export function DrawCheckBox(n: SkillNode) {
     const context = view.context
     if (!context) return
     if (!n.userCompletable) return
-    if (n.state !== 'in-progress') return
+    if (n.state !== 'inProgress') return
 
     let r = nodeRadii[n.id] || nodeRadius
     const minScreenSize = 14;
@@ -221,18 +233,4 @@ export function DrawCheckBox(n: SkillNode) {
     context.lineTo(checkboxX, checkboxY + checkboxRadius);
     context.arcTo(checkboxX, checkboxY, checkboxX + checkboxRadius, checkboxY, checkboxRadius);
     context.stroke();
-
-    // if (n.state === 'complete') {
-    //     context.strokeStyle = '#2e7d32';
-    //     context.lineWidth = 2.5 / view.scale;
-    //     context.lineCap = 'round';
-    //     context.lineJoin = 'round';
-    //     context.beginPath();
-    //     context.moveTo(checkboxX + checkboxSize * 0.25, checkboxY + checkboxSize * 0.5);
-    //     context.lineTo(checkboxX + checkboxSize * 0.45, checkboxY + checkboxSize * 0.7);
-    //     context.lineTo(checkboxX + checkboxSize * 0.75, checkboxY + checkboxSize * 0.3);
-    //     context.stroke();
-    //     context.lineCap = 'butt';
-    //     context.lineJoin = 'miter';
-    // }
 }

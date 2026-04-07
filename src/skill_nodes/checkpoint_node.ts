@@ -1,7 +1,13 @@
 import { SkillNode } from "./skill_node";
+import { NodeShape } from "./types";
 
 export class CheckpointNode extends SkillNode {
     readonly nodeTypeName = 'CheckpointNode';
+    shape: NodeShape = "diamond"
+
+    get userCompletable(): boolean {
+        return false
+    }
 
     constructor(data: Partial<CheckpointNode> = {}) {
         super(data);

@@ -274,6 +274,7 @@ export function AddNode(x: number, y: number, fileLink?: string, nodeType?: stri
     const baseRadius = view.settings.nodeRadius || 40;
     const adjustedX = Math.round(x);
     const adjustedY = Math.round(y);
+
     const pos = findNearestEmptyPosition(adjustedX, adjustedY, baseRadius);
 
     const nodeData: any = {
@@ -288,6 +289,7 @@ export function AddNode(x: number, y: number, fileLink?: string, nodeType?: stri
     }
 
     const node = NodeFromJSON(nodeData);
+
     if (node) {
         nodes.set(node.id, node);
         if (node.fileLink) {
@@ -511,7 +513,6 @@ export function GetNodeAtWorld(x: number, y: number): SkillNode | null {
 }
 
 export function GetNodeByID(id: string | number | null): SkillNode | null {
-    if (!id) { console.log("Node Id should'nt have been null"); return null }
     const node = nodes.get(id);
     if (!node) return null;
     return node;

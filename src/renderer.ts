@@ -61,9 +61,12 @@ export function DrawNode(node: SkillNode, radius: number) {
     if (!context) return
 
     FillNodeState(node);
+
     context.beginPath();
+
     DrawNodeShape(context, node.x, node.y, radius, node.shape);
     DrawSelectedNode(node)
+
     context.fill();
     context.stroke();
 }
@@ -493,9 +496,9 @@ function FillNodeState(n: SkillNode) {
             context.fillStyle = style.onHold.fill;
             context.strokeStyle = style.onHold.stroke;
             break;
-        // case "invalid":
-        //     context.fillStyle = style.invalid.fill;
-        //     context.strokeStyle = style.invalid.stroke;
+        case "error":
+            context.fillStyle = style.invalid.fill;
+            context.strokeStyle = style.invalid.stroke;
         default:
             context.fillStyle = style.unavailable.fill;
             context.strokeStyle = style.unavailable.stroke;
@@ -508,10 +511,9 @@ function SetupLabelLines(n: SkillNode): string[] {
     const context = view.context
     if (!context) return []
 
-    const nodeType = (n as any).nodeTypeName || 'Node';
     const label = n.fileLink?.replace(/\.md$/, '') || '[Unlinked]';
 
-    let lines: string[] = [nodeType];
+    let lines: string[] = [];
     const words = (label || '').split(/\s+/).filter(Boolean);
 
     for (let i = 0; i < words.length; i += 4) {
