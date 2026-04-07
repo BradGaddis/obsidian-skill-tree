@@ -1,6 +1,7 @@
 import { nodeRadii, nodeRadius } from "src/renderer";
 import { SkillNode } from "src/skill_nodes/skill_node";
 import { GetNodes } from "../tree_manager";
+import { LOOP_UPPER_LIMIT } from "../constants";
 
 let view: any;
 
@@ -25,11 +26,11 @@ export function isPositionOccupied(x: number, y: number, radius: number, exclude
 
 export function findNearestEmptyPosition(x: number, y: number, radius: number): { x: number, y: number } {
     const maxIterations = 50;
-    
+
     if (!isPositionOccupied(x, y, radius)) {
         return { x: Math.round(x), y: Math.round(y) };
     }
-    
+
     for (let i = 1; i <= maxIterations; i++) {
         const angleStep = (Math.PI * 2) / (i * 4);
         for (let j = 0; j < i * 4; j++) {
@@ -42,7 +43,7 @@ export function findNearestEmptyPosition(x: number, y: number, radius: number): 
             }
         }
     }
-    
+
     return { x: Math.round(x + 200), y: Math.round(y + 200) };
 }
 
@@ -96,21 +97,63 @@ export function pushOtherNodesFromNode(draggingNode: SkillNode): void {
     const nodes = GetNodes();
     const draggingRadius = nodeRadii[draggingNode.id] || (view?.settings?.nodeRadius ?? 40);
 
-    for (const node of nodes.values()) {
-        if (node.id === draggingNode.id) continue;
+    for (let iteration = 0; iteration < LOOP_UPPER_LIMIT; iteration++) {
+        let anyMoved = false;
 
-        const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
-        const dx = node.x - draggingNode.x;
-        const dy = node.y - draggingNode.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const minDist = draggingRadius + otherRadius + minMargin;
+        for (const node of nodes.values()) {
+            if (node.id === draggingNode.id) continue;
 
-        if (dist < minDist && dist > 0) {
-            const pushX = draggingNode.x + (dx / dist) * minDist;
-            const pushY = draggingNode.y + (dy / dist) * minDist;
-            node.x = Math.round(pushX);
-            node.y = Math.round(pushY);
+            const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+            const dx = node.x - draggingNode.x;
+            const dy = node.y - draggingNode.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const minDist = draggingRadius + otherRadius + minMargin;
+
+            if (dist < minDist && dist > 0) {
+                const pushX = draggingNode.x + (dx / dist) * minDist;
+                const pushY = draggingNode.y + (dy / dist) * minDist;
+                const newX = Math.round(pushX);
+                const newY = Math.round(pushY);
+
+                if (node.x !== newX || node.y !== newY) {
+                    node.x = newX;
+                    node.y = newY;
+                    anyMoved = true;
+                }
+            }
         }
+
+        for (const node of nodes.values()) {
+            if (node.id === draggingNode.id) continue;
+
+            const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+            const otherNodes = GetNodes();
+
+            for (const otherNode of otherNodes.values()) {
+                if (otherNode.id === node.id || otherNode.id === draggingNode.id) continue;
+
+                const otherNodeRadius = nodeRadii[otherNode.id] || (view?.settings?.nodeRadius ?? 40);
+                const dx = node.x - otherNode.x;
+                const dy = node.y - otherNode.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const minDist = otherRadius + otherNodeRadius + minMargin;
+
+                if (dist < minDist && dist > 0) {
+                    const pushX = otherNode.x + (dx / dist) * minDist;
+                    const pushY = otherNode.y + (dy / dist) * minDist;
+                    const newX = Math.round(pushX);
+                    const newY = Math.round(pushY);
+
+                    if (node.x !== newX || node.y !== newY) {
+                        node.x = newX;
+                        node.y = newY;
+                        anyMoved = true;
+                    }
+                }
+            }
+        }
+
+        if (!anyMoved) break;
     }
 }
 
