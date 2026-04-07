@@ -67,7 +67,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     const onTouchStart = (e: TouchEvent): void => {
         // Handle pinch zoom
         if (e.touches.length === 2) {
-            e.preventDefault();
+            // e.preventDefault();
             _isPinning = true;
             _initialPinchDistance = getTouchDistance(e.touches);
             _initialPinchScale = view.scale;
@@ -77,7 +77,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         if (e.touches.length !== 1) return;
 
-        e.preventDefault();
+        // e.preventDefault();
 
         const touch = e.touches[0];
         const isOnCanvas = touch.target === canvas || canvas.contains(touch.target as Node);
@@ -170,6 +170,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         // Handle pinch zoom
         if (_isPinning && e.touches.length === 2) {
             e.preventDefault();
+            console.log("test")
             const currentDistance = getTouchDistance(e.touches);
             const scale = currentDistance / _initialPinchDistance;
             let newScale = _initialPinchScale * scale;
@@ -182,7 +183,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
         if (e.touches.length !== 1) return;
         if (!_touchDownPos) return;
 
-        e.preventDefault();
+        // e.preventDefault();
 
         const touch = e.touches[0];
         const worldPos = screenToWorldCoordinate(touch.clientX, touch.clientY);
@@ -325,8 +326,8 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     // Prevent synthetic click events
     const onClick = (e: MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
+        // e.preventDefault();
+        // e.stopPropagation();
     };
     canvas.addEventListener('click', onClick, { capture: true });
 
@@ -341,10 +342,10 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
     };
     document.addEventListener('touchstart', onDocumentTouchStart, { passive: true });
 
-    const zoomCleanup = InitZoomHandler(view, {
-        minScale: 0.3,
-        maxScale: 3
-    }).cleanup;
+    // const zoomCleanup = InitZoomHandler(view, {
+    //     minScale: 0.3,
+    //     maxScale: 3
+    // }).cleanup;
 
     const getTouchDistance = (touches: TouchList): number => {
         const dx = touches[0].clientX - touches[1].clientX;
@@ -354,7 +355,7 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
     return {
         cleanup: () => {
-            zoomCleanup();
+            // zoomCleanup();
             clearLongPressTimer();
             document.removeEventListener('touchstart', onDocumentTouchStart);
             canvas.removeEventListener('click', onClick, { capture: true });

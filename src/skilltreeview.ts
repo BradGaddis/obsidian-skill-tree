@@ -64,13 +64,13 @@ export class SkillTreeView extends ItemView {
         InitJSONEditor(this)
         InitRenderer(this)
 
-        if (Platform.isDesktop) {
-            this.uxCleanup = InitClickHandler(this).cleanup
-        }
+        // if (Platform.isDesktop) {
+        //     this.uxCleanup = InitClickHandler(this).cleanup
+        // }
 
-        if (Platform.isMobile || Platform.isMobileApp) {
-            this.uxCleanup = InitTouchHandler(this).cleanup
-        }
+        // if (Platform.isMobile || Platform.isMobileApp) {
+        this.uxCleanup = InitTouchHandler(this).cleanup
+        // }
 
         await this.loadSettings();
         Recenter()

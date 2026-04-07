@@ -55,6 +55,7 @@ export function InitToolBar(skillTreeView: SkillTreeView) {
     toolbar = view.containerEl.createEl('div', TOOLBAR_DOM_EL_INFO);
     toolbar.style.display = 'flex'
     toolbar.style.marginTop = isMobile ? '60px' : '0px';
+    toolbar.style.touchAction = 'none';
     SetupCollapseButtonWrapper()
     SetupFloatingExpandBtn()
     SetupCollapseButton()
