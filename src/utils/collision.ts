@@ -90,3 +90,38 @@ export function pushNodeFromCollision(targetX: number, targetY: number, dragging
 
     return { x: Math.round(currentX), y: Math.round(currentY) };
 }
+
+export function pushOtherNodesFromNode(draggingNode: SkillNode): void {
+    const minMargin = 20;
+    const nodes = GetNodes();
+    const draggingRadius = nodeRadii[draggingNode.id] || (view?.settings?.nodeRadius ?? 40);
+
+    for (const node of nodes.values()) {
+        if (node.id === draggingNode.id) continue;
+
+        const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+        const dx = node.x - draggingNode.x;
+        const dy = node.y - draggingNode.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const minDist = draggingRadius + otherRadius + minMargin;
+
+        if (dist < minDist && dist > 0) {
+            const pushX = draggingNode.x + (dx / dist) * minDist;
+            const pushY = draggingNode.y + (dy / dist) * minDist;
+            node.x = Math.round(pushX);
+            node.y = Math.round(pushY);
+        }
+    }
+}
+
+export function resolveOverlappingNodes(): void {
+    const nodes = GetNodes();
+    for (const node of nodes.values()) {
+        const r = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+        if (isPositionOccupied(node.x, node.y, r, node.id)) {
+            const newPos = findNearestEmptyPosition(node.x, node.y, r);
+            node.x = newPos.x;
+            node.y = newPos.y;
+        }
+    }
+}

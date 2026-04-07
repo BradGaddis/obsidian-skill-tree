@@ -5,10 +5,11 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge, getFloatingEdge } from "./ux/event_utils";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge, getFloatingEdge, hitNode, isDragging } from "./ux/event_utils";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
 import { Coordinate } from "./types";
 import { GetNodeLabelInfo } from "./utils/node_label";
+import { isPositionOccupied, findNearestEmptyPosition, pushOtherNodesFromNode, resolveOverlappingNodes } from "./utils/collision";
 
 
 let view: SkillTreeView
@@ -254,6 +255,13 @@ function UpdateInRAFID() {
         }
 
     }
+
+    if (hitNode && isDragging) {
+        pushOtherNodesFromNode(hitNode);
+    } else {
+        resolveOverlappingNodes();
+    }
+
     RenderEdgeLines()
     RenderNodes(nodes)
     RenderTemporaryEdgeLine()

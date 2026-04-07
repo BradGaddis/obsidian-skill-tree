@@ -373,13 +373,10 @@ export function startNodeDrag(node: SkillNode): void {
 export function updateNodeDrag(worldPos: Coordinate): void {
     if (!hitNode || !isDragging) return;
 
-    const newPos = pushNodeFromCollision(worldPos.x, worldPos.y, hitNode);
-    hitNode.x = newPos.x;
-    hitNode.y = newPos.y;
+    hitNode.x = worldPos.x;
+    hitNode.y = worldPos.y;
     Render();
 }
-
-import { pushNodeFromCollision } from "../utils/collision";
 
 export function endNodeDrag(): void {
     const node = hitNode;
