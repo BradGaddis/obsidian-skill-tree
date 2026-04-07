@@ -23,6 +23,7 @@ import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddRepeatingNodeDialog } f
 import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
 import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
+import { skillTreeEvents, EVENTS } from "./utils/events";
 import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree_pane";
 
 // TODO: bulletproof these later
@@ -375,6 +376,10 @@ function SetupTreeSelectorDiv() {
     treeSelect = treeSelectorDiv.createEl('select', { cls: 'skill-tree-toolbar-select' }) as HTMLSelectElement;
     treeSelect.style.padding = '4px';
     UpdateTreeSelector(treeSelect);
+    
+    skillTreeEvents.on(EVENTS.TREE_ADDED, () => UpdateTreeSelector(treeSelect));
+    skillTreeEvents.on(EVENTS.TREE_DELETED, () => UpdateTreeSelector(treeSelect));
+    
     treeSelect.onchange = async () => {
         if (treeSelect.value === '__NEW_TREE__') {
             const newName = await ShowNewTreeDialog();

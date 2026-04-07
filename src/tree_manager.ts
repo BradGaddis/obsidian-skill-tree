@@ -14,6 +14,8 @@ import { TFile } from "obsidian";
 import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/file_watcher";
 import { InitCollisionDetector, findNearestEmptyPosition } from "./utils/collision";
 
+export { SetupFileWatchers, CleanupFileWatchers } from "./ux/file_watcher";
+
 
 // TODO: deal with the lazy evaluation issue
 
@@ -428,7 +430,7 @@ export async function SwitchTree(treeName: string) {
     Render();
 }
 
-async function LoadTree() {
+export async function LoadTree() {
     currentTree = view.settings.trees[view.settings.currentTreeName];
 
     if (!currentTree) {
@@ -490,15 +492,15 @@ export async function LinkNodesFromNotes(): Promise<void> {
 
         const nodeId = fm['skilltree-node'];
         const noteTree = fm['skilltree-tree'];
-        
+
         if (!nodeId || !noteTree) continue;
         if (noteTree !== treeName) continue;
 
         const existingNode = nodes.get(nodeId);
         if (existingNode) continue;
-        
+
         const nodePath = file.path.replace(/\.md$/, '');
-        
+
         let x = 0;
         let y = 0;
         if (fm) {
@@ -507,7 +509,7 @@ export async function LinkNodesFromNotes(): Promise<void> {
             if (typeof xVal === 'number') x = xVal;
             if (typeof yVal === 'number') y = yVal;
         }
-        
+
         const newNode = AddNode(
             x,
             y,
@@ -528,6 +530,7 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
     nodes.clear();
     edges = [...edgesData];
     for (const data of nodesData) {
+        console.log(data)
         const node: SkillNode = NodeFromJSON(data);
         if (!node) {
             return

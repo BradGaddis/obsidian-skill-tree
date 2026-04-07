@@ -3,6 +3,7 @@ import { SkillTreeData, CustomTheme } from './interfaces';
 import { VIEW_TYPE_SKILLTREE } from './constants';
 import { SkillTreeView } from './skilltreeview';
 import { Mode } from './types'
+import { skillTreeEvents, EVENTS } from './utils/events';
 
 export function defaultSettings(): SkillTreeSettings {
   return {
@@ -174,11 +175,18 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   updateViews() {
-    this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(leaf => {
-      // const view = leaf.view as SkillTreeView;
-      // if (view && view.render) {
-      //   view.render();
-      // }
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+      const view = leaf.view as any;
+      if (view && view.loadSettings) {
+        await view.loadSettings();
+        const { LoadTree, LoadAllNodeTasks, SetupFileWatchers, CleanupFileWatchers } = await import("src/tree_manager");
+        CleanupFileWatchers();
+        await LoadTree();
+        await LoadAllNodeTasks();
+        SetupFileWatchers();
+        const { Render } = await import("src/renderer");
+        Render();
+      }
     });
   }
 
@@ -210,19 +218,31 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   async importTree(data: any): Promise<void> {
-    // const view = this.getActiveView();
-    // if (view && view.importTree) {
-    //   await view.importTree(data);
-    //   this.updateViews();
-    // }
+    if (!data || !data.name || !Array.isArray(data.nodes)) {
+      throw new Error('Invalid JSON: missing required fields');
+    }
+    
+    let treeName = data.name;
+    let counter = 1;
+    while (this.settings.trees[treeName]) {
+      treeName = `${data.name}-${counter}`;
+      counter++;
+    }
+    
+    data.name = treeName;
+    this.settings.trees[treeName] = data;
+    this.settings.currentTreeName = treeName;
+    await this.saveData(this.settings);
+    this.updateViews();
+    skillTreeEvents.emit(EVENTS.TREE_ADDED, treeName);
   }
 
   exportTree(): any {
-    // const view = this.getActiveView();
-    // if (view && view.exportTree) {
-    //   return view.exportTree();
-    // }
-    // return { nodes: [], edges: [] };
+    const currentTree = this.settings.trees[this.settings.currentTreeName];
+    if (currentTree) {
+      return JSON.parse(JSON.stringify(currentTree));
+    }
+    return { name: this.settings.currentTreeName, nodes: [], edges: [] };
   }
 
   async openNewTreeModal(): Promise<void> {
@@ -293,10 +313,24 @@ class FolderSuggestionModal extends FuzzySuggestModal<string> {
 
 class SkillTreeSettingTab extends PluginSettingTab {
   plugin: SkillTreePlugin;
+  treeDropdown: any = null;
 
   constructor(app: App, plugin: SkillTreePlugin) {
     super(app, plugin);
     this.plugin = plugin;
+    skillTreeEvents.on(EVENTS.TREE_ADDED, () => this.refreshTreeDropdown());
+    skillTreeEvents.on(EVENTS.TREE_DELETED, () => this.refreshTreeDropdown());
+  }
+
+  refreshTreeDropdown() {
+    if (this.treeDropdown) {
+      const trees = this.plugin.getTreeNames();
+      this.treeDropdown.options = {};
+      trees.forEach((treeName: string) => {
+        this.treeDropdown.addOption(treeName, treeName);
+      });
+      this.treeDropdown.setValue(this.plugin.getCurrentTreeName());
+    }
   }
 
   display(): void {
@@ -556,6 +590,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
       .setName('Current Tree')
       .setDesc('Switch between multiple skill trees')
       .addDropdown(dropdown => {
+        this.treeDropdown = dropdown;
         const trees = this.plugin.getTreeNames();
         trees.forEach(treeName => {
           dropdown.addOption(treeName, treeName);

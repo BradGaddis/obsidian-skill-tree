@@ -45,9 +45,9 @@ export function setEdgeDragSourcePos(pos: Coordinate | null): void {
     edgeDragSourcePos = pos;
 }
 
-export function setFloatingEdge(edge: SkillEdge | null): void {
-    floatingEdge = edge
-}
+// export function setFloatingEdge(edge: SkillEdge | null): void {
+//     floatingEdge = edge
+// }
 
 export function getFloatingEdge(): SkillEdge | null {
     return floatingEdge
@@ -248,7 +248,7 @@ export function HandleFloatingEdge(worldPos: Coordinate): void {
     }
 
     RemoveEdge(fEdge.id)
-    
+
     const fDir = getFloatingEdgeDirection()
     if (fDir === Direction.to && targetNode.id === prevEdge.to) {
         CreateEdge(prevEdge)
@@ -263,7 +263,7 @@ export function HandleFloatingEdge(worldPos: Coordinate): void {
     const otherNodeId = fDir === Direction.to ? prevEdge.from : prevEdge.to
     const otherNode = nodes.get(otherNodeId as string | number)
     if (!otherNode) return
-    
+
     const nearest = findNearestHandle(targetNode, otherNode.x, otherNode.y)
     if (!nearest) return
 

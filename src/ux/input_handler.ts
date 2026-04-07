@@ -39,6 +39,10 @@ export function setIsDragging(dragging: boolean): void {
     isDragging = dragging;
 }
 
+export function getIsDraggingEdge(): boolean {
+    return isDraggingEdgeEndpoint
+}
+
 export function setEdgeDragFrom(handle: Handle): void {
     edgeDragFrom = handle;
 }

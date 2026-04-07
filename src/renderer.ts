@@ -5,7 +5,7 @@ import { SKILLTREE_CANVAS_WRAP } from "./constants";
 import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
-import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos } from "./ux/input_handler";
+import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge } from "./ux/input_handler";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
 import { Coordinate } from "./types";
 import { getFloatingEdge } from "./ux/event_utils";
@@ -240,21 +240,22 @@ function UpdateInRAFID() {
     );
 
 
-    // if (getFloatingEdge()) {
-    for (let node of nodes) {
-        UpdateConnectedEdgesToNearestHandles(node)
-    }
-
-    for (let node of nodes) {
-        node.updateRelationShips()
-    }
-    for (const node of nodes) {
-        if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
-            node.validate()
+    if (!getFloatingEdge()) {
+        console.log("there is a floating edge")
+        for (let node of nodes) {
+            UpdateConnectedEdgesToNearestHandles(node)
         }
-    }
 
-    // }
+        for (let node of nodes) {
+            node.updateRelationShips()
+        }
+        for (const node of nodes) {
+            if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
+                node.validate()
+            }
+        }
+
+    }
     RenderEdgeLines()
     RenderNodes(nodes)
     RenderTemporaryEdgeLine()
