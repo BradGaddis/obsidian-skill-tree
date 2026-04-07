@@ -4,6 +4,7 @@ import { NodeShape } from "./types";
 export class CheckpointNode extends SkillNode {
     readonly nodeTypeName = 'CheckpointNode';
     shape: NodeShape = "diamond"
+    displayText?: string | undefined = "Check Point";
 
     get userCompletable(): boolean {
         return false

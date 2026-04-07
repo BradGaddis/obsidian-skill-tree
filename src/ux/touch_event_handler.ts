@@ -92,31 +92,27 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
             return;
         }
 
-        // Check for edge endpoint (floating edge dragging)
-        const edgeEndpointHit = findEdgeEndpointAt(worldPos);
-        if (edgeEndpointHit) {
-            _longPressTimer = window.setTimeout(() => {
-                if (edgeEndpointHit) {
-                    _wasLongPress = true;
-                    startEdgeDrag(edgeEndpointHit);
-                    Render();
-                }
-                _longPressTimer = null;
-            }, LONG_PRESS_TIME);
-            return;
+        // Check for node (node dragging) - check first so nodes take priority over edges
+        const hit = findNodeAt(worldPos.x, worldPos.y);
+
+        // Check for edge endpoint (floating edge dragging) - only if no node hit
+        if (!hit) {
+            const edgeEndpointHit = findEdgeEndpointAt(worldPos);
+            if (edgeEndpointHit) {
+                _longPressTimer = window.setTimeout(() => {
+                    if (edgeEndpointHit) {
+                        _wasLongPress = true;
+                        startEdgeDrag(edgeEndpointHit);
+                        Render();
+                    }
+                    _longPressTimer = null;
+                }, LONG_PRESS_TIME);
+                return;
+            }
         }
 
         // Check for node handle (new edge creation)
         const handle = findHandleAt(worldPos);
-        if (handle) {
-            setEdgeDragFrom(handle);
-            setEdgeDragTarget(worldPos);
-            Render();
-            return;
-        }
-
-        // Check for node (node dragging)
-        const hit = findNodeAt(worldPos.x, worldPos.y);
         if (!hit) {
             // No node hit - don't return, allow panning to happen on move
         } else {

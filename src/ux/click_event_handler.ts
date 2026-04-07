@@ -52,7 +52,7 @@ export function InitClickHandler(skillTreeView: SkillTreeView): { cleanup: () =>
 
         const edgeHandle = findEdgeEndpointAt(worldPos);
 
-        if (edgeHandle) {
+        if (edgeHandle && !hitNode) {
             startEdgeDrag(edgeHandle);
             return;
         }

@@ -19,16 +19,16 @@ function handleRelinkClick(
         if (!path) return;
 
         RecordSnapshot();
-        
+
         const oldFileLink = node.fileLink;
         node.fileLink = path;
         OnNodeFileChanged(node);
-        
+
         if (oldFileLink) {
             const oldPath = oldFileLink.endsWith('.md') ? oldFileLink : oldFileLink + '.md';
             view._lastKnownNodeIds.delete(oldPath);
         }
-        
+
         const normalizedPath = path.endsWith('.md') ? path : path + '.md';
         view._lastKnownNodeIds.set(normalizedPath, node.id);
 
@@ -123,25 +123,31 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
     stateLabel.textContent = 'State';
     stateLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:500;';
 
-    const stateSelect = stateRow.createEl('select') as HTMLSelectElement;
-    stateSelect.style.cssText = 'width:100%;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);';
+    if (node.state === 'unavailable') {
+        const stateDisplay = stateRow.createEl('div');
+        stateDisplay.textContent = 'Unavailable';
+        stateDisplay.style.cssText = 'padding:8px;background:var(--background-secondary);border-radius:4px;color:var(--text-muted);font-size:14px;';
+    } else {
+        const stateSelect = stateRow.createEl('select') as HTMLSelectElement;
+        stateSelect.style.cssText = 'width:100%;height:auto;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);box-sizing:border-box;';
 
-    const states = ['unavailable', 'inProgress', 'complete'];
-    for (const s of states) {
-        const opt = stateSelect.createEl('option');
-        opt.value = s;
-        opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-        if (s === node.state) opt.selected = true;
+        const states = ['In Progress', 'Complete'];
+        for (const s of states) {
+            const opt = stateSelect.createEl('option');
+            opt.value = s.toLowerCase().replace(/\s+(.)/g, (_, c) => c.toUpperCase());
+            opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+            if (s === node.state) opt.selected = true;
+        }
+
+        stateSelect.onchange = () => {
+            node.state = stateSelect.value as any;
+            node.userModified = true;
+            node.fromNote = false;
+            import("src/recorder").then(m => m.SaveNodes());
+            import("src/renderer").then(m => m.Render());
+            import("src/dialog/json_editor").then(m => m.RefreshJsonEditor());
+        };
     }
-
-    stateSelect.onchange = () => {
-        node.state = stateSelect.value as any;
-        node.userModified = true;
-        node.fromNote = false;
-        import("src/recorder").then(m => m.SaveNodes());
-        import("src/renderer").then(m => m.Render());
-        import("src/dialog/json_editor").then(m => m.RefreshJsonEditor());
-    };
 }
 
 function createEditModalDisplayTextRow(content: HTMLElement, node: SkillNode): void {
@@ -289,7 +295,7 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
             const fm = view.app.metadataCache.getFileCache(file as any)?.frontmatter;
             const validated = validateFrontmatter(fm);
             const hasExistingNodeId = validated.skilltreeNode !== null;
-            
+
             const currentPathWithExt = normalizedPath;
             const existingNodeId = view._lastKnownNodeIds.get(currentPathWithExt);
             const isLinkedToThisNode = node.fileLink && node.fileLink.replace('.md', '') === path.replace('.md', '');
@@ -381,16 +387,16 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
     closeBtn.onclick = () => closeSkillModal(view, modal);
 
     const content = modal.createEl('div');
-    content.style.cssText = 'padding:12px 16px;overflow-y:auto;';
+    content.style.cssText = 'padding:12px 16px;overflow-y:auto;box-sizing:border-box;width:100%;';
 
     createEditModalStateRow(content, node);
     createEditModalDisplayTextRow(content, node);
     createEditModalFileRow(view, content, node);
 
     const footerButtons: ModalButton[] = [
-        { 
-            text: 'Delete Node', 
-            variant: 'danger', 
+        {
+            text: 'Delete Node',
+            variant: 'danger',
             onClick: () => {
                 RecordSnapshot();
                 RemoveNode(node.id);
@@ -399,8 +405,8 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
                 closeSkillModal(view, modal);
             }
         },
-        { 
-            text: 'Cancel', 
+        {
+            text: 'Cancel',
             variant: 'secondary',
             onClick: () => closeSkillModal(view, modal)
         }
