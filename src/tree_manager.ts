@@ -79,7 +79,7 @@ export function RemoveNode(nodeId: string | number): void {
     }
 
     nodes.delete(nodeId);
-    // edges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
+    edges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
 }
 
 export function CreateEdge(edge: SkillEdge) {
