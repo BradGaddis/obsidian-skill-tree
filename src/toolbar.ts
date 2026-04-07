@@ -223,10 +223,7 @@ function SetupAddSubTreeButton() {
             const rect = canvas.getBoundingClientRect();
             worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
         }
-        AddNode(worldPos.x, worldPos.y, undefined, 'TreeLinkNode', {
-            treeLink: view.settings.currentTreeName,
-            canSkipOrphanUnavailable: true,
-        });
+        AddNode(worldPos.x, worldPos.y, undefined, 'TreeLinkNode');
         await SaveNodes();
         Render();
         RefreshJsonEditor();
@@ -312,7 +309,7 @@ function AddEditModeButton(txt: string, title: string): void {
 function SetupEditAsJSONButton() {
     AddEditModeButton('Edit as JSON', 'Edit nodes as JSON')
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        OpenJsonEditor();
+        // TODO: Implement JSON editor modal - createJsonEditorModal needs to be wired up
     };
 }
 
@@ -411,66 +408,8 @@ function SetUpGoToLinkedButton() {
     goToLinkedBtn.title = 'Jump to a tree that links to view one';
 
     goToLinkedBtn.onclick = () => {
-        //   const linkingTrees = GetTreesLinkingToCurrent();
-        //
-        //   if (linkingTrees.length === 0) {
-        //       new Notice('No trees link to view tree');
-        //       return;
-        //   }
-        //
-        //   if (linkingTrees.length === 1) {
-        //       SwitchTree(linkingTrees[0]);
-        //       return;
-        //   }
-        //
-        //   const container = view.canvasWrap || view.containerEl;
-        //   if (!container) return;
-        //
-        //   view.closeAllModals();
-        //
-        //   const dropdown = container.createEl('div');
-        //   dropdown.className = 'skill-tree-dropdown';
-        //   dropdown.style.cssText = `
-        //   position: fixed;
-        //   z-index: 10000;
-        //   background: var(--background-primary);
-        //   border: 1px solid var(--background-modifier-border);
-        //   border-radius: 6px;
-        //   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        //   padding: 8px 0;
-        //   min-width: 180px;
-        // `;
-        //
-        //   const rect = view._goToLinkedBtn!.getBoundingClientRect();
-        //   dropdown.style.left = `${rect.left}px`;
-        //   dropdown.style.top = `${rect.bottom + 4}px`;
-        //
-        //   linkingTrees.forEach(treeName => {
-        //       const item = dropdown.createEl('div');
-        //       item.style.cssText = 'padding: 8px 16px; cursor: pointer; font-size: 14px;';
-        //       item.textContent = treeName;
-        //       item.onmouseenter = () => {
-        //           item.style.background = 'var(--background-modifier-hover)';
-        //       };
-        //       item.onmouseleave = () => {
-        //           item.style.background = '';
-        //       };
-        //       item.onclick = async () => {
-        //           dropdown.remove();
-        //           view.removeOutsideClickHandler();
-        //           await view.plugin.switchTree(treeName);
-        //           view.plugin.activateView();
-        //       };
-        //   });
-        //
-        //   const outsideHandler = (e: MouseEvent) => {
-        //       if (!dropdown.contains(e.target as Node) && e.target !== view._goToLinkedBtn) {
-        //           dropdown.remove();
-        //           document.removeEventListener('click', outsideHandler);
-        //           view.removeOutsideClickHandler();
-        //       }
-        //   };
-        //   setTimeout(() => document.addEventListener('click', outsideHandler), 10);
+        // Functionality to be implemented
+        // const linkingTrees = GetTreesLinkingToCurrent();
     };
 
     updateGoToLinkedBtnVisibility()

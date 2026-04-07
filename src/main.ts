@@ -4,6 +4,7 @@ import { VIEW_TYPE_SKILLTREE } from './constants';
 import { SkillTreeView } from './skilltreeview';
 import { Mode } from './types'
 import { skillTreeEvents, EVENTS } from './utils/events';
+import * as S from './styles';
 
 export function defaultSettings(): SkillTreeSettings {
   return {
@@ -630,13 +631,13 @@ class SkillTreeSettingTab extends PluginSettingTab {
 
     // New Tree input row
     const newTreeRow = containerEl.createDiv();
-    newTreeRow.style.cssText = 'display:flex;gap:8px;align-items:center;margin:8px 0;';
+    newTreeRow.style.cssText = S.TREE_ROW;
 
     const newTreeInput = newTreeRow.createEl('input', { attr: { placeholder: 'New tree name...' } });
-    newTreeInput.style.cssText = 'flex:1;padding:6px 8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);color:var(--text-normal);';
+    newTreeInput.style.cssText = S.TREE_INPUT;
 
     const createTreeBtn = newTreeRow.createEl('button', { text: 'Create' });
-    createTreeBtn.style.cssText = 'padding:6px 12px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+    createTreeBtn.style.cssText = S.BTN_PRIMARY_SMALL;
 
     const createNewTree = async () => {
       const name = newTreeInput.value.trim();
@@ -754,20 +755,20 @@ class ManageThemesModal extends Modal {
 
       Object.values(themes).forEach(theme => {
         const themeRow = listContainer.createDiv();
-        themeRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid var(--background-modifier-border);';
+        themeRow.style.cssText = S.THEME_ROW;
 
         const themeName = themeRow.createSpan({ text: theme.name });
-        themeName.style.cssText = 'flex:1;';
+        themeName.style.cssText = S.THEME_NAME;
 
         const btnGroup = themeRow.createDiv();
-        btnGroup.style.cssText = 'display:flex;gap:8px;';
+        btnGroup.style.cssText = S.SETTING_BTN_GROUP;
 
         const editBtn = btnGroup.createEl('button', { text: 'Edit' });
-        editBtn.style.cssText = 'padding:4px 12px;';
+        editBtn.style.cssText = S.BTN_ICON;
         editBtn.onclick = () => this.openThemeEditor(theme.id);
 
         const deleteBtn = btnGroup.createEl('button', { text: 'Delete' });
-        deleteBtn.style.cssText = 'padding:4px 12px;';
+        deleteBtn.style.cssText = S.BTN_ICON;
         deleteBtn.onclick = async () => {
           if (confirm(`Delete theme "${theme.name}"?`)) {
             delete this.plugin.settings.themes[theme.id];
@@ -784,17 +785,17 @@ class ManageThemesModal extends Modal {
 
       if (Object.keys(themes).length === 0) {
         const emptyMsg = listContainer.createDiv();
-        emptyMsg.style.cssText = 'text-align:center;color:var(--text-muted);padding:20px;';
+        emptyMsg.style.cssText = S.EMPTY_MESSAGE;
         emptyMsg.textContent = 'No custom themes yet. Create one to get started.';
       }
     };
 
     const newThemeBtn = contentEl.createEl('button', { text: '+ New Theme' });
-    newThemeBtn.style.cssText = 'padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+    newThemeBtn.style.cssText = S.BTN_PRIMARY;
     newThemeBtn.onclick = () => this.openThemeEditor();
 
     const closeBtn = contentEl.createEl('button', { text: 'Close' });
-    closeBtn.style.cssText = 'position:absolute;top:16px;right:16px;padding:4px 12px;';
+    closeBtn.style.cssText = S.CLOSE_BTN_ABSOLUTE;
     closeBtn.onclick = () => this.close();
 
     this.renderThemeList = renderThemeList;
@@ -826,27 +827,27 @@ class ManageThemesModal extends Modal {
       });
 
     const cssSetting = contentEl.createDiv();
-    cssSetting.style.cssText = 'margin:16px 0;';
+    cssSetting.style.cssText = S.SETTING_MARGIN;
 
     const cssLabel = cssSetting.createEl('label', { text: 'Custom CSS' });
-    cssLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:600;';
+    cssLabel.style.cssText = S.SETTING_LABEL;
 
     const cssHint = cssSetting.createEl('p', { text: 'CSS is scoped to .skill-tree-canvas. Example: .skill-tree-canvas { background: #1a1a1a; }' });
-    cssHint.style.cssText = 'font-size:12px;color:var(--text-muted);margin:0 0 8px 0;';
+    cssHint.style.cssText = S.SETTING_HINT;
 
     const cssTextarea = cssSetting.createEl('textarea');
-    cssTextarea.style.cssText = 'width:100%;min-height:300px;font-family:monospace;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);color:var(--text-normal);';
+    cssTextarea.style.cssText = S.FORM_TEXTAREA;
     if (theme) cssTextarea.value = theme.css;
 
     const actions = contentEl.createDiv();
-    actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:16px;';
+    actions.style.cssText = S.BTN_ROW_LARGE;
 
     const cancelBtn = actions.createEl('button', { text: 'Cancel' });
-    cancelBtn.style.cssText = 'padding:8px 16px;';
+    cancelBtn.style.cssText = S.BTN_SECONDARY;
     cancelBtn.onclick = () => this.onOpen();
 
     const saveBtn = actions.createEl('button', { text: 'Save' });
-    saveBtn.style.cssText = 'padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+    saveBtn.style.cssText = S.BTN_PRIMARY;
     saveBtn.onclick = async () => {
       const name = (nameSetting.descEl as HTMLElement).querySelector('input')?.value.trim() || 'Untitled Theme';
       const css = cssTextarea.value;

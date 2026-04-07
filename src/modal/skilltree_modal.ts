@@ -2,6 +2,7 @@ import { ModalStyleOptions } from "src/types";
 import { DEFAULT_MODAL_STYLES } from "src/constants";
 import { SkillTreeView } from "src/skilltreeview";
 import { ensureModalInViewport } from "src/utils";
+import * as S from "../styles";
 
 let view: SkillTreeView
 
@@ -203,17 +204,17 @@ export function createModalFooter(modal: HTMLElement, buttons: ModalButton[]): H
     modal.style.flexDirection = 'column';
     
     const footer = modal.createEl('div');
-    footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--background-modifier-border);background:var(--background-secondary);flex-shrink:0;margin-top:auto;';
+    footer.style.cssText = S.MODAL_FOOTER;
     
     for (const btn of buttons) {
         const button = footer.createEl('button', { text: btn.text }) as HTMLButtonElement;
         
         if (btn.variant === 'danger') {
-            button.style.cssText = 'padding:8px 16px;background:none;border:1px solid var(--text-error);color:var(--text-error);border-radius:4px;cursor:pointer;';
+            button.style.cssText = S.BTN_DANGER;
         } else if (btn.variant === 'primary') {
-            button.style.cssText = 'padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+            button.style.cssText = S.BTN_PRIMARY;
         } else {
-            button.style.cssText = 'padding:8px 16px;background:var(--background-secondary);color:var(--text-normal);border:1px solid var(--background-modifier-border);border-radius:4px;cursor:pointer;';
+            button.style.cssText = S.BTN_SECONDARY;
         }
         
         if (btn.disabled) button.disabled = true;

@@ -3,10 +3,11 @@ import { fuzzyMatch, getVaultFiles } from "./fuzzy_search";
 import { GetNodes, AddNode } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
 import { Render, screenToWorld } from "../renderer";
+import * as S from "../styles";
 
 export function createAddNodeModal(container: HTMLElement): HTMLElement {
     const modal = container.createEl('div', { cls: 'skill-tree-node-modal' });
-    modal.style.cssText = 'position:absolute;width:400px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;display:flex;flex-direction:column;';
+    modal.style.cssText = S.MODAL_CONTAINER_LARGE;
 
     const rect = container.getBoundingClientRect();
     const left = (rect.width / 2) - 200;
@@ -19,13 +20,13 @@ export function createAddNodeModal(container: HTMLElement): HTMLElement {
 
 export function createAddNodeHeader(modal: HTMLElement): HTMLElement {
     const header = modal.createEl('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);background:var(--background-secondary);flex-shrink:0;';
+    header.style.cssText = S.MODAL_HEADER_NOGRAB;
 
     const title = header.createEl('span', { text: 'Add Node' });
-    title.style.cssText = 'font-weight:bold;font-size:14px;';
+    title.style.cssText = S.MODAL_TITLE;
 
     const closeBtn = header.createEl('button', { text: '×' });
-    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;';
+    closeBtn.style.cssText = S.MODAL_CLOSE_BTN;
 
     return header;
 }
@@ -40,29 +41,29 @@ export interface AddNodeContentElements {
 
 export function createAddNodeContent(modal: HTMLElement): AddNodeContentElements {
     const content = modal.createEl('div');
-    content.style.cssText = 'padding:16px;';
+    content.style.cssText = S.MODAL_CONTENT_PADDING;
 
     const inputWrapper = content.createEl('div');
-    inputWrapper.style.cssText = 'position:relative;';
+    inputWrapper.style.cssText = S.FORM_INPUT_WRAPPER;
 
     const input = inputWrapper.createEl('input', { attr: { type: 'text', placeholder: 'Search or create file...', autocomplete: 'off' } }) as HTMLInputElement;
-    input.style.cssText = 'width:100%;padding:10px 12px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);color:var(--text-normal);box-sizing:border-box;font-size:14px;';
+    input.style.cssText = S.FORM_INPUT_LARGE;
     input.focus();
 
     const suggestions = inputWrapper.createEl('div');
-    suggestions.style.cssText = 'position:absolute;top:100%;left:0;right:0;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:10000;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+    suggestions.style.cssText = S.SUGGESTIONS_LIST_LARGE;
 
     const warning = content.createEl('div');
-    warning.style.cssText = 'margin-top:12px;padding:8px 12px;background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.4);border-radius:4px;color:var(--text-warning);font-size:13px;display:none;';
+    warning.style.cssText = S.WARNING_BOX_LARGE;
 
     const actions = content.createEl('div');
-    actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:16px;';
+    actions.style.cssText = S.BTN_ROW_LARGE;
 
     const cancelBtn = actions.createEl('button', { text: 'Cancel' }) as HTMLButtonElement;
-    cancelBtn.style.cssText = 'padding:8px 16px;';
+    cancelBtn.style.cssText = S.BTN_SECONDARY;
 
     const createBtn = actions.createEl('button', { text: 'Create' }) as HTMLButtonElement;
-    createBtn.style.cssText = 'padding:8px 16px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+    createBtn.style.cssText = S.BTN_PRIMARY;
 
     return { input, suggestions, warning, cancelBtn, createBtn };
 }
@@ -146,7 +147,7 @@ export function renderSuggestions(
     for (let i = 0; i < matches.length; i++) {
         const match = matches[i];
         const item = suggestions.createEl('div');
-        item.style.cssText = 'padding:10px 12px;cursor:pointer;font-size:13px;';
+        item.style.cssText = S.SUGGESTION_ITEM_LARGE;
         item.textContent = match.item;
         item.dataset.index = String(i);
 

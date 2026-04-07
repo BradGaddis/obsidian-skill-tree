@@ -6,6 +6,7 @@ import { GetNodes, RemoveNode, OnNodeFileChanged } from "../tree_manager";
 import { SaveNodes, RecordSnapshot } from "../recorder";
 import { Render } from "../renderer";
 import { validateFrontmatter } from "../utils/frontmatter_validator";
+import * as S from "../styles";
 
 function handleRelinkClick(
     view: SkillTreeView,
@@ -99,7 +100,7 @@ function showSuggestions(
     suggestions.style.display = 'block';
     for (const match of matches) {
         const item = suggestions.createEl('div');
-        item.style.cssText = 'padding:6px 8px;cursor:pointer;font-size:13px;';
+        item.style.cssText = S.SUGGESTION_ITEM;
         item.textContent = match;
 
         item.addEventListener('mousedown', (e) => {
@@ -117,19 +118,19 @@ function showSuggestions(
 
 function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
     const stateRow = content.createEl('div');
-    stateRow.style.cssText = 'margin-bottom:16px;';
+    stateRow.style.cssText = S.FORM_ROW;
 
     const stateLabel = stateRow.createEl('label');
     stateLabel.textContent = 'State';
-    stateLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:500;';
+    stateLabel.style.cssText = S.FORM_LABEL;
 
     if (node.state === 'unavailable') {
         const stateDisplay = stateRow.createEl('div');
         stateDisplay.textContent = 'Unavailable';
-        stateDisplay.style.cssText = 'padding:8px;background:var(--background-secondary);border-radius:4px;color:var(--text-muted);font-size:14px;';
+        stateDisplay.style.cssText = S.FORM_STATE_DISPLAY;
     } else {
         const stateSelect = stateRow.createEl('select') as HTMLSelectElement;
-        stateSelect.style.cssText = 'width:100%;height:auto;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);box-sizing:border-box;';
+        stateSelect.style.cssText = S.FORM_SELECT;
 
         const states = ['In Progress', 'Complete'];
         for (const s of states) {
@@ -152,17 +153,17 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
 
 function createEditModalDisplayTextRow(content: HTMLElement, node: SkillNode): void {
     const textRow = content.createEl('div');
-    textRow.style.cssText = 'margin-bottom:16px;';
+    textRow.style.cssText = S.FORM_ROW;
 
     const textLabel = textRow.createEl('label');
     textLabel.textContent = 'Display Text';
-    textLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:500;';
+    textLabel.style.cssText = S.FORM_LABEL;
 
     const textInput = textRow.createEl('input') as HTMLInputElement;
     textInput.type = 'text';
     textInput.value = node.displayText || '';
     textInput.placeholder = 'Leave empty to show file name';
-    textInput.style.cssText = 'width:100%;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);box-sizing:border-box;';
+    textInput.style.cssText = S.FORM_INPUT;
 
     textInput.oninput = () => {
         const val = textInput.value.trim();
@@ -178,38 +179,38 @@ function createEditModalDisplayTextRow(content: HTMLElement, node: SkillNode): v
 
 function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node: SkillNode): void {
     const fileRow = content.createEl('div');
-    fileRow.style.cssText = 'margin-bottom:12px;';
+    fileRow.style.cssText = S.FORM_ROW_SMALL;
 
     const fileLabel = fileRow.createEl('label');
     fileLabel.textContent = 'File Link';
-    fileLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:500;';
+    fileLabel.style.cssText = S.FORM_LABEL;
 
     const inputWrapper = fileRow.createEl('div');
-    inputWrapper.style.cssText = 'position:relative;';
+    inputWrapper.style.cssText = S.FORM_INPUT_WRAPPER;
 
     const fileInput = inputWrapper.createEl('input') as HTMLInputElement;
     fileInput.type = 'text';
     fileInput.value = node.fileLink || '';
     fileInput.placeholder = 'e.g., Notes/MyNote.md';
-    fileInput.style.cssText = 'width:100%;padding:8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);box-sizing:border-box;';
+    fileInput.style.cssText = S.FORM_INPUT;
 
     const suggestions = inputWrapper.createEl('div');
-    suggestions.style.cssText = 'position:absolute;top:100%;left:0;right:0;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:4px;max-height:150px;overflow-y:auto;z-index:1000;display:none;';
+    suggestions.style.cssText = S.SUGGESTIONS_LIST;
 
     let selectedSuggestionIndex = -1;
 
     const warning = fileRow.createEl('div');
-    warning.style.cssText = 'margin-top:8px;padding:8px;background:rgba(255,193,7,0.15);border:1px solid rgba(255,193,7,0.4);border-radius:4px;font-size:12px;display:none;';
+    warning.style.cssText = S.WARNING_BOX;
 
     const btnRow = fileRow.createEl('div');
-    btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:8px;';
+    btnRow.style.cssText = S.BTN_ROW;
 
     const createBtn = btnRow.createEl('button', { text: 'Create New' });
-    createBtn.style.cssText = 'padding:6px 12px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;';
+    createBtn.style.cssText = S.BTN_PRIMARY_SMALL;
     createBtn.style.display = 'none';
 
     const relinkBtn = btnRow.createEl('button', { text: 'Relink' });
-    relinkBtn.style.cssText = 'padding:6px 12px;background:var(--interactive-accent);color:var(--text-on-accent);border:none;border-radius:4px;cursor:pointer;margin-right:8px;';
+    relinkBtn.style.cssText = S.BTN_PRIMARY_SMALL_MR;
     relinkBtn.style.display = 'none';
 
     const getMatches = (q: string) => getSuggestions(view, q);
@@ -367,8 +368,7 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
     const modal = createSkillModal();
 
     const container = view.canvasWrap || view.containerEl;
-    // TODO: make a css class for this and use that instead of this string garbage
-    modal.style.cssText = 'position:absolute;width:340px;max-height:80vh;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;display:flex;flex-direction:column;';
+    modal.style.cssText = S.MODAL_CONTAINER;
 
     const rect = container.getBoundingClientRect();
     const left = (rect.width / 2) - 170;
@@ -377,17 +377,17 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
     modal.style.top = `${Math.max(20, top)}px`;
 
     const header = modal.createEl('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);background:var(--background-secondary);flex-shrink:0;cursor:grab;';
+    header.style.cssText = S.MODAL_HEADER;
 
     const title = header.createEl('span', { text: 'Edit Node' });
-    title.style.cssText = 'font-weight:bold;font-size:14px;';
+    title.style.cssText = S.MODAL_TITLE;
 
     const closeBtn = header.createEl('button', { text: '×' });
-    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;';
+    closeBtn.style.cssText = S.MODAL_CLOSE_BTN;
     closeBtn.onclick = () => closeSkillModal(view, modal);
 
     const content = modal.createEl('div');
-    content.style.cssText = 'padding:12px 16px;overflow-y:auto;box-sizing:border-box;width:100%;';
+    content.style.cssText = S.MODAL_CONTENT;
 
     createEditModalStateRow(content, node);
     createEditModalDisplayTextRow(content, node);

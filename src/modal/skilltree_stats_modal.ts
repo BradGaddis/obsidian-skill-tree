@@ -3,9 +3,10 @@ import { SkillNode } from "src/skill_nodes/skill_node";
 import { STATS_MODAL_EXP_BADGE_DOM_EL_INFO } from "src/constants";
 import { TFile } from "obsidian";
 import { createSkillModal, openSkillModal, makeModalDraggable, closeSkillModal, installOutsideClickHandler, createModalFooter, closeAllModals } from "./skilltree_modal";
-import { tasksCache, GetNodeTasks, LoadNodeTasks } from "../tree_manager";
+import { LoadNodeTasks } from "../tree_manager";
 import { Render } from "../renderer";
 import { MarkdownRenderer } from "obsidian";
+import * as S from "../styles";
 
 let view: SkillTreeView
 
@@ -173,20 +174,20 @@ export function createStatsModal(view: SkillTreeView, node: SkillNode): HTMLElem
 }
 
 function openBaseStatsModal(view: SkillTreeView, modal: HTMLElement, node: SkillNode) {
-    modal.style.cssText = 'position:fixed;width:340px;max-height:80vh;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;display:flex;flex-direction:column;';
+    modal.style.cssText = S.MODAL_CONTAINER_FIXED;
 
     const header = modal.createEl('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);background:var(--background-secondary);flex-shrink:0;cursor:grab;';
+    header.style.cssText = S.MODAL_HEADER;
 
     const title = header.createEl('span', { text: 'Node Info' });
-    title.style.cssText = 'font-weight:bold;font-size:14px;';
+    title.style.cssText = S.MODAL_TITLE;
 
     const closeBtn = header.createEl('button', { text: '×' });
-    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;';
+    closeBtn.style.cssText = S.MODAL_CLOSE_BTN;
     closeBtn.onclick = () => closeSkillModal(view, modal);
 
     const content = modal.createEl('div');
-    content.style.cssText = 'padding:12px 16px;overflow-y:auto;';
+    content.style.cssText = S.MODAL_CONTENT;
 
     modal.style.border = '2px solid var(--interactive-accent)';
     modal.style.background = 'linear-gradient(135deg, var(--background-primary) 0%, rgba(255,255,255,0.02) 100%)';

@@ -2,6 +2,7 @@ import { SkillTreeView } from "src/skilltreeview";
 import { GetNodes, GetEdges } from "../tree_manager";
 import { CenterOnNode, Render } from "../renderer";
 import { SkillNode } from "src/skill_nodes/skill_node";
+import * as S from "../styles";
 
 let view: SkillTreeView
 
@@ -23,24 +24,24 @@ export function OpenOrphanedNodeListPane() {
     });
 
     const pane = container.createEl('div');
-    pane.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:320px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;';
+    pane.style.cssText = S.MODAL_CONTAINER_PANE;
 
     const header = pane.createEl('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);background:var(--background-secondary);';
+    header.style.cssText = S.MODAL_HEADER_NOGRAB;
 
     const title = header.createEl('span', { text: 'Find Orphans' });
-    title.style.cssText = 'font-weight:bold;font-size:14px;';
+    title.style.cssText = S.MODAL_TITLE;
 
     const closeBtn = header.createEl('button', { text: '×' });
-    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;';
+    closeBtn.style.cssText = S.MODAL_CLOSE_BTN;
     closeBtn.onclick = () => pane.remove();
 
     const list = pane.createEl('ul');
-    list.style.cssText = 'list-style:none;padding:0;margin:0;max-height:300px;overflow-y:auto;';
+    list.style.cssText = S.LIST_CONTAINER;
 
     if (orphanedNodes.length === 0) {
         const li = list.createEl('li');
-        li.style.cssText = 'padding:12px;text-align:center;color:var(--text-muted);';
+        li.style.cssText = S.LIST_ITEM_EMPTY;
         li.textContent = 'No orphaned nodes';
     } else {
         const sortedNodes = [...orphanedNodes].sort((a, b) => {
@@ -51,7 +52,7 @@ export function OpenOrphanedNodeListPane() {
 
         for (const node of sortedNodes) {
             const li = list.createEl('li');
-            li.style.cssText = 'padding:8px 12px;cursor:pointer;';
+            li.style.cssText = S.LIST_ITEM;
             li.textContent = node.fileLink || `[${node.id}]`;
             li.onclick = () => {
                 CenterOnNode(node);
@@ -81,27 +82,27 @@ export function openNodeListModal() {
     const nodes = Array.from(GetNodes().values());
 
     const pane = container.createEl('div');
-    pane.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:320px;background:var(--background-primary);border:1px solid var(--background-modifier-border);border-radius:8px;z-index:9999;';
+    pane.style.cssText = S.MODAL_CONTAINER_PANE;
 
     const header = pane.createEl('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--background-modifier-border);background:var(--background-secondary);';
+    header.style.cssText = S.MODAL_HEADER_NOGRAB;
 
     const title = header.createEl('span', { text: 'Jump to Node' });
-    title.style.cssText = 'font-weight:bold;font-size:14px;';
+    title.style.cssText = S.MODAL_TITLE;
 
     const closeBtn = header.createEl('button', { text: '×' });
-    closeBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;';
+    closeBtn.style.cssText = S.MODAL_CLOSE_BTN;
     closeBtn.onclick = () => pane.remove();
 
     const searchContainer = pane.createEl('div');
-    searchContainer.style.cssText = 'padding:8px 12px;border-bottom:1px solid var(--background-modifier-border);';
+    searchContainer.style.cssText = S.SEARCH_CONTAINER;
 
     const searchInput = searchContainer.createEl('input') as HTMLInputElement;
     searchInput.placeholder = 'Type to filter...';
-    searchInput.style.cssText = 'width:100%;padding:6px 8px;border:1px solid var(--background-modifier-border);border-radius:4px;background:var(--background-secondary);color:var(--text-normal);box-sizing:border-box;';
+    searchInput.style.cssText = S.SEARCH_INPUT;
 
     const list = pane.createEl('ul');
-    list.style.cssText = 'list-style:none;padding:0;margin:0;max-height:300px;overflow-y:auto;';
+    list.style.cssText = S.LIST_CONTAINER;
 
     const sortedNodes = [...nodes].sort((a, b) => {
         const aLabel = a.fileLink || `[${a.id}]`;
@@ -120,14 +121,14 @@ export function openNodeListModal() {
 
         if (filteredNodes.length === 0) {
             const li = list.createEl('li');
-            li.style.cssText = 'padding:12px;text-align:center;color:var(--text-muted);';
+            li.style.cssText = S.LIST_ITEM_EMPTY;
             li.textContent = filter ? 'No matching nodes' : 'No nodes';
             return;
         }
 
         for (const node of filteredNodes) {
             const li = list.createEl('li');
-            li.style.cssText = 'padding:8px 12px;cursor:pointer;';
+            li.style.cssText = S.LIST_ITEM;
             li.textContent = node.fileLink || `[${node.id}]`;
             li.onclick = () => {
                 CenterOnNode(node);
