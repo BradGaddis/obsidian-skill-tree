@@ -303,3 +303,115 @@ export async function createNewNode(
     await SaveNodes();
     Render();
 }
+
+export interface RepeatNodeContentElements {
+    minutesInput: HTMLInputElement;
+    hoursInput: HTMLInputElement;
+    daysInput: HTMLInputElement;
+    maxInput: HTMLInputElement;
+    displayInput: HTMLInputElement;
+    cancelBtn: HTMLButtonElement;
+    createBtn: HTMLButtonElement;
+}
+
+export function createRepeatNodeContent(modal: HTMLElement): RepeatNodeContentElements {
+    const content = modal.createEl('div');
+    content.style.cssText = S.MODAL_CONTENT_PADDING;
+
+    const minutesRow = content.createEl('div');
+    minutesRow.style.cssText = S.FORM_ROW;
+    const minutesLabel = minutesRow.createEl('label');
+    minutesLabel.textContent = 'Cooldown (minutes)';
+    minutesLabel.style.cssText = S.FORM_LABEL;
+    const minutesInput = minutesRow.createEl('input') as HTMLInputElement;
+    minutesInput.type = 'number';
+    minutesInput.min = '0';
+    minutesInput.value = '0';
+    minutesInput.style.cssText = S.FORM_INPUT;
+    minutesInput.focus();
+
+    const hoursRow = content.createEl('div');
+    hoursRow.style.cssText = S.FORM_ROW;
+    const hoursLabel = hoursRow.createEl('label');
+    hoursLabel.textContent = 'Cooldown (hours)';
+    hoursLabel.style.cssText = S.FORM_LABEL;
+    const hoursInput = hoursRow.createEl('input') as HTMLInputElement;
+    hoursInput.type = 'number';
+    hoursInput.min = '0';
+    hoursInput.value = '0';
+    hoursInput.style.cssText = S.FORM_INPUT;
+
+    const daysRow = content.createEl('div');
+    daysRow.style.cssText = S.FORM_ROW;
+    const daysLabel = daysRow.createEl('label');
+    daysLabel.textContent = 'Cooldown (days)';
+    daysLabel.style.cssText = S.FORM_LABEL;
+    const daysInput = daysRow.createEl('input') as HTMLInputElement;
+    daysInput.type = 'number';
+    daysInput.min = '0';
+    daysInput.value = '0';
+    daysInput.style.cssText = S.FORM_INPUT;
+
+    const maxRow = content.createEl('div');
+    maxRow.style.cssText = S.FORM_ROW;
+    const maxLabel = maxRow.createEl('label');
+    maxLabel.textContent = 'Max completions (optional)';
+    maxLabel.style.cssText = S.FORM_LABEL;
+    const maxInput = maxRow.createEl('input') as HTMLInputElement;
+    maxInput.type = 'number';
+    maxInput.min = '1';
+    maxInput.placeholder = 'Unlimited';
+    maxInput.style.cssText = S.FORM_INPUT;
+
+    const displayRow = content.createEl('div');
+    displayRow.style.cssText = S.FORM_ROW;
+    const displayLabel = displayRow.createEl('label');
+    displayLabel.textContent = 'Display text (optional)';
+    displayLabel.style.cssText = S.FORM_LABEL;
+    const displayInput = displayRow.createEl('input') as HTMLInputElement;
+    displayInput.type = 'text';
+    displayInput.placeholder = 'Repeat task name';
+    displayInput.style.cssText = S.FORM_INPUT;
+
+    const actions = content.createEl('div');
+    actions.style.cssText = S.BTN_ROW_LARGE;
+
+    const cancelBtn = actions.createEl('button', { text: 'Cancel' }) as HTMLButtonElement;
+    cancelBtn.style.cssText = S.BTN_SECONDARY;
+
+    const createBtn = actions.createEl('button', { text: 'Create' }) as HTMLButtonElement;
+    createBtn.style.cssText = S.BTN_PRIMARY;
+
+    return { minutesInput, hoursInput, daysInput, maxInput, displayInput, cancelBtn, createBtn };
+}
+
+export async function createRepeatNode(
+    view: SkillTreeView,
+    x: number,
+    y: number,
+    cooldownMinutes: number,
+    cooldownHours: number,
+    cooldownDays: number,
+    maxCompletions: number | undefined,
+    displayText: string | undefined
+): Promise<void> {
+    const { AddNode, GetNodes } = await import('../tree_manager');
+    const { SaveNodes, RecordSnapshot } = await import('../recorder');
+    const { Render } = await import('../renderer');
+
+    RecordSnapshot();
+
+    const newNode = AddNode(x, y, undefined, 'RepeatingNode');
+    
+    if (newNode) {
+        const repeatingNode = newNode as import('../skill_nodes/repeating_node').RepeatingNode;
+        repeatingNode.repeatCooldownMinutes = cooldownMinutes;
+        repeatingNode.repeatCooldownHours = cooldownHours;
+        repeatingNode.repeatCooldownDays = cooldownDays;
+        if (maxCompletions) repeatingNode.repeatMax = maxCompletions;
+        if (displayText) repeatingNode.displayText = displayText;
+    }
+
+    await SaveNodes();
+    Render();
+}

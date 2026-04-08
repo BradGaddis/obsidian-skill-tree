@@ -1,12 +1,14 @@
 // TODO: refactor view nightmare
 import { SkillTreeView } from "./skilltreeview";
 import * as S from "./styles";
+import { InitRepeatNodeDialog, OpenAddRepeatingNodeDialog } from "./dialog/add_repeat_node_dialog";
 
 let view: SkillTreeView
 
 
 export function InitDialog(skillTreeView: SkillTreeView) {
     view = skillTreeView
+    InitRepeatNodeDialog(skillTreeView);
 }
 
 export function ShowDeleteTreeDialog(treeName: string): Promise<boolean> {
@@ -159,8 +161,4 @@ export function ShowNewTreeDialog(): Promise<string | null> {
 
 export function OpenAddNodeDialog(): void {
     // Functionality moved to add_node_parts.ts
-}
-
-export function OpenAddRepeatingNodeDialog(_x: number, _y: number): void {
-    // Functionality deprecated
 }

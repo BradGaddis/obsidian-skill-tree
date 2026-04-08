@@ -1,4 +1,5 @@
-import { nodeRadii, nodeRadius, fontSize } from "./renderer";
+import { nodeRadii, nodeRadius, fontSize, timerLabelBounds, view as rendererView } from "./renderer";
+import { RepeatingNode } from "./skill_nodes/repeating_node";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { NodeShape } from "./skill_nodes/types";
 import { SkillTreeView } from "./skilltreeview";
@@ -205,7 +206,7 @@ export function DrawCheckBox(n: SkillNode) {
 
     // Calculate text position to place checkbox below text
     const lineHeight = fontSize / view.scale
-    
+
     const labelInfo = GetNodeLabelInfo(n);
     const totalLines = labelInfo.lines.length + (labelInfo.label === '[unlinked]' ? 1 : 0)
     const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2
@@ -229,4 +230,65 @@ export function DrawCheckBox(n: SkillNode) {
     context.lineTo(checkboxX, checkboxY + checkboxRadius);
     context.arcTo(checkboxX, checkboxY, checkboxX + checkboxRadius, checkboxY, checkboxRadius);
     context.stroke();
+}
+
+export function DrawSubLabel(node: SkillNode, fillColor: string) {
+    const context = rendererView?.context;
+    if (!context) return;
+
+    const existingBounds = timerLabelBounds.get(String(node.id));
+    if (existingBounds) {
+        context.clearRect(existingBounds.x - 2, existingBounds.y - 2, existingBounds.width + 4, existingBounds.height + 4);
+    }
+
+    const radius = nodeRadii[node.id] || nodeRadius;
+    const labelWidth = radius * 2;
+    const labelHeight = radius * 0.5;
+    const padding = 4 / rendererView.scale;
+
+    const x = node.x;
+    const y = node.y + radius + labelHeight / 2 + padding;
+
+    const repeatingNode = node as RepeatingNode;
+    if (!repeatingNode.isTimerActive?.()) return;
+
+    const cooldownMs = repeatingNode.getCooldownMs?.();
+    if (!cooldownMs || cooldownMs === 0) return;
+
+    const text = repeatingNode.getResetDisplayText?.() || '';
+
+    context.save();
+    context.font = `${(labelHeight * 0.35)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    const bgX = x - labelWidth / 2;
+    const bgY = y - labelHeight / 2;
+
+    context.fillStyle = fillColor;
+    const radiusPx = labelHeight * 0.2;
+    context.beginPath();
+    context.moveTo(bgX + radiusPx, bgY);
+    context.lineTo(bgX + labelWidth - radiusPx, bgY);
+    context.quadraticCurveTo(bgX + labelWidth, bgY, bgX + labelWidth, bgY + radiusPx);
+    context.lineTo(bgX + labelWidth, bgY + labelHeight - radiusPx);
+    context.quadraticCurveTo(bgX + labelWidth, bgY + labelHeight, bgX + labelWidth - radiusPx, bgY + labelHeight);
+    context.lineTo(bgX + radiusPx, bgY + labelHeight);
+    context.quadraticCurveTo(bgX, bgY + labelHeight, bgX, bgY + labelHeight - radiusPx);
+    context.lineTo(bgX, bgY + radiusPx);
+    context.quadraticCurveTo(bgX, bgY, bgX + radiusPx, bgY);
+    context.closePath();
+    context.fill();
+
+    context.fillStyle = 'black';
+    context.fillText(text, x, y);
+
+    timerLabelBounds.set(String(node.id), {
+        x: bgX - padding,
+        y: bgY - padding,
+        width: labelWidth + padding * 2,
+        height: labelHeight + padding * 2
+    });
+
+    context.restore();
 }

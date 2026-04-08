@@ -135,9 +135,10 @@ function createEditModalStateRow(content: HTMLElement, node: SkillNode): void {
         const states = ['In Progress', 'Complete'];
         for (const s of states) {
             const opt = stateSelect.createEl('option');
-            opt.value = s.toLowerCase().replace(/\s+(.)/g, (_, c) => c.toUpperCase());
+            const convertedValue = s.toLowerCase().replace(/\s+(.)/g, (_, c) => c.toUpperCase());
+            opt.value = convertedValue;
             opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-            if (s === node.state) opt.selected = true;
+            if (convertedValue === node.state) opt.selected = true;
         }
 
         stateSelect.onchange = () => {
@@ -391,7 +392,14 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
 
     createEditModalStateRow(content, node);
     createEditModalDisplayTextRow(content, node);
-    createEditModalFileRow(view, content, node);
+
+    if (node.getEditModalRows) {
+        node.getEditModalRows(view, content);
+    }
+
+    if (!node.repeating) {
+        createEditModalFileRow(view, content, node);
+    }
 
     const footerButtons: ModalButton[] = [
         {

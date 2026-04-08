@@ -3,8 +3,11 @@ import { ISkillNode } from "./interfaces";
 import { SkillTask } from "../interfaces";
 import { SkillTreeView } from "src/skilltreeview";
 import { AddNode, GetEdges, GetNodeByID, GetNodes, RemoveNode, ReplaceNode } from "src/tree_manager";
+import { RecordSnapshot, SaveNodes } from "src/recorder";
+import { Render } from "src/renderer";
 import { SkillModalDescription as SkillModalStatsDescription, SkillModalHeaderRight, SkillModalOpenFileButton, SkillModalStatsSpan, SkillModalHeader, SkillModalSetHeaderText, SkillModalTasks } from "src/modal/skilltree_stats_modal";
 import { SKILL_TREE_STYLES } from "src/styles";
+import * as S from "../styles";
 
 // TODO: Maybe change to base skill node
 export class SkillNode implements ISkillNode {
@@ -15,19 +18,20 @@ export class SkillNode implements ISkillNode {
         return true
     }
 
+    get optional(): boolean { return false; }
+    get checkpoint(): boolean { return false; }
+    get repeating(): boolean { return false; }
+    get hasTasks(): boolean { return false; }
+    get treeLink(): string | null { return null; }
+
+    getEditModalRows?(view: SkillTreeView, content: HTMLElement): void;
+
     id: string | number;
     x: number;
     y: number;
 
-    _state: NodeState = "unavailable";
+    state: NodeState = "unavailable";
 
-    set state(val: NodeState) {
-        this._state = val
-    }
-
-    get state() {
-        return this._state
-    }
 
     shape: NodeShape = "hexagon"
 
@@ -72,9 +76,6 @@ export class SkillNode implements ISkillNode {
                 continue
             }
             if (from.state != "complete") {
-
-
-
                 return false
             }
         }
@@ -171,12 +172,42 @@ export class SkillNode implements ISkillNode {
 
     }
 
+
+
+
     validate(): void {
         if (this.state == "error") {
             return
         }
 
         if (SkillNode.validating.has(this.id)) return;
+
+
+        // go/stay on hold
+        if ((this.hasOnHoldFrom() || this.hasRepeatingInProgressFrom()) && this.state != "onHold") {
+            this.heldState = this.state
+            this.state = "onHold";
+            this.cascadeTo()
+            return
+        }
+
+        // should come off hold
+        if (this.state == "onHold" && this.heldState) {
+            const hasBlockingParent = this.hasOnHoldFrom() || this.hasRepeatingInProgressFrom();
+            if (!hasBlockingParent) {
+                this.state = this.heldState;
+                this.heldState = null
+                this.validate()
+                return
+            }
+            // else: stay on hold (hasBlockingParent is true)
+            this.cascadeTo()
+            return
+        }
+        if (this.state == "onHold" && !this.heldState) {
+            this.state = "error"
+        }
+
 
         this.validateHasTasks()
 
@@ -240,14 +271,13 @@ export class SkillNode implements ISkillNode {
     }
 
     protected hasOnHoldFrom(): boolean {
-        return this.to.some(from => from.state === 'onHold');
+        return this.from.some(from => from.state === 'onHold');
     }
 
     protected hasRepeatingInProgressFrom(): boolean {
-        return this.to.some(from => {
-            // TODO: 
-            // return from.repeating && from.state === 'in-progress';
-        });
+        return this.from.some(from => {
+            return from.nodeTypeName === "RepeatingNode" && from.state === 'inProgress';
+        })
     }
 
     protected allFromsComplete(): boolean {

@@ -530,7 +530,6 @@ function loadFromJSON(nodesData: any[], edgesData: SkillEdge[]): void {
     nodes.clear();
     edges = [...edgesData];
     for (const data of nodesData) {
-        console.log(data)
         const node: SkillNode = NodeFromJSON(data);
         if (!node) {
             return
@@ -547,7 +546,6 @@ export function NodeFromJSON(data: any): any {
     if (data.nodeType) {
         switch (data.nodeType) {
             case "BaseNode":
-            case "RegularNode": // TODO: remove before release. This is old AI slop version. That refused to listen to me when I said other nodes should inherit
                 return SkillNode.fromJSON(data)
             case 'CheckpointNode':
                 return CheckpointNode.fromJSON(data);

@@ -6,19 +6,21 @@ import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles }
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge, getFloatingEdge, hitNode, isDragging } from "./ux/event_utils";
-import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor } from "./drawing";
+import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor, DrawSubLabel } from "./drawing";
 import { Coordinate } from "./types";
 import { GetNodeLabelInfo } from "./utils/node_label";
 import { isPositionOccupied, findNearestEmptyPosition, pushOtherNodesFromNode, resolveOverlappingNodes } from "./utils/collision";
 
 
 let view: SkillTreeView
+export { view }
 const dpr = window.devicePixelRatio || 1;
 
 export let nodeRadius: number
 export let nodeRadii: Record<string | number, number> = {}
 export let handleRadius: number
 let allNodeRadii: Map<string | number, number> = new Map()
+export let timerLabelBounds: Map<string, { x: number, y: number, width: number, height: number }> = new Map()
 
 export let leftWorld: number = 0
 export let rightWorld: number = 0
@@ -38,6 +40,58 @@ let styleDef: typeof SKILL_TREE_STYLES['gamified'] | undefined;
 // TODO: Make it an adjustable setting
 export const fontSize = 16
 
+function updateTimerLabel() {
+    if (!view.context) return;
+    const context = view.context;
+
+    for (const [nodeId] of timerLabelBounds) {
+        const nodes = GetNodes();
+        const node = nodes.get(nodeId);
+
+        if (!node || node.nodeTypeName !== 'RepeatingNode') continue;
+
+        const repeatingNode = node as import('./skill_nodes/repeating_node').RepeatingNode;
+        const text = repeatingNode.getResetDisplayText?.() || '';
+        if (!text) continue;
+
+        const radius = nodeRadii[node.id] || nodeRadius;
+        const labelWidth = radius * 2;
+        const labelHeight = radius * 0.5;
+        const padding = 4 / view.scale;
+
+        const x = node.x;
+        const y = node.y + radius + labelHeight / 2 + padding;
+
+        context.save();
+        context.font = `${(labelHeight * 0.35)}px sans-serif`;
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+
+        const bgX = x - labelWidth / 2;
+        const bgY = y - labelHeight / 2;
+
+        const fillColor = node.colorOverride[node.state].fill;
+        context.fillStyle = fillColor;
+        const radiusPx = labelHeight * 0.2;
+        context.beginPath();
+        context.moveTo(bgX + radiusPx, bgY);
+        context.lineTo(bgX + labelWidth - radiusPx, bgY);
+        context.quadraticCurveTo(bgX + labelWidth, bgY, bgX + labelWidth, bgY + radiusPx);
+        context.lineTo(bgX + labelWidth, bgY + labelHeight - radiusPx);
+        context.quadraticCurveTo(bgX + labelWidth, bgY + labelHeight, bgX + labelWidth - radiusPx, bgY + labelHeight);
+        context.lineTo(bgX + radiusPx, bgY + labelHeight);
+        context.quadraticCurveTo(bgX, bgY + labelHeight, bgX, bgY + labelHeight - radiusPx);
+        context.lineTo(bgX, bgY + radiusPx);
+        context.quadraticCurveTo(bgX, bgY, bgX + radiusPx, bgY);
+        context.closePath();
+        context.fill();
+
+        context.fillStyle = 'black';
+        context.fillText(text, x, y);
+        context.restore();
+    }
+}
+
 export let rafId: number | null = null;
 
 export function InitRenderer(skillTreeView: SkillTreeView) {
@@ -56,6 +110,10 @@ export function InitRenderer(skillTreeView: SkillTreeView) {
     });
     view.resizeObserver.observe(canvas);
     InitDrawing(view)
+
+    window.addEventListener('repeating-node-timer-tick', () => {
+        updateTimerLabel();
+    });
 }
 
 export function DrawNode(node: SkillNode, radius: number) {
@@ -71,6 +129,13 @@ export function DrawNode(node: SkillNode, radius: number) {
 
     context.fill();
     context.stroke();
+
+    if (node.nodeTypeName == "RepeatingNode") {
+
+        const fromState = node.state
+        const fromNodeColor = node.colorOverride[fromState].fill
+        DrawSubLabel(node, fromNodeColor)
+    }
 }
 
 function SetupCanvas() {
@@ -196,6 +261,7 @@ function UpdateInRAFID() {
 
     frameDelta = Date.now() - lastTimeStamp
 
+    timerLabelBounds.clear();
 
     if (!view.context || !view.canvas) return;
     const context = view.context;
@@ -239,7 +305,6 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
-
     if (!getFloatingEdge()) {
         for (let node of nodes) {
             UpdateConnectedEdgesToNearestHandles(node)
@@ -254,6 +319,12 @@ function UpdateInRAFID() {
             }
         }
 
+    }
+
+    for (const node of nodes) {
+        if (node.nodeTypeName === 'RepeatingNode') {
+            node.validate()
+        }
     }
 
     if (hitNode && isDragging) {
@@ -401,7 +472,8 @@ function RenderEdgeLines() {
         if (styleDef && styleDef.edgeColor && styleDef.edgeColor !== 'auto') {
             edgeColor = styleDef.edgeColor;
         } else {
-            edgeColor = '#666';
+            // edgeColor = '#666';
+            edgeColor = '#ffd700';
         }
 
 
@@ -415,8 +487,8 @@ function RenderEdgeLines() {
         const toState = toNode?.state
 
 
-        const fromNodeColor = fromNode?.colorOverride[fromState].fill
-        const toNodeColor = toNode?.colorOverride[toState].fill
+        const fromNodeColor = fromState ? fromNode?.colorOverride[fromState].fill : undefined
+        const toNodeColor = toState ? toNode?.colorOverride[toState].fill : undefined
 
         const blend = (cA: string, cB: string, t: number, a = 1) => {
             try {
@@ -435,9 +507,11 @@ function RenderEdgeLines() {
         if (fromNodeColor && toNodeColor) {
 
             gradient.addColorStop(0, fromNodeColor);
-            gradient.addColorStop(0.25, blend(fromNodeColor, toNodeColor, 0.25, 0.95));
-            gradient.addColorStop(0.5, blend(fromNodeColor, toNodeColor, 0.5, 0.85));
-            gradient.addColorStop(0.75, blend(fromNodeColor, toNodeColor, 0.75, 0.95));
+            // gradient.addColorStop(0.25, blend(fromNodeColor, toNodeColor, 0.25, 0.95));
+            // gradient.addColorStop(0.5, blend(fromNodeColor, toNodeColor, 0.5, 0.5));
+            // gradient.addColorStop(0.5, blend(fromNodeColor, toNodeColor, 0.5, 0.5));
+            // gradient.addColorStop(0.75, blend(fromNodeColor, toNodeColor, 0.75, 0.95));
+            // gradient.addColorStop(0.75, blend(fromNodeColor, toNodeColor, 0.75, 0.95));
             gradient.addColorStop(1, toNodeColor);
         }
 

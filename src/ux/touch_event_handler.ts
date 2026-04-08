@@ -86,6 +86,17 @@ export function InitTouchHandler(skillTreeView: SkillTreeView): { cleanup: () =>
                 checkboxHit.state = 'complete';
                 checkboxHit.userModified = true;
                 checkboxHit.fromNote = false;
+                if (checkboxHit.repeating) {
+                    const repeatingNode = checkboxHit as import("../skill_nodes/repeating_node").RepeatingNode;
+                    repeatingNode.startTimer();
+                }
+            } else if (checkboxHit.state === 'complete') {
+                checkboxHit.state = 'inProgress';
+                checkboxHit.userModified = true;
+                if (checkboxHit.repeating) {
+                    const repeatingNode = checkboxHit as import("../skill_nodes/repeating_node").RepeatingNode;
+                    repeatingNode.stopTimer();
+                }
             }
             Render();
             SaveNodes();

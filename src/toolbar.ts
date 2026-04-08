@@ -19,7 +19,8 @@ import {
     AddNode,
 } from "./tree_manager"
 import { Recenter, Render, screenToWorld, UpdateToolbarUI } from "./renderer";
-import { ShowNewTreeDialog, ShowDeleteTreeDialog, OpenAddRepeatingNodeDialog } from "./dialog";
+import { ShowNewTreeDialog, ShowDeleteTreeDialog } from "./dialog";
+import { OpenAddRepeatingNodeDialog } from "./dialog/add_repeat_node_dialog";
 import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
 import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
