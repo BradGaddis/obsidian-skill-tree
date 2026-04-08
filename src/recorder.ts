@@ -2,6 +2,7 @@ import { SkillTreeView } from "./skilltreeview";
 import { Render } from "./renderer";
 import { GetNodes, GetEdges, SetNodesFromSnapshot, SetEdgesFromSnapshot } from "./tree_manager";
 import { HISTORY_UPPER_BOUNDS } from "./constants";
+import { skillTreeEvents, EVENTS } from "./utils/events";
 
 let view: SkillTreeView
 let historyPast: any[] = [];
@@ -83,6 +84,7 @@ export async function SaveNodes() {
         }
         
         await view.plugin.saveSettings();
+        skillTreeEvents.emit(EVENTS.NODES_CHANGED);
     } catch (e) {
         console.error('[SAVE] saveNodes failed', e);
     }

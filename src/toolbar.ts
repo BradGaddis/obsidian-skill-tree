@@ -17,10 +17,12 @@ import {
     SwitchTree,
     CreateTree,
     AddNode,
+    GetNodes,
 } from "./tree_manager"
 import { Recenter, Render, screenToWorld, UpdateToolbarUI } from "./renderer";
 import { ShowNewTreeDialog, ShowDeleteTreeDialog } from "./dialog";
 import { OpenAddRepeatingNodeDialog } from "./dialog/add_repeat_node_dialog";
+import { OpenAddTreeLinkDialog } from "./dialog/add_tree_link_dialog";
 import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
 import { RecordSnapshot, SaveNodes } from "./recorder";
 import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
@@ -47,6 +49,7 @@ let treeSelectorDiv: HTMLElement
 let treeSelect: HTMLSelectElement
 let floatingExpandBtn: HTMLElement
 let toolbarCollapsed: boolean
+let terminalNodeBtn: HTMLButtonElement
 
 
 export function InitToolBar(skillTreeView: SkillTreeView) {
@@ -121,6 +124,7 @@ function SetupToolbarButtons(): void {
     SetupAddCheckpointButton();
     SetupAddSubTreeButton();
     SetupAddRepeatingButton();
+    SetupAddTerminalButton();
     SetupEditAsJSONButton();
 
     SetupJumpToNodeButton();
@@ -214,20 +218,21 @@ function SetupAddCheckpointButton() {
 }
 
 function SetupAddSubTreeButton() {
-    const canvas = view.canvas
-    if (!canvas) return;
+    // const canvas = view.canvas
+    // if (!canvas) return;
+
     AddEditModeButton('Add Sub Tree(Tree Link)', 'Add a link to another skill tree')
+
+    console.log("what's happening with this button?")
+
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
         RecordSnapshot();
         let worldPos = { x: 200, y: 150 };
-        if (view.canvas) {
-            const rect = canvas.getBoundingClientRect();
-            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
-        }
-        AddNode(worldPos.x, worldPos.y, undefined, 'TreeLinkNode');
-        await SaveNodes();
-        Render();
-        RefreshJsonEditor();
+        // if (view.canvas) {
+        //     const rect = canvas.getBoundingClientRect();
+        //     worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+        // }
+        OpenAddTreeLinkDialog(worldPos.x, worldPos.y);
     };
 }
 
@@ -244,6 +249,37 @@ function SetupAddRepeatingButton() {
         }
         OpenAddRepeatingNodeDialog(worldPos.x, worldPos.y);
     };
+}
+
+function SetupAddTerminalButton() {
+    AddEditModeButton('Add Terminal', 'Add a terminal node (end of tree)');
+    terminalNodeBtn = GetLastIndex(editModeOnlyButtons) as HTMLButtonElement;
+    terminalNodeBtn.onclick = async () => {
+        RecordSnapshot();
+        let worldPos = { x: 200, y: 150 };
+        if (view.canvas) {
+            const rect = view.canvas.getBoundingClientRect();
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+        }
+        AddNode(worldPos.x, worldPos.y, undefined, 'TerminalNode');
+        await SaveNodes();
+        Render();
+        RefreshJsonEditor();
+    };
+    updateTerminalNodeBtnVisibility();
+}
+
+function updateTerminalNodeBtnVisibility() {
+    if (!terminalNodeBtn) return;
+    const nodes = GetNodes();
+    let hasTerminal = false;
+    for (const node of nodes.values()) {
+        if (node.nodeTypeName === 'TerminalNode') {
+            hasTerminal = true;
+            break;
+        }
+    }
+    terminalNodeBtn.style.display = hasTerminal ? 'none' : '';
 }
 
 function SetupModeToggleButton(): void {
@@ -374,10 +410,11 @@ function SetupTreeSelectorDiv() {
     treeSelect = treeSelectorDiv.createEl('select', { cls: 'skill-tree-toolbar-select' }) as HTMLSelectElement;
     treeSelect.style.padding = '4px';
     UpdateTreeSelector(treeSelect);
-    
+
     skillTreeEvents.on(EVENTS.TREE_ADDED, () => UpdateTreeSelector(treeSelect));
     skillTreeEvents.on(EVENTS.TREE_DELETED, () => UpdateTreeSelector(treeSelect));
-    
+    skillTreeEvents.on(EVENTS.NODES_CHANGED, () => updateTerminalNodeBtnVisibility());
+
     treeSelect.onchange = async () => {
         if (treeSelect.value === '__NEW_TREE__') {
             const newName = await ShowNewTreeDialog();

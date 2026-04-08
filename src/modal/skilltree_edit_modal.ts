@@ -391,13 +391,16 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
     content.style.cssText = S.MODAL_CONTENT;
 
     createEditModalStateRow(content, node);
-    createEditModalDisplayTextRow(content, node);
+    
+    if (node.nodeTypeName !== 'TerminalNode') {
+        createEditModalDisplayTextRow(content, node);
+    }
 
     if (node.getEditModalRows) {
         node.getEditModalRows(view, content);
     }
 
-    if (!node.repeating) {
+    if (!node.repeating && node.nodeTypeName !== 'TreeLinkNode') {
         createEditModalFileRow(view, content, node);
     }
 

@@ -114,6 +114,7 @@ export function findNodeAt(x: number, y: number): SkillNode | null {
 export function findHandleAt(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
+        if (node.nodeTypeName === 'TerminalNode') continue;
         const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
         const handles = [
             { side: 'top', hx: node.x, hy: node.y - r },
@@ -138,6 +139,7 @@ export function findHandleAt(worldPos: Coordinate): Handle | null {
 export function getHandleAtWorld(coords: Coordinate): Handle | null {
     const nodes = GetNodes()
     for (const node of nodes.values()) {
+        if (node.nodeTypeName === 'TerminalNode') continue;
         const r = (nodeRadii[node.id] || nodeRadius) + handleRadius
         const handles = [
             { side: 'top', hx: node.x, hy: node.y - r },
@@ -160,6 +162,7 @@ export function getHandleAtWorld(coords: Coordinate): Handle | null {
 }
 
 export function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
+    if (targetNode.nodeTypeName === 'TerminalNode') return null;
     const r = (nodeRadii[targetNode.id] || nodeRadius) + handleRadius
     const handles = [
         { side: 'top', hx: targetNode.x, hy: targetNode.y - r - handleRadius },

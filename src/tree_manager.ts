@@ -6,6 +6,7 @@ import { OptionalNode } from "./skill_nodes/optional_node";
 import { RepeatingNode } from "./skill_nodes/repeating_node";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { TaskNode } from "./skill_nodes/task_node";
+import { TerminalNode } from "./skill_nodes/terminal_node";
 import { TreeLinkNode } from "./skill_nodes/tree_link_node";
 import { SkillTreeView } from "./skilltreeview";
 import { Handle, Coordinate } from "./types";
@@ -45,6 +46,10 @@ export async function InitTreeManager(skillTreeView: SkillTreeView): Promise<voi
 
 export function GetNodes(): Map<string | number | null, SkillNode> {
     return nodes;
+}
+
+export function GetView(): SkillTreeView {
+    return view;
 }
 
 export function GetEdges(): SkillEdge[] {
@@ -89,6 +94,7 @@ export function CreateEdge(edge: SkillEdge) {
 }
 
 export function FindNearestHandleOnNode(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
+    if (targetNode.nodeTypeName === 'TerminalNode') return null;
     const r = nodeRadii[targetNode.id] || nodeRadius;
     const handles = [
         { side: 'top', hx: targetNode.x, hy: targetNode.y - r },
@@ -118,6 +124,7 @@ export function FindNearestHandleToPosition(worldPos: Coordinate): Handle | null
     let minDist = Infinity;
 
     for (const node of nodes.values()) {
+        if (node.nodeTypeName === 'TerminalNode') continue;
         const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
         const handles = [
             { side: 'top' as const, hx: node.x, hy: node.y - r },
@@ -143,6 +150,7 @@ export function FindNearestHandleToPosition(worldPos: Coordinate): Handle | null
 export function FindHandleAtWorld(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
+        if (node.nodeTypeName === 'TerminalNode') continue;
         const r = (nodeRadii[node.id] || nodeRadius) + handleRadius;
         const handles = [
             { side: 'top', hx: node.x, hy: node.y - r },
@@ -557,6 +565,8 @@ export function NodeFromJSON(data: any): any {
                 return TaskNode.fromJSON(data);
             case 'OptionalNode':
                 return OptionalNode.fromJSON(data);
+            case 'TerminalNode':
+                return TerminalNode.fromJSON(data);
             default:
                 return null
         }

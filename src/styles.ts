@@ -95,6 +95,16 @@ export const BTN_DANGER = 'padding:8px 16px;background:none;border:1px solid var
 
 export const BTN_DANGER_SMALL = 'padding:4px 12px;';
 
+export const STATS_MODAL_ROW = 'margin-bottom: 8px;';
+
+export const STATS_MODAL_TITLE = 'font-weight: 600; font-size: 16px; margin-bottom: 8px;';
+
+export const STATS_MODAL_MUTED = 'margin-bottom: 8px; color: var(--text-muted);';
+
+export const STATS_MODAL_HEADER_RIGHT = 'display: flex; gap: 8px; align-items: center;';
+
+export const STATS_MODAL_GO_BUTTON = 'padding: 4px 12px; cursor: pointer; font-size: 12px;';
+
 export const BTN_ICON = 'padding:4px 12px;';
 
 export const BTN_DANGER_RED = 'padding: 8px 16px; border: none; border-radius: 4px; background: #dc3545; color: white; cursor: pointer;';

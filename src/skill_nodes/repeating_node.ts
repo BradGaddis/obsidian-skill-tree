@@ -155,6 +155,7 @@ export class RepeatingNode extends SkillNode {
         if (this.shouldResetRepeat() && this.state !== 'onHold' && this.state !== 'complete') {
             this.state = 'inProgress';
             this.cascadeTo();
+            Render()
             return true;
         }
         return false;

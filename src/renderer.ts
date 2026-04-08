@@ -643,6 +643,7 @@ function RenderNodeHandles(nodes: SkillNode[]) {
 
     // TODO: allow the user to change the css of the handles
     for (let node of nodes) {
+        if (node.nodeTypeName === 'TerminalNode') continue;
         context.lineWidth = 2.5 / view.scale;
         const r = (nodeRadii[node.id] || nodeRadius) + context.lineWidth * 2;
         context.strokeStyle = '#2563eb';

@@ -2,6 +2,7 @@
 import { SkillTreeView } from "./skilltreeview";
 import * as S from "./styles";
 import { InitRepeatNodeDialog, OpenAddRepeatingNodeDialog } from "./dialog/add_repeat_node_dialog";
+import { InitTreeLinkDialog } from "./dialog/add_tree_link_dialog";
 
 let view: SkillTreeView
 
@@ -9,6 +10,7 @@ let view: SkillTreeView
 export function InitDialog(skillTreeView: SkillTreeView) {
     view = skillTreeView
     InitRepeatNodeDialog(skillTreeView);
+    InitTreeLinkDialog(skillTreeView);
 }
 
 export function ShowDeleteTreeDialog(treeName: string): Promise<boolean> {
