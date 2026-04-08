@@ -7,7 +7,10 @@ export class CheckpointNode extends SkillNode {
     displayText?: string | undefined = "Check Point";
 
     get userCompletable(): boolean {
-        return false
+        return false;
+    }
+    get linkable(): boolean {
+        return false;
     }
 
     constructor(data: Partial<CheckpointNode> = {}) {
@@ -16,10 +19,10 @@ export class CheckpointNode extends SkillNode {
 
     validate(): void {
         super.validate()
-        // if (this.allNonOptionalFromsComplete()) {
-        //     this.state = 'complete'
-        //     this.cascadeFromNode()
-        // }
+        if (this.allNonOptionalFromsComplete()) {
+            this.state = 'complete'
+            this.cascadeTo()
+        }
     }
 
     static fromJSON(data: any): CheckpointNode {

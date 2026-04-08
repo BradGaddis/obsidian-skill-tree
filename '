@@ -25,7 +25,7 @@ export function isPositionOccupied(x: number, y: number, radius: number, exclude
     return false;
 }
 
-export function findNearestEmptyPosition(x: number, y: number, radius: number): { x: number, y: number } {
+function findNearestEmptyPosition(x: number, y: number, radius: number): { x: number, y: number } {
     const maxIterations = 50;
 
     if (!isPositionOccupied(x, y, radius)) {

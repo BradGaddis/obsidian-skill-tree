@@ -12,6 +12,10 @@ export class OptionalNode extends SkillNode {
         return false
     }
 
+    get linkable(): boolean {
+        return false
+    }
+
     constructor(data: Partial<OptionalNode> = {}) {
         super(data);
         this.colorOverride.unavailable = { fill: '#0525cd', stroke: '#4b0082' }

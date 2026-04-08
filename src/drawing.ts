@@ -207,6 +207,7 @@ export function DrawCheckBox(n: SkillNode) {
     // Calculate text position to place checkbox below text
     const lineHeight = fontSize / view.scale
 
+    // TODO: think about this. This is stupid
     const labelInfo = GetNodeLabelInfo(n);
     const totalLines = labelInfo.lines.length + (labelInfo.label === '[unlinked]' ? 1 : 0)
     const firstLineY = n.y - ((totalLines - 1) * lineHeight) / 2

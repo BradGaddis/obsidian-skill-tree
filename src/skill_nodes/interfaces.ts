@@ -15,6 +15,8 @@ export interface ISkillNode {
     heldState: NodeState | null;
     /** Path to an Obsidian file linked to this node */
     fileLink?: string;
+
+    linkable: boolean
     /** Experience points awarded when this node is completed */
     exp?: number;
     /** Shape of the node */

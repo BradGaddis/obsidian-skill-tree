@@ -14,6 +14,7 @@ import { Direction } from "./enums";
 import { TFile } from "obsidian";
 import { InitFileWatcher, SetupFileWatchers, CleanupFileWatchers } from "./ux/file_watcher";
 import { InitCollisionDetector, findNearestEmptyPosition } from "./utils/collision";
+import { getFloatingEdge } from "./ux/event_utils";
 
 export { SetupFileWatchers, CleanupFileWatchers } from "./ux/file_watcher";
 
@@ -63,7 +64,7 @@ export function GetTotalExp(mode: 'current' | 'aggregate' | 'both' = 'current'):
 
     for (const [treeName, tree] of Object.entries(view.settings.trees)) {
         if (!tree.nodes) continue;
-        
+
         for (const node of tree.nodes) {
             if (node.state === 'complete' && node.exp) {
                 aggregateExp += node.exp;
@@ -899,3 +900,31 @@ async function GetTasksFromFile(filePath: string): Promise<any[]> {
         return [];
     }
 }
+
+
+export function ValidateTreeState(nodes: SkillNode[]) {
+
+    if (!getFloatingEdge()) {
+        for (let node of nodes) {
+            UpdateConnectedEdgesToNearestHandles(node)
+        }
+
+        for (let node of nodes) {
+            node.updateRelationShips()
+        }
+
+        for (const node of nodes) {
+            if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
+                node.validate()
+            }
+        }
+    }
+
+    for (const node of nodes) {
+        if (node.nodeTypeName === 'RepeatingNode') {
+            node.validate()
+        }
+    }
+
+}
+

@@ -18,12 +18,6 @@ export class SkillNode implements ISkillNode {
         return true
     }
 
-    get optional(): boolean { return false; }
-    get checkpoint(): boolean { return false; }
-    get repeating(): boolean { return false; }
-    get hasTasks(): boolean { return false; }
-    get treeLink(): string | null { return null; }
-
     getEditModalRows?(view: SkillTreeView, content: HTMLElement): void;
 
     id: string | number;
@@ -32,6 +26,9 @@ export class SkillNode implements ISkillNode {
 
     state: NodeState = "unavailable";
 
+    get linkable(): boolean {
+        return true
+    }
 
     shape: NodeShape = "hexagon"
 

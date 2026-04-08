@@ -2,14 +2,14 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles, GetTotalExp, CalculateLevel } from "./tree_manager";
+import { GetEdges, GetNodeByID, GetNodes, GetTotalExp, CalculateLevel, ValidateTreeState } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
 import { SKILL_TREE_STYLES, LEVEL_PANE_CONTAINER, LEVEL_PANE_TITLE, LEVEL_PANE_LEVEL, LEVEL_PANE_PROGRESS_BG, LEVEL_PANE_PROGRESS_FILL, LEVEL_PANE_EXP } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge, getFloatingEdge, hitNode, isDragging } from "./ux/event_utils";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor, DrawSubLabel } from "./drawing";
 import { Coordinate } from "./types";
 import { GetNodeLabelInfo } from "./utils/node_label";
-import { isPositionOccupied, findNearestEmptyPosition, pushOtherNodesFromNode, resolveOverlappingNodes } from "./utils/collision";
+import { HandleCollision } from "./utils/collision";
 
 
 let view: SkillTreeView
@@ -310,34 +310,10 @@ function UpdateInRAFID() {
         nodes.map(n => [n.id, nodeRadii[n.id] || nodeRadius])
     );
 
-    if (!getFloatingEdge()) {
-        for (let node of nodes) {
-            UpdateConnectedEdgesToNearestHandles(node)
-        }
 
-        for (let node of nodes) {
-            node.updateRelationShips()
-        }
-        for (const node of nodes) {
-            if (node.getStructuralType() === "start" || node.getStructuralType() === "orphaned") {
-                node.validate()
-            }
-        }
+    ValidateTreeState(nodes);
 
-    }
-
-    for (const node of nodes) {
-        if (node.nodeTypeName === 'RepeatingNode') {
-            node.validate()
-        }
-    }
-
-    if (hitNode && isDragging) {
-        pushOtherNodesFromNode(hitNode);
-    } else {
-        resolveOverlappingNodes();
-    }
-
+    HandleCollision()
     RenderEdgeLines()
     RenderNodes(nodes)
     RenderTemporaryEdgeLine()
@@ -561,6 +537,7 @@ function RenderNodes(nodes: SkillNode[]) {
 
         // TODO: fix view logic to determine if a file is ACTUALLY linked
         const lines = SetupLabelLines(n)
+
         RenderNodeLabel(n, lines)
     }
 }
@@ -703,7 +680,7 @@ let levelPaneDragState = { isDragging: false, startX: 0, startY: 0, initialLeft:
 
 export function CreateLevelPane() {
     if (!view.canvasWrap) return;
-    
+
     levelPaneElement = view.canvasWrap.createEl('div');
     levelPaneElement.style.cssText = LEVEL_PANE_CONTAINER;
     levelPaneElement.style.display = 'none';
@@ -753,21 +730,21 @@ export function UpdateLevelPane() {
 
     const mode = view.settings.levelDisplayMode || 'current';
     const expData = GetTotalExp(mode);
-    
+
     const currentExp = expData.current;
     const aggregateExp = expData.aggregate;
     const currentLevel = CalculateLevel(currentExp);
     const aggregateLevel = CalculateLevel(aggregateExp);
-    
+
     const expForCurrentLevel = currentLevel * currentLevel;
     const expForNextLevel = (currentLevel + 1) * (currentLevel + 1);
     const expInCurrentLevel = currentExp - expForCurrentLevel;
     const expNeededForNext = expForNextLevel - expForCurrentLevel;
-    
+
     const progressPercent = expNeededForNext > 0 ? (expInCurrentLevel / expNeededForNext) * 100 : 100;
-    
+
     let html = '';
-    
+
     if (mode === 'both') {
         html = `
             <div style="${LEVEL_PANE_TITLE}">Level (Current Tree)</div>
@@ -786,7 +763,7 @@ export function UpdateLevelPane() {
     } else {
         const displayExp = mode === 'aggregate' ? aggregateExp : currentExp;
         const displayLevel = mode === 'aggregate' ? aggregateLevel : currentLevel;
-        
+
         html = `
             <div style="${LEVEL_PANE_TITLE}">Level</div>
             <div style="${LEVEL_PANE_LEVEL}">Lv ${displayLevel}</div>
@@ -796,7 +773,7 @@ export function UpdateLevelPane() {
             <div style="${LEVEL_PANE_EXP}">${displayExp} XP</div>
         `;
     }
-    
+
     levelPaneElement.innerHTML = html;
 
     // Update status bar
@@ -806,7 +783,7 @@ export function UpdateLevelPane() {
     const displayExpAggregate = expModeData.aggregate;
     const displayLevelCurrent = CalculateLevel(displayExpCurrent);
     const displayLevelAggregate = CalculateLevel(displayExpAggregate);
-    
+
     let statusBarText = '';
     if (expMode === 'both') {
         statusBarText = `Lv ${currentLevel} | ${currentExp} XP (All: ${aggregateExp})`;
@@ -815,7 +792,7 @@ export function UpdateLevelPane() {
     } else {
         statusBarText = `Lv ${displayLevelCurrent} | ${displayExpCurrent} XP`;
     }
-    
+
     if (view.plugin && (view.plugin as any).updateStatusBar) {
         (view.plugin as any).updateStatusBar(statusBarText);
     }
