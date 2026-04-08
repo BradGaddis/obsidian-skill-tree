@@ -105,6 +105,77 @@ export const STATS_MODAL_HEADER_RIGHT = 'display: flex; gap: 8px; align-items: c
 
 export const STATS_MODAL_GO_BUTTON = 'padding: 4px 12px; cursor: pointer; font-size: 12px;';
 
+export const LOCKED_BANNER = `
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: var(--background-secondary-alt, #3a3a3a);
+  border: 1px solid var(--background-modifier-border, #555);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-normal, #ccc);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  max-width: 90%;
+  text-align: center;
+`;
+
+export const LOCKED_BANNER_LINK = 'color: var(--interactive-accent); text-decoration: underline; cursor: pointer;';
+
+export const LEVEL_PANE_CONTAINER = `
+  position: absolute;
+  top: 50px;
+  left: 16px;
+  z-index: 100;
+  background: var(--background-secondary-alt, #2d2d2d);
+  border: 1px solid var(--background-modifier-border, #555);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  cursor: move;
+  user-select: none;
+`;
+
+export const LEVEL_PANE_TITLE = `
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+`;
+
+export const LEVEL_PANE_LEVEL = `
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-normal, #ccc);
+  margin-bottom: 8px;
+`;
+
+export const LEVEL_PANE_PROGRESS_BG = `
+  width: 100%;
+  height: 8px;
+  background: var(--background-modifier-border, #444);
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+export const LEVEL_PANE_PROGRESS_FILL = `
+  height: 100%;
+  background: var(--interactive-accent, #3a8eff);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+`;
+
+export const LEVEL_PANE_EXP = `
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  margin-top: 4px;
+`;
+
 export const BTN_ICON = 'padding:4px 12px;';
 
 export const BTN_DANGER_RED = 'padding: 8px 16px; border: none; border-radius: 4px; background: #dc3545; color: white; cursor: pointer;';

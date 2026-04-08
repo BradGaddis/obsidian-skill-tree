@@ -56,6 +56,37 @@ export function GetEdges(): SkillEdge[] {
     return edges;
 }
 
+export function GetTotalExp(mode: 'current' | 'aggregate' | 'both' = 'current'): { current: number; aggregate: number } {
+    const currentTreeName = view.settings.currentTreeName;
+    let currentExp = 0;
+    let aggregateExp = 0;
+
+    for (const [treeName, tree] of Object.entries(view.settings.trees)) {
+        if (!tree.nodes) continue;
+        
+        for (const node of tree.nodes) {
+            if (node.state === 'complete' && node.exp) {
+                aggregateExp += node.exp;
+                if (treeName === currentTreeName) {
+                    currentExp += node.exp;
+                }
+            }
+        }
+    }
+
+    if (mode === 'current') {
+        return { current: currentExp, aggregate: 0 };
+    } else if (mode === 'aggregate') {
+        return { current: 0, aggregate: aggregateExp };
+    } else {
+        return { current: currentExp, aggregate: aggregateExp };
+    }
+}
+
+export function CalculateLevel(exp: number): number {
+    return Math.max(0, Math.floor(Math.sqrt(Math.max(0, exp))));
+}
+
 export function SetNodesFromSnapshot(nodesData: any[]): void {
     nodes.clear();
     for (const data of nodesData) {
@@ -316,23 +347,38 @@ export function GetTreesLinkingToCurrent(): string[] {
     const currentTreeName = view.settings.currentTreeName;
     const linkingTrees: string[] = [];
 
-    // TODO:
-    // for (const [treeName, tree] of Object.entries(view.settings.trees)) {
-    //     if (treeName === currentTreeName) continue;
-    //
-    //     const hasLinkToCurrent = tree.nodes?.some(n =>
-    //         n.treeLink && (
-    //             n.treeLink === currentTreeName ||
-    //             (n.treeLink === '' && view.settings.currentTreeName === currentTreeName)
-    //         )
-    //     );
-    //
-    //     if (hasLinkToCurrent) {
-    //         linkingTrees.push(treeName);
-    //     }
-    // }
+    for (const [treeName, tree] of Object.entries(view.settings.trees)) {
+        if (treeName === currentTreeName) continue;
+
+        const hasLinkToCurrent = tree.nodes?.some(n =>
+            n.treeLink && n.treeLink === currentTreeName
+        );
+
+        if (hasLinkToCurrent) {
+            linkingTrees.push(treeName);
+        }
+    }
 
     return linkingTrees;
+}
+
+export function GetTreesWithIncompleteLinks(): { treeName: string; nodeCount: number }[] {
+    const currentTreeName = view.settings.currentTreeName;
+    const result: { treeName: string; nodeCount: number }[] = [];
+
+    for (const [treeName, tree] of Object.entries(view.settings.trees)) {
+        if (treeName === currentTreeName) continue;
+
+        const unavailableLinks = tree.nodes?.filter(n =>
+            n.treeLink === currentTreeName && n.state === 'unavailable'
+        ) || [];
+
+        if (unavailableLinks.length > 0) {
+            result.push({ treeName, nodeCount: unavailableLinks.length });
+        }
+    }
+
+    return result;
 }
 
 export function GetTrees(): object {

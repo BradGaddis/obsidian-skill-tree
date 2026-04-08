@@ -2,9 +2,9 @@ import { Notice } from "obsidian";
 import { SkillTreeView } from "./skilltreeview";
 import { modeToggleBtn, editModeOnlyButtons } from "./toolbar";
 import { SKILLTREE_CANVAS_WRAP } from "./constants";
-import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles } from "./tree_manager";
+import { GetEdges, GetNodeByID, GetNodes, UpdateConnectedEdgesToNearestHandles, GetTotalExp, CalculateLevel } from "./tree_manager";
 import { SkillNode } from "./skill_nodes/skill_node";
-import { SKILL_TREE_STYLES } from "./styles";
+import { SKILL_TREE_STYLES, LEVEL_PANE_CONTAINER, LEVEL_PANE_TITLE, LEVEL_PANE_LEVEL, LEVEL_PANE_PROGRESS_BG, LEVEL_PANE_PROGRESS_FILL, LEVEL_PANE_EXP } from "./styles";
 import { edgeDragFrom, edgeDragTarget, draggingEdgeEndpoint, edgeDragSourcePos, getIsDraggingEdge, getFloatingEdge, hitNode, isDragging } from "./ux/event_utils";
 import { DrawNodeShape, drawOrthogonalArrow, DrawSelectedNode, InitDrawing, DrawCheckBox, parseCSSColor as parseColor, DrawSubLabel } from "./drawing";
 import { Coordinate } from "./types";
@@ -110,6 +110,11 @@ export function InitRenderer(skillTreeView: SkillTreeView) {
     });
     view.resizeObserver.observe(canvas);
     InitDrawing(view)
+
+    CreateLevelPane();
+    if (view.settings.showLevelPane !== false) {
+        ToggleLevelPane(true);
+    }
 
     window.addEventListener('repeating-node-timer-tick', () => {
         updateTimerLabel();
@@ -687,6 +692,141 @@ export function worldToScreen(worldCoords: Coordinate) {
 // TODO: maybe move into render module
 export function screenToWorld(screenCoords: Coordinate) {
     return { x: (screenCoords.x - view.offset.x) / view.scale, y: (screenCoords.y - view.offset.y) / view.scale };
+}
+
+// ============================================================================
+// Level Pane
+// ============================================================================
+
+let levelPaneElement: HTMLElement | null = null;
+let levelPaneDragState = { isDragging: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0 };
+
+export function CreateLevelPane() {
+    if (!view.canvasWrap) return;
+    
+    levelPaneElement = view.canvasWrap.createEl('div');
+    levelPaneElement.style.cssText = LEVEL_PANE_CONTAINER;
+    levelPaneElement.style.display = 'none';
+
+    const savedPos = (view.plugin.settings as any).levelPanePosition;
+    if (savedPos && typeof savedPos.left === 'number' && typeof savedPos.top === 'number') {
+        levelPaneElement.style.left = `${savedPos.left}px`;
+        levelPaneElement.style.top = `${savedPos.top}px`;
+    }
+
+    levelPaneElement.addEventListener('mousedown', (e) => {
+        if (!levelPaneElement) return;
+        levelPaneDragState.isDragging = true;
+        levelPaneDragState.startX = e.clientX;
+        levelPaneDragState.startY = e.clientY;
+        levelPaneDragState.initialLeft = levelPaneElement.offsetLeft;
+        levelPaneDragState.initialTop = levelPaneElement.offsetTop;
+        levelPaneElement.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!levelPaneDragState.isDragging || !levelPaneElement) return;
+        const dx = e.clientX - levelPaneDragState.startX;
+        const dy = e.clientY - levelPaneDragState.startY;
+        levelPaneElement.style.left = `${levelPaneDragState.initialLeft + dx}px`;
+        levelPaneElement.style.top = `${levelPaneDragState.initialTop + dy}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (!levelPaneDragState.isDragging || !levelPaneElement) return;
+        levelPaneDragState.isDragging = false;
+        if (levelPaneElement) {
+            levelPaneElement.style.cursor = 'move';
+            (view.plugin.settings as any).levelPanePosition = {
+                left: levelPaneElement.offsetLeft,
+                top: levelPaneElement.offsetTop
+            };
+            view.plugin.saveSettings();
+        }
+    });
+
+    UpdateLevelPane();
+}
+
+export function UpdateLevelPane() {
+    if (!levelPaneElement) return;
+
+    const mode = view.settings.levelDisplayMode || 'current';
+    const expData = GetTotalExp(mode);
+    
+    const currentExp = expData.current;
+    const aggregateExp = expData.aggregate;
+    const currentLevel = CalculateLevel(currentExp);
+    const aggregateLevel = CalculateLevel(aggregateExp);
+    
+    const expForCurrentLevel = currentLevel * currentLevel;
+    const expForNextLevel = (currentLevel + 1) * (currentLevel + 1);
+    const expInCurrentLevel = currentExp - expForCurrentLevel;
+    const expNeededForNext = expForNextLevel - expForCurrentLevel;
+    
+    const progressPercent = expNeededForNext > 0 ? (expInCurrentLevel / expNeededForNext) * 100 : 100;
+    
+    let html = '';
+    
+    if (mode === 'both') {
+        html = `
+            <div style="${LEVEL_PANE_TITLE}">Level (Current Tree)</div>
+            <div style="${LEVEL_PANE_LEVEL}">Lv ${currentLevel}</div>
+            <div style="${LEVEL_PANE_PROGRESS_BG}">
+                <div style="${LEVEL_PANE_PROGRESS_FILL}; width: ${Math.min(100, progressPercent)}%"></div>
+            </div>
+            <div style="${LEVEL_PANE_EXP}">${currentExp} / ${expForNextLevel} XP</div>
+            <div style="margin-top: 12px; ${LEVEL_PANE_TITLE}">Level (All Trees)</div>
+            <div style="${LEVEL_PANE_LEVEL}">Lv ${aggregateLevel}</div>
+            <div style="${LEVEL_PANE_PROGRESS_BG}">
+                <div style="${LEVEL_PANE_PROGRESS_FILL}; width: 100%"></div>
+            </div>
+            <div style="${LEVEL_PANE_EXP}">${aggregateExp} XP Total</div>
+        `;
+    } else {
+        const displayExp = mode === 'aggregate' ? aggregateExp : currentExp;
+        const displayLevel = mode === 'aggregate' ? aggregateLevel : currentLevel;
+        
+        html = `
+            <div style="${LEVEL_PANE_TITLE}">Level</div>
+            <div style="${LEVEL_PANE_LEVEL}">Lv ${displayLevel}</div>
+            <div style="${LEVEL_PANE_PROGRESS_BG}">
+                <div style="${LEVEL_PANE_PROGRESS_FILL}; width: ${Math.min(100, progressPercent)}%"></div>
+            </div>
+            <div style="${LEVEL_PANE_EXP}">${displayExp} XP</div>
+        `;
+    }
+    
+    levelPaneElement.innerHTML = html;
+
+    // Update status bar
+    const expMode = view.settings.expDisplayMode || 'current';
+    const expModeData = GetTotalExp(expMode);
+    const displayExpCurrent = expModeData.current;
+    const displayExpAggregate = expModeData.aggregate;
+    const displayLevelCurrent = CalculateLevel(displayExpCurrent);
+    const displayLevelAggregate = CalculateLevel(displayExpAggregate);
+    
+    let statusBarText = '';
+    if (expMode === 'both') {
+        statusBarText = `Lv ${currentLevel} | ${currentExp} XP (All: ${aggregateExp})`;
+    } else if (expMode === 'aggregate') {
+        statusBarText = `Lv ${displayLevelAggregate} | ${displayExpAggregate} XP`;
+    } else {
+        statusBarText = `Lv ${displayLevelCurrent} | ${displayExpCurrent} XP`;
+    }
+    
+    if (view.plugin && (view.plugin as any).updateStatusBar) {
+        (view.plugin as any).updateStatusBar(statusBarText);
+    }
+}
+
+export function ToggleLevelPane(visible: boolean) {
+    if (!levelPaneElement) return;
+    levelPaneElement.style.display = visible ? '' : 'none';
+    if (visible) {
+        UpdateLevelPane();
+    }
 }
 
 

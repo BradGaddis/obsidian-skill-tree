@@ -192,11 +192,13 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   updateLevelPaneVisibility() {
-    this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(leaf => {
-      // const view = leaf.view as SkillTreeView;
-      // if (view && view.toggleLevelPane) {
-      //   view.toggleLevelPane(this.settings.showLevelPane !== false);
-      // }
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+      const view = leaf.view as any;
+      if (view && view.settings) {
+        const { ToggleLevelPane, UpdateLevelPane } = await import("src/renderer");
+        ToggleLevelPane(view.settings.showLevelPane !== false);
+        UpdateLevelPane();
+      }
     });
   }
 

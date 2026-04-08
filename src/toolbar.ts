@@ -14,6 +14,7 @@ import {
     UpdateTreeSelector,
     GetCurrentTree,
     GetTreesLinkingToCurrent,
+    GetTreesWithIncompleteLinks,
     SwitchTree,
     CreateTree,
     AddNode,
@@ -28,6 +29,8 @@ import { RecordSnapshot, SaveNodes } from "./recorder";
 import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
 import { skillTreeEvents, EVENTS } from "./utils/events";
 import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree_pane";
+import { closeAllModals } from "./modal/skilltree_modal";
+import * as S from "./styles";
 
 // TODO: bulletproof these later
 export let modeToggleBtn: HTMLButtonElement
@@ -134,6 +137,8 @@ function SetupToolbarButtons(): void {
     SetupDeleteTreeButton();
     SetUpGoToLinkedButton();
     SetUpRecenterButton();
+
+    SetupLockedTreeBanner();
 
     // Initialize to not showing edit mode buttons
     for (let button of editModeOnlyButtons) {
@@ -443,14 +448,134 @@ function SetupTreeSelectorDiv() {
 function SetUpGoToLinkedButton() {
     goToLinkedBtn = toolbarButtons.createEl('button', { text: 'Go to Linked' });
     goToLinkedBtn.style.marginLeft = '6px';
-    goToLinkedBtn.title = 'Jump to a tree that links to view one';
+    goToLinkedBtn.title = 'Jump to a tree that links to this one';
 
-    goToLinkedBtn.onclick = () => {
-        // Functionality to be implemented
-        // const linkingTrees = GetTreesLinkingToCurrent();
+    goToLinkedBtn.onclick = async () => {
+        const linkingTrees = GetTreesLinkingToCurrent();
+
+        if (linkingTrees.length === 0) {
+            return;
+        }
+
+        if (linkingTrees.length === 1) {
+            await SwitchTree(linkingTrees[0]);
+            return;
+        }
+
+        const container = view.canvasWrap || view.containerEl;
+        if (!container) return;
+
+        closeAllModals();
+
+        const dropdown = container.createEl('div');
+        dropdown.style.cssText = `
+            position: fixed;
+            z-index: 10000;
+            background: var(--background-primary);
+            border: 1px solid var(--background-modifier-border);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 8px 0;
+            min-width: 180px;
+        `;
+
+        const rect = goToLinkedBtn.getBoundingClientRect();
+        dropdown.style.left = `${rect.left}px`;
+        dropdown.style.top = `${rect.bottom + 4}px`;
+
+        linkingTrees.forEach(treeName => {
+            const item = dropdown.createEl('div');
+            item.style.cssText = 'padding: 8px 16px; cursor: pointer; font-size: 14px;';
+            item.textContent = treeName;
+            item.onmouseenter = () => {
+                item.style.background = 'var(--background-modifier-hover)';
+            };
+            item.onmouseleave = () => {
+                item.style.background = '';
+            };
+            item.onclick = async () => {
+                dropdown.remove();
+                document.removeEventListener('click', outsideHandler);
+                await SwitchTree(treeName);
+            };
+        });
+
+        const outsideHandler = (e: MouseEvent) => {
+            if (!dropdown.contains(e.target as Node) && e.target !== goToLinkedBtn) {
+                dropdown.remove();
+                document.removeEventListener('click', outsideHandler);
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', outsideHandler);
+        }, 10);
     };
 
-    updateGoToLinkedBtnVisibility()
+    updateGoToLinkedBtnVisibility();
+}
+
+let lockedTreeBanner: HTMLElement | null = null;
+
+function SetupLockedTreeBanner() {
+    updateLockedTreeBanner();
+    updateLevelPaneOnEvent();
+    skillTreeEvents.on(EVENTS.NODES_CHANGED, () => {
+        updateLockedTreeBanner();
+        updateLevelPaneOnEvent();
+    });
+    skillTreeEvents.on(EVENTS.TREE_SWITCHED, () => {
+        updateLockedTreeBanner();
+        updateLevelPaneOnEvent();
+    });
+}
+
+async function updateLevelPaneOnEvent() {
+    const { UpdateLevelPane } = await import('./renderer');
+    UpdateLevelPane();
+}
+
+function updateLockedTreeBanner() {
+    if (!view.canvasWrap) return;
+
+    const linkingWithIncomplete = GetTreesWithIncompleteLinks();
+
+    if (linkingWithIncomplete.length === 0) {
+        if (lockedTreeBanner) {
+            lockedTreeBanner.remove();
+            lockedTreeBanner = null;
+        }
+        return;
+    }
+
+    if (!lockedTreeBanner) {
+        lockedTreeBanner = view.canvasWrap.createEl('div');
+        lockedTreeBanner.style.cssText = S.LOCKED_BANNER;
+    }
+
+    const treeNames = linkingWithIncomplete.map((t: { treeName: string; nodeCount: number }) => {
+        const linkText = t.nodeCount === 1 ? t.treeName : `${t.treeName} (${t.nodeCount})`;
+        return `<a href="#" class="tree-link" data-tree="${t.treeName}" style="${S.LOCKED_BANNER_LINK}">${linkText}</a>`;
+    });
+
+    lockedTreeBanner.innerHTML = `
+        <span style="color: var(--text-muted, #888);">This tree is locked. Complete prerequisite nodes in:</span>
+        ${treeNames.join(', ')}
+    `;
+
+    lockedTreeBanner.querySelectorAll('.tree-link').forEach(link => {
+        (link as HTMLElement).onclick = async (e) => {
+            e.preventDefault();
+            const treeName = (link as HTMLElement).dataset.tree;
+            if (treeName) {
+                await SwitchTree(treeName);
+                updateLockedTreeBanner();
+                Render();
+            }
+        };
+    });
+
+    updateGoToLinkedBtnVisibility();
 }
 
 
