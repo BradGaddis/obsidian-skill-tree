@@ -1,27 +1,23 @@
 import { ItemView, Notice, Platform, WorkspaceLeaf } from "obsidian";
 import SkillTreePlugin, { defaultSettings } from "./main";
-import { VIEW_TYPE_SKILLTREE } from "./constants";
-import { Coordinate, Mode } from "./types";
-import { SkillTreeSettings } from "./main";
-import { InitRecorder } from "./recorder";
-import { InitRenderer, Recenter, Render, UpdateToolbarUI } from "./renderer";
-import { InitTreeManager } from "./tree_manager";
-import { InitToolBar } from "./toolbar";
-import { InitDialog } from "./dialog";
-import { InitSkillTreeModal } from "./modal/skilltree_modal"
-import { InitStatsModal } from "./modal/skilltree_stats_modal"
-import { InitNodeListModal } from "./modal/skilltree_pane"
-import { InitJSONEditor } from "./dialog/json_editor";
+import { VIEW_TYPE_SKILLTREE } from "./types/constants";
+
+import { Coordinate, Mode } from "./types/types";
+import { SkillTreeSettings } from "./types/interfaces";
+import { InitRenderer, Recenter, Update } from "./rendering/renderer";
+import { UpdateToolbarUI } from "./toolbar";
+import { InitTreeManager } from "./data/tree_manager";
+import { collapseBtn, floatingExpandBtn, InitToolBar, toolbar } from "./toolbar";
+
 
 import { modeToggleBtn } from "./toolbar";
 
-import { InitClickHandler } from "./ux/click_event_handler";
-import { InitTouchHandler } from "./ux/touch_event_handler";
-
-// TODO: fix radius storage in settings
+import { InitClickHandler } from "./handlers/click_event_handler";
+import { InitTouchHandler } from "./handlers/touch_event_handler";
 
 export class SkillTreeView extends ItemView {
     private uxCleanup: (() => void) | null = null;
+    private renderCleanup: (() => void) | null = null;
 
     private _scale: number = 1
     get scale(): number { return this._scale }
@@ -46,39 +42,36 @@ export class SkillTreeView extends ItemView {
     getViewType(): string { return VIEW_TYPE_SKILLTREE; }
     getDisplayText(): string { return 'Skill Tree'; }
 
-    constructor(leaf: WorkspaceLeaf,
-        plugin: SkillTreePlugin) {
+    constructor(leaf: WorkspaceLeaf, plugin: SkillTreePlugin) {
         super(leaf);
         this.plugin = plugin;
     }
 
-
     protected async onOpen(): Promise<void> {
-        InitRecorder(this)
-        await InitTreeManager(this) // this must be called before InitToolBar
-        InitToolBar(this)
-        InitDialog(this)
-        InitSkillTreeModal(this)
-        InitStatsModal(this)
-        InitNodeListModal(this)
-        InitJSONEditor(this)
-        InitRenderer(this)
+        await InitTreeManager()
+        InitToolBar()
+
+        this.renderCleanup = InitRenderer().cleanup
 
         if (Platform.isDesktop) {
-            this.uxCleanup = InitClickHandler(this).cleanup
+            this.uxCleanup = InitClickHandler().cleanup
         }
-
         if (Platform.isMobile || Platform.isMobileApp) {
-            this.uxCleanup = InitTouchHandler(this).cleanup
-        }
+            const MOBILE_TOP_PADDING = '60px';
+            toolbar.style.marginTop = MOBILE_TOP_PADDING
+            collapseBtn.style.top += MOBILE_TOP_PADDING
+            floatingExpandBtn.style.top = MOBILE_TOP_PADDING
 
-        await this.loadSettings();
+            this.uxCleanup = InitTouchHandler().cleanup
+        }
         Recenter()
+        Update(true);
     }
 
     protected async onClose(): Promise<void> {
         this.uxCleanup?.();
         this.resizeObserver?.disconnect();
+        this.renderCleanup?.();
     }
 
     async loadSettings() {
@@ -107,7 +100,7 @@ export class SkillTreeView extends ItemView {
         this.plugin.settings.mode = mode
         await this.plugin.saveSettings();
         UpdateToolbarUI();
-        Render();
+        Update();
     }
 
 
@@ -119,17 +112,6 @@ export class SkillTreeView extends ItemView {
             return false;
         }
     }
-
-    isDataviewPluginInstalled(): boolean {
-        try {
-            const dataviewPlugin = (this.app as any).plugins?.plugins?.['dataview'];
-            return !!dataviewPlugin;
-
-        } catch (e) {
-            return false;
-        }
-    }
-
 
 }
 

@@ -1,20 +1,19 @@
-import { GetNodes } from "../tree_manager";
-import { LOOP_UPPER_LIMIT } from "../constants";
-import { nodeRadii } from "../renderer";
-import { SkillNode } from "../skill_nodes/skill_node";
-import { hitNode, isDragging } from "../ux/event_utils";
+import { GetNodes } from "../data/tree_manager";
+import { LOOP_UPPER_LIMIT } from "../types/constants";
+import { nodeRadii } from "../rendering/renderer";
+import { SkillNode } from "../nodes/skill_node";
+import { hitNode, isDragging } from "../handlers/interactions";
 
-let view: any;
-
-export function InitCollisionDetector(skillTreeView: any): void {
-    view = skillTreeView;
-}
 
 export function isPositionOccupied(x: number, y: number, radius: number, excludeNodeId?: string | number): boolean {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
         if (excludeNodeId && node.id === excludeNodeId) continue;
-        const nodeRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+        const nodeRadius = nodeRadii[node.id];
+        if (nodeRadius === undefined) {
+            console.error(`nodeRadii missing for node ${node.id}`);
+            continue;
+        }
         const minDist = radius + nodeRadius + 10;
         const dx = x - node.x;
         const dy = y - node.y;
@@ -48,55 +47,14 @@ export function findNearestEmptyPosition(x: number, y: number, radius: number): 
     return { x: Math.round(x + 200), y: Math.round(y + 200) };
 }
 
-function pushNodeFromCollision(targetX: number, targetY: number, draggingNode: SkillNode): { x: number, y: number } {
-    const minMargin = 20;
-    const maxIterations = 50;
-    const nodes = GetNodes();
-    const draggingRadius = nodeRadii[draggingNode.id] || (view?.settings?.nodeRadius ?? 40);
-
-    let currentX = targetX;
-    let currentY = targetY;
-
-    for (let i = 0; i < maxIterations; i++) {
-        let hasCollision = false;
-
-        for (const otherNode of nodes.values()) {
-            if (otherNode.id === draggingNode.id) continue;
-
-            const otherRadius = nodeRadii[otherNode.id] || (view?.settings?.nodeRadius ?? 40);
-            const minDistance = draggingRadius + otherRadius + minMargin;
-
-            const dx = currentX - otherNode.x;
-            const dy = currentY - otherNode.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < minDistance) {
-                hasCollision = true;
-                if (distance < 0.001) {
-                    const angle = Math.random() * Math.PI * 2;
-                    currentX = otherNode.x + Math.cos(angle) * minDistance;
-                    currentY = otherNode.y + Math.sin(angle) * minDistance;
-                } else {
-                    const pushAngle = Math.atan2(dy, dx);
-                    currentX = otherNode.x + Math.cos(pushAngle) * minDistance;
-                    currentY = otherNode.y + Math.sin(pushAngle) * minDistance;
-                }
-                break;
-            }
-        }
-
-        if (!hasCollision) {
-            return { x: Math.round(currentX), y: Math.round(currentY) };
-        }
-    }
-
-    return { x: Math.round(currentX), y: Math.round(currentY) };
-}
-
 function pushOtherNodesFromNode(draggingNode: SkillNode): void {
     const minMargin = 20;
     const nodes = GetNodes();
-    const draggingRadius = nodeRadii[draggingNode.id] || (view?.settings?.nodeRadius ?? 40);
+    const draggingRadius = nodeRadii[draggingNode.id];
+    if (draggingRadius === undefined) {
+        console.error(`nodeRadii missing for node ${draggingNode.id}`);
+        return;
+    }
 
     for (let iteration = 0; iteration < LOOP_UPPER_LIMIT; iteration++) {
         let anyMoved = false;
@@ -104,7 +62,11 @@ function pushOtherNodesFromNode(draggingNode: SkillNode): void {
         for (const node of nodes.values()) {
             if (node.id === draggingNode.id) continue;
 
-            const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+            const otherRadius = nodeRadii[node.id];
+            if (otherRadius === undefined) {
+                console.error(`nodeRadii missing for node ${node.id}`);
+                continue;
+            }
             const dx = node.x - draggingNode.x;
             const dy = node.y - draggingNode.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -127,13 +89,21 @@ function pushOtherNodesFromNode(draggingNode: SkillNode): void {
         for (const node of nodes.values()) {
             if (node.id === draggingNode.id) continue;
 
-            const otherRadius = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+            const otherRadius = nodeRadii[node.id];
+            if (otherRadius === undefined) {
+                console.error(`nodeRadii missing for node ${node.id}`);
+                continue;
+            }
             const otherNodes = GetNodes();
 
             for (const otherNode of otherNodes.values()) {
                 if (otherNode.id === node.id || otherNode.id === draggingNode.id) continue;
 
-                const otherNodeRadius = nodeRadii[otherNode.id] || (view?.settings?.nodeRadius ?? 40);
+                const otherNodeRadius = nodeRadii[otherNode.id];
+                if (otherNodeRadius === undefined) {
+                    console.error(`nodeRadii missing for node ${otherNode.id}`);
+                    continue;
+                }
                 const dx = node.x - otherNode.x;
                 const dy = node.y - otherNode.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -161,7 +131,11 @@ function pushOtherNodesFromNode(draggingNode: SkillNode): void {
 function resolveOverlappingNodes(): void {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
-        const r = nodeRadii[node.id] || (view?.settings?.nodeRadius ?? 40);
+        const r = nodeRadii[node.id];
+        if (r === undefined) {
+            console.error(`nodeRadii missing for node ${node.id}`);
+            continue;
+        }
         if (isPositionOccupied(node.x, node.y, r, node.id)) {
             const newPos = findNearestEmptyPosition(node.x, node.y, r);
             node.x = newPos.x;

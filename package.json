@@ -18,7 +18,6 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
-    "obsidian": "^1.11.4",
-    "obsidian-dataview": "^0.4.21"
+    "obsidian": "^1.11.4"
   }
 }

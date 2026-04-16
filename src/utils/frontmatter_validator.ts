@@ -1,26 +1,6 @@
-import { NodeState } from "src/skill_nodes/types";
-
-export interface ValidatedFrontmatter {
-  skilltreeNode: string | null;
-  skilltreeTree: string | null;
-  skilltreeState: NodeState | null;
-  exp: number;
-  shape: 'circle' | 'square' | 'hexagon' | 'diamond' | 'repeat';
-  repeating: boolean;
-  repeatCount: number;
-  repeatMax: number | undefined;
-  repeatReset: 'cooldown' | undefined;
-  repeatCooldownHours: number | undefined;
-  repeatLastCompleted: number | null;
-  skilltreeTo: string[];
-  skilltreeFrom: string[];
-  x?: number;
-  y?: number;
-  displayText: string | null;
-}
+import { ValidatedFrontmatter } from "../types/interfaces";
 
 const VALID_SHAPES = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
-const VALID_STATES: NodeState[] = ['unavailable', 'inProgress', 'complete', 'onHold', 'error'];
 
 export function validateFrontmatter(fm: Record<string, any> | null | undefined): ValidatedFrontmatter {
   if (!fm) {
@@ -33,20 +13,12 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
     : null;
 
   const skilltreeTreeRaw = fm['skilltree-tree'];
-  const skilltreeTree = (typeof skilltreeTreeRaw === 'string' && skilltreeTreeRaw.trim() !== '')
-    ? skilltreeTreeRaw.trim()
-    : null;
-
-  const skilltreeStateRaw = fm['skilltree-state'];
-  const skilltreeState = (typeof skilltreeStateRaw === 'string' && VALID_STATES.includes(skilltreeStateRaw as NodeState))
-    ? skilltreeStateRaw as NodeState
-    : null;
-
-  const skilltreeToRaw = fm['skilltree-to'];
-  const skilltreeTo = Array.isArray(skilltreeToRaw) ? skilltreeToRaw.filter((x): x is string => typeof x === 'string') : [];
-
-  const skilltreeFromRaw = fm['skilltree-from'];
-  const skilltreeFrom = Array.isArray(skilltreeFromRaw) ? skilltreeFromRaw.filter((x): x is string => typeof x === 'string') : [];
+  let skilltreeTrees: string[] = [];
+  if (typeof skilltreeTreeRaw === 'string' && skilltreeTreeRaw.trim() !== '') {
+    skilltreeTrees = [skilltreeTreeRaw.trim()];
+  } else if (Array.isArray(skilltreeTreeRaw)) {
+    skilltreeTrees = skilltreeTreeRaw.filter((x): x is string => typeof x === 'string').map(x => x.trim());
+  }
 
   const expRaw = fm['skilltree-exp'];
   const exp = (typeof expRaw === 'number' && !isNaN(expRaw)) ? expRaw : 10;
@@ -95,8 +67,7 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
 
   return {
     skilltreeNode,
-    skilltreeTree,
-    skilltreeState,
+    skilltreeTrees,
     exp,
     x,
     y,
@@ -107,8 +78,6 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
     repeatReset,
     repeatCooldownHours,
     repeatLastCompleted,
-    skilltreeTo,
-    skilltreeFrom,
     displayText,
   };
 }
@@ -116,8 +85,7 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
 function getDefaultValidated(): ValidatedFrontmatter {
   return {
     skilltreeNode: null,
-    skilltreeTree: null,
-    skilltreeState: null,
+    skilltreeTrees: [],
     exp: 10,
     x: undefined,
     y: undefined,
@@ -128,8 +96,6 @@ function getDefaultValidated(): ValidatedFrontmatter {
     repeatReset: undefined,
     repeatCooldownHours: undefined,
     repeatLastCompleted: null,
-    skilltreeTo: [],
-    skilltreeFrom: [],
     displayText: null,
   };
 }

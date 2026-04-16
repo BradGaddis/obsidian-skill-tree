@@ -1,58 +1,59 @@
-import { Plugin, WorkspaceLeaf, PluginSettingTab, Setting, App, FuzzySuggestModal, FuzzyMatch, TFolder, Notice, Modal } from 'obsidian';
-import { SkillTreeData, CustomTheme } from './interfaces';
-import { VIEW_TYPE_SKILLTREE } from './constants';
+import { App, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
+
+import { SkillTreeSettings } from './types/interfaces';
+import { LOOP_UPPER_LIMIT, VIEW_TYPE_SKILLTREE } from './types/constants';
+
 import { SkillTreeView } from './skilltreeview';
-import { Mode } from './types'
+import { GetCurrentTreeData } from './data/tree_manager';
+import { SetupFileWatchers } from './handlers/file_watcher';
+import { SetSettings, SetView } from './utils/globals';
 import { skillTreeEvents, EVENTS } from './utils/events';
-import * as S from './styles';
+import { TreeSuggestModal, FolderSuggestionModal } from './ui/fuzzy_suggest_modal';
 
 export function defaultSettings(): SkillTreeSettings {
   return {
     mode: "view",
-    nodeRadius: 36,
-    maxNodeRadius: 72,
-    showBezier: false,
+    previousMode: "view",
+    minNodeRadius: 40,
+    maxNodeRadius: 100,
     defaultExp: 10,
     showExpAsFraction: false,
     currentTreeName: 'default',
     trees: { 'default': { name: 'default', nodes: [], edges: [] } },
     defaultFilePath: '',
-    style: 'gamified',
     handleRadius: 8,
     modalPositions: {},
     suppressDeleteConfirmation: false,
     showLevelPane: true,
-    showExpPane: true,
+    levelMultiplier: 1,
+    currentExp: 0,
+    aggregateExp: 0,
+    aggregateTotalExp: 0,
     levelDisplayMode: 'current',
     expDisplayMode: 'current',
     showStatusBar: true,
-    themes: {},
-    suppressNodeTypeWarning: false,
+    fontSize: 16,
+    customTaskQuery: '',
+    lastModified: 0,
   };
 }
 
 
-/**
- * Main plugin class for the Skill Tree Obsidian plugin.
- * Handles settings, view registration and activation.
- */
-
 export default class SkillTreePlugin extends Plugin {
-  /** The settings. Will be default if nothing is saved or changed */
   settings: SkillTreeSettings = defaultSettings();
 
-  /** Status bar item showing level and exp */
   statusBarItem: HTMLElement | null = null;
 
-  /**
-   * Called when the plugin is loaded. Registers views, commands, and UI elements.
-   */
   async onload() {
     await this.loadSettings();
 
     this.addSettingTab(new SkillTreeSettingTab(this.app, this));
 
-    this.registerView?.(VIEW_TYPE_SKILLTREE, (leaf: WorkspaceLeaf) => new SkillTreeView(leaf, this));
+    this.registerView?.(VIEW_TYPE_SKILLTREE, (leaf: WorkspaceLeaf) => {
+      let view: SkillTreeView = new SkillTreeView(leaf, this)
+      SetView(view)
+      return view
+    });
 
     this.addCommand?.({
       id: 'open-skill-tree',
@@ -60,29 +61,35 @@ export default class SkillTreePlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
-    // this.addCommand?.({
-    //   id: 'toggle-edit-mode',
-    //   name: 'Skill Tree: Toggle Edit Mode',
-    //   checkCallback: (checking) => {
-    //     const view = this.getActiveView();
-    //     if (view) {
-    //       if (!checking) {
-    // this.settings.editMode = !this.editMode;
-    // this.settings.editMode = this.editMode;
-    // this.saveSettings();
-    // // Sync edit mode buttons directly
-    // // view.syncEditModeButtons(this.editMode);
-    // view.requestRender();
-    //       }
-    //       return true;
-    //     }
-    //     return false;
-    //   },
-    // });
+    this.addCommand?.({
+      id: 'toggle-edit-mode',
+      name: 'Skill Tree: Toggle Edit Mode',
+
+      checkCallback: (checking) => {
+
+        const view = this.getActiveView();
+
+        if (!view) {
+          return false;
+        }
+
+        if (!checking) {
+          const currentMode = this.settings.mode;
+          const previousMode = this.settings.previousMode;
+          this.settings.previousMode = currentMode;
+          this.settings.mode = previousMode;
+          this.saveSettings();
+
+          // Dynamically import Update to avoid circular deps
+          import("./rendering/renderer").then(m => m.Update());
+        }
+        return true;
+      },
+    });
 
     this.addCommand?.({
       id: 'jump-to-node',
-      name: 'Skill Tree: Jump to Node',
+      name: 'Jump to Node',
       checkCallback: (checking) => {
         const view = this.getActiveView();
         if (view) {
@@ -97,7 +104,7 @@ export default class SkillTreePlugin extends Plugin {
 
     this.addCommand?.({
       id: 'open-skill-tree-tree',
-      name: 'Skill Tree: Switch to Tree',
+      name: 'Switch to Tree',
       callback: () => {
         const treeNames = Object.keys(this.settings.trees);
         if (treeNames.length === 0) {
@@ -105,48 +112,24 @@ export default class SkillTreePlugin extends Plugin {
           return;
         }
         if (treeNames.length === 1) {
-          this.settings.currentTreeName = treeNames[0];
+          const firstTree = treeNames[0];
+          if (firstTree === undefined) {
+            new Notice('No skill trees found');
+            return;
+          }
+          this.settings.currentTreeName = firstTree;
           this.saveSettings();
           this.activateView();
           return;
         }
-        new TreeSelectModal(this.app, treeNames, (selectedTree) => {
+        new TreeSuggestModal(this.app, (selectedTree) => {
           this.settings.currentTreeName = selectedTree;
           this.saveSettings();
           this.activateView();
-        }).open();
+        }, treeNames).open();
       },
     });
 
-    // this.addCommand?.({
-    //   id: 'skill-tree-undo',
-    //   name: 'Skill Tree: Undo',
-    //   checkCallback: (checking) => {
-    //     const view = this.getActiveView();
-    //     if (view) {
-    //       if (!checking) {
-    //         view.undo();
-    //       }
-    //       return true;
-    //     }
-    //     return false;
-    //   },
-    // });
-
-    // this.addCommand?.({
-    //   id: 'skill-tree-redo',
-    //   name: 'Skill Tree: Redo',
-    //   checkCallback: (checking) => {
-    //     const view = this.getActiveView();
-    //     if (view) {
-    //       if (!checking) {
-    //         view.redo();
-    //       }
-    //       return true;
-    //     }
-    //     return false;
-    //   },
-    // });
 
     this.addRibbonIcon?.('dice', 'Open Skill Tree', () => this.activateView());
 
@@ -154,17 +137,22 @@ export default class SkillTreePlugin extends Plugin {
     this.statusBarItem.setAttribute('style', 'cursor: pointer;');
     this.statusBarItem.onclick = () => this.activateView();
     this.statusBarItem.textContent = 'Skill Tree';
+
+    SetupFileWatchers(this.app)
   }
 
   onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_SKILLTREE);
+
   }
 
   async loadSettings() {
     this.settings = Object.assign(defaultSettings(), await this.loadData());
+    SetSettings(this.settings)
   }
 
   async saveSettings() {
+    this.settings.lastModified = Date.now();
     await this.saveData(this.settings);
   }
 
@@ -180,12 +168,12 @@ export default class SkillTreePlugin extends Plugin {
       const view = leaf.view as any;
       if (view && view.loadSettings) {
         await view.loadSettings();
-        const { LoadTree, LoadAllNodeTasks, SetupFileWatchers, CleanupFileWatchers } = await import("src/tree_manager");
+        const { LoadTree } = await import("./data/tree_manager");
+        const { CleanupFileWatchers, SetupFileWatchers } = await import("./handlers/file_watcher");
         CleanupFileWatchers();
         await LoadTree();
-        await LoadAllNodeTasks();
         SetupFileWatchers();
-        const { Render } = await import("src/renderer");
+        const { Update: Render } = await import("./rendering/renderer");
         Render();
       }
     });
@@ -195,7 +183,7 @@ export default class SkillTreePlugin extends Plugin {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
       const view = leaf.view as any;
       if (view && view.settings) {
-        const { ToggleLevelPane, UpdateLevelPane } = await import("src/renderer");
+        const { ToggleLevelPane, UpdateLevelPane } = await import("./rendering/renderer");
         ToggleLevelPane(view.settings.showLevelPane !== false);
         UpdateLevelPane();
       }
@@ -205,17 +193,22 @@ export default class SkillTreePlugin extends Plugin {
   updateStatusBar(text: string) {
     if (this.statusBarItem) {
       if (this.settings.showStatusBar !== false) {
-        this.statusBarItem.textContent = `Skill Tree: ${text}`;
+        if (this.statusBarItem) {
+          this.statusBarItem.textContent = `Skill Tree: ${text}`;
+        }
       } else {
-        this.statusBarItem.textContent = 'Skill Tree';
+        if (this.statusBarItem) {
+          this.statusBarItem.textContent = 'Skill Tree';
+        }
       }
     }
   }
 
   getActiveView(): SkillTreeView | null {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE);
-    if (leaves.length > 0) {
-      return leaves[0].view as SkillTreeView;
+    const firstLeaf = leaves[0];
+    if (firstLeaf) {
+      return firstLeaf.view as SkillTreeView;
     }
     return null;
   }
@@ -224,14 +217,15 @@ export default class SkillTreePlugin extends Plugin {
     if (!data || !data.name || !Array.isArray(data.nodes)) {
       throw new Error('Invalid JSON: missing required fields');
     }
-    
+
     let treeName = data.name;
     let counter = 1;
     while (this.settings.trees[treeName]) {
+      if (counter >= LOOP_UPPER_LIMIT) break
       treeName = `${data.name}-${counter}`;
       counter++;
     }
-    
+
     data.name = treeName;
     this.settings.trees[treeName] = data;
     this.settings.currentTreeName = treeName;
@@ -241,26 +235,11 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   exportTree(): any {
-    const currentTree = this.settings.trees[this.settings.currentTreeName];
+    const currentTree = GetCurrentTreeData();
     if (currentTree) {
       return JSON.parse(JSON.stringify(currentTree));
     }
     return { name: this.settings.currentTreeName, nodes: [], edges: [] };
-  }
-
-  async openNewTreeModal(): Promise<void> {
-    // const view = this.getActiveView();
-    // if (view && view.openNewTreeModal) {
-    //   await view.openNewTreeModal();
-    // }
-  }
-
-  async deleteTree(name: string): Promise<void> {
-    // const view = this.getActiveView();
-    // if (view && view.deleteTree) {
-    //   await view.deleteTree(name);
-    //   this.updateViews();
-    // }
   }
 
   getTreeNames(): string[] {
@@ -272,45 +251,23 @@ export default class SkillTreePlugin extends Plugin {
   }
 
   async switchTree(name: string): Promise<void> {
-    // TODO:
-    // const view = this.getActiveView();
-    // if (view && view.switchTree) {
-    //   await view.switchTree(name);
-    //   this.updateViews();
-    // }
-  }
-}
-
-class FolderSuggestionModal extends FuzzySuggestModal<string> {
-  folders: string[];
-  onChoose: (value: string) => void;
-
-  constructor(app: App, folders: string[], onChoose: (value: string) => void) {
-    super(app);
-    this.folders = folders;
-    this.onChoose = onChoose;
+    const { SwitchTree } = await import("./data/tree_manager");
+    await SwitchTree(name);
   }
 
-  getItems(): string[] {
-    return this.folders;
-  }
 
-  getItemText(item: string): string {
-    return item === '' ? 'Root' : item;
-  }
+  async onExternalSettingsChange(): Promise<void> {
+    const externalData = await this.loadData();
+    const externalTime = externalData?.lastModified || 0;
+    const ourTime = this.settings.lastModified || 0;
 
-  onChooseItem(item: string, evt: MouseEvent | KeyboardEvent): void {
-    this.close();
-    this.onChoose(item);
-  }
-
-  // Override to show all folders when no query
-  getSuggestions(query: string): FuzzyMatch<string>[] {
-    if (!query) {
-      // Map folder paths to FuzzyMatch objects. Cast to satisfy expected type.
-      return this.folders.map((f) => ({ item: f } as unknown as FuzzyMatch<string>));
+    if (externalTime > ourTime) {
+      // new Notice('External changes detected - reloading');
+      await this.loadSettings();
+      this.updateViews();
+    } else {
+      await this.saveSettings();
     }
-    return super.getSuggestions(query);
   }
 }
 
@@ -343,16 +300,34 @@ class SkillTreeSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h2', { text: 'Skill Tree Settings' });
 
+
+
+    new Setting(containerEl)
+      .setName('Default Skill EXP')
+      .setDesc('Skills worth exp with contribute this much when linked to a terminal node')
+      .addText(text => text
+        .setPlaceholder(String(10))
+        .setValue(String(this.plugin.settings.defaultExp))
+        .onChange(async (value) => {
+          const val = parseInt(value);
+          if (!isNaN(val)) {
+            this.plugin.settings.defaultExp = val;
+            await this.plugin.saveSettings();
+            this.plugin.updateViews();
+          }
+        }));
+
+
     new Setting(containerEl)
       .setName('Min node radius')
       .setDesc('Minimum radius for nodes in pixels')
       .addText(text => text
         .setPlaceholder('36')
-        .setValue(String(this.plugin.settings.nodeRadius))
+        .setValue(String(this.plugin.settings.minNodeRadius))
         .onChange(async (value) => {
           const val = parseInt(value, 10);
           if (!isNaN(val) && val > 4) {
-            this.plugin.settings.nodeRadius = val;
+            this.plugin.settings.minNodeRadius = val;
             await this.plugin.saveSettings();
             this.plugin.updateViews();
           }
@@ -362,7 +337,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
       .setName('Max node radius')
       .setDesc('Maximum radius for nodes in pixels')
       .addText(text => text
-        .setPlaceholder('72')
+        .setPlaceholder('100')
         .setValue(String(this.plugin.settings.maxNodeRadius))
         .onChange(async (value) => {
           const val = parseInt(value, 10);
@@ -384,16 +359,6 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.updateViews();
         }));
 
-    new Setting(containerEl)
-      .setName('Show level pane')
-      .setDesc('Show the level and progress pane in the bottom-left corner')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.showLevelPane ?? true)
-        .onChange(async (value) => {
-          this.plugin.settings.showLevelPane = value;
-          await this.plugin.saveSettings();
-          this.plugin.updateLevelPaneVisibility();
-        }));
 
     new Setting(containerEl)
       .setName('Level display mode')
@@ -406,7 +371,13 @@ class SkillTreeSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.levelDisplayMode = value as 'current' | 'aggregate' | 'both';
           await this.plugin.saveSettings();
-          this.plugin.updateViews();
+          this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+            const view = leaf.view as any;
+            if (view) {
+              const { UpdateLevelPane } = await import("./rendering/renderer");
+              UpdateLevelPane();
+            }
+          });
         }));
 
     new Setting(containerEl)
@@ -420,7 +391,52 @@ class SkillTreeSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.expDisplayMode = value as 'current' | 'aggregate' | 'both';
           await this.plugin.saveSettings();
-          this.plugin.updateViews();
+          this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+            const view = leaf.view as any;
+            if (view) {
+              const { UpdateLevelPane } = await import("./rendering/renderer");
+              UpdateLevelPane();
+            }
+          });
+        }));
+
+    new Setting(containerEl)
+      .setName('Level multiplier')
+      .setDesc('Higher numbers slow down leveling progression (1 = default)')
+      .addText(text => text
+        .setValue(String(this.plugin.settings.levelMultiplier ?? 1))
+        .setPlaceholder('1')
+        .onChange(async (value) => {
+          const num = parseFloat(value);
+          if (!isNaN(num) && num > 0) {
+            this.plugin.settings.levelMultiplier = num;
+            await this.plugin.saveSettings();
+            this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+              const view = leaf.view as any;
+              if (view) {
+                const { UpdateLevelPane } = await import("./rendering/renderer");
+                UpdateLevelPane();
+              }
+            });
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('Show level pane')
+      .setDesc('Show the level and progress pane in the bottom-left corner')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.settings.showLevelPane !== false)
+        .onChange(async (value) => {
+          this.plugin.settings.showLevelPane = value;
+          await this.plugin.saveSettings();
+          this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+            const view = leaf.view as any;
+            if (view) {
+              const { ToggleLevelPane, UpdateLevelPane } = await import("./rendering/renderer");
+              ToggleLevelPane(value);
+              UpdateLevelPane();
+            }
+          });
         }));
 
     new Setting(containerEl)
@@ -431,34 +447,17 @@ class SkillTreeSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.showStatusBar = value;
           await this.plugin.saveSettings();
-          this.plugin.updateViews();
+          this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
+            const view = leaf.view as any;
+            if (view && view.settings) {
+              view.settings.showStatusBar = value;
+              const { UpdateLevelPane } = await import("./rendering/renderer");
+              UpdateLevelPane();
+            }
+          });
         }));
 
-    new Setting(containerEl)
-      .setName('Show EXP pane')
-      .setDesc('Show the total EXP display in the top-right corner')
-      .addToggle(toggle => toggle
-        .setValue(this.plugin.settings.showExpPane ?? true)
-        .onChange(async (value) => {
-          this.plugin.settings.showExpPane = value;
-          await this.plugin.saveSettings();
-          this.plugin.updateViews();
-        }));
 
-    // Bezier toggle (shown for non-gamified styles)
-    const currentStyle = this.plugin.settings.style || 'default';
-    if (currentStyle !== 'gamified') {
-      new Setting(containerEl)
-        .setName('Bezier edges')
-        .setDesc('Use curved bezier edges instead of straight lines')
-        .addToggle(toggle => toggle
-          .setValue(this.plugin.settings.showBezier)
-          .onChange(async (value) => {
-            this.plugin.settings.showBezier = value;
-            await this.plugin.saveSettings();
-            this.plugin.updateViews();
-          }));
-    }
 
     // Default file path setting with autocomplete
     const folders = this.app.vault.getAllFolders();
@@ -477,70 +476,24 @@ class SkillTreeSettingTab extends PluginSettingTab {
       .setName('Default file path')
       .setDesc('Directory where new files will be created (empty = root). Click Browse to select a folder.');
 
-    pathSetting.addText(text => {
-      const currentValue = this.plugin.settings.defaultFilePath || '';
-
-      // Inline error message element (hidden until validation fails)
-      const errorEl = pathSetting.controlEl.createEl('div', { text: '' });
-      errorEl.style.color = 'var(--text-error, #e55353)';
-      errorEl.style.fontSize = '12px';
-      errorEl.style.marginTop = '6px';
-      errorEl.style.display = 'none';
-      errorEl.setAttribute('aria-live', 'polite');
-
-      text.setPlaceholder('Root (or type a folder path)')
-        .setValue(currentValue)
-        .onChange(async (value) => {
-          // Validate that the path is a valid folder (allow empty for root)
-          try {
-            const trimmed = (value || '').trim();
-            // Normalize leading/trailing slashes
-            let lookup = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
-            lookup = lookup.replace(/\/+$/, '');
-            let isValid = false;
-            if (trimmed === '') {
-              isValid = true; // root
-            } else {
-              const file = this.app.vault.getAbstractFileByPath(lookup);
-              isValid = !!file && file instanceof TFolder;
-            }
-
-            if (isValid) {
-              this.plugin.settings.defaultFilePath = trimmed;
-              await this.plugin.saveSettings();
-              text.inputEl.style.border = '';
-              errorEl.style.display = 'none';
-              errorEl.setText('');
-            } else {
-              text.inputEl.style.border = '1px solid var(--text-error, #e55353)';
-              errorEl.style.display = 'block';
-              errorEl.setText('Folder not found — invalid path; will default to root');
-            }
-          } catch (e) {
-            text.inputEl.style.border = '1px solid var(--text-error, #e55353)';
-            errorEl.style.display = 'block';
-            errorEl.setText('Folder not found — invalid path; will default to root');
-          }
-        });
-
-      // Add a browse button
-      const browseBtn = pathSetting.controlEl.createEl('button', { text: 'Browse' });
-      browseBtn.style.marginLeft = '8px';
-      browseBtn.style.padding = '4px 12px';
-      browseBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const modal = new FolderSuggestionModal(this.app, folderPaths, (selectedPath: string) => {
-          text.setValue(selectedPath);
-          this.plugin.settings.defaultFilePath = selectedPath;
-          this.plugin.saveSettings();
-          errorEl.style.display = 'none';
-          errorEl.setText('');
-          text.inputEl.style.border = '';
-        });
-        modal.open();
-      };
+    const currentPath = this.plugin.settings.defaultFilePath || '';
+    const displayEl = pathSetting.controlEl.createEl('span', {
+      text: currentPath === '' ? 'Root' : currentPath
     });
+    displayEl.addClass('skill-tree-path-display');
+
+    const browseBtn = pathSetting.controlEl.createEl('button', { text: 'Browse' });
+    browseBtn.addClass('skill-tree-browse-btn');
+    browseBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const modal = new FolderSuggestionModal(this.app, folderPaths, async (selectedPath: string) => {
+        displayEl.setText(selectedPath === '' ? 'Root' : selectedPath);
+        this.plugin.settings.defaultFilePath = selectedPath;
+        await this.plugin.saveSettings();
+      });
+      modal.open();
+    };
 
     // Import/Export section
     containerEl.createEl('h3', { text: 'Import / Export' });
@@ -605,41 +558,16 @@ class SkillTreeSettingTab extends PluginSettingTab {
         });
       });
 
-    // Custom Themes section
-    containerEl.createEl('h3', { text: 'Custom Themes' });
-
-    new Setting(containerEl)
-      .setName('Active Theme')
-      .setDesc('Select a custom CSS theme to apply')
-      .addDropdown(dropdown => {
-        dropdown.addOption('', 'None (default gamified style)');
-        const themes = this.plugin.settings.themes || {};
-        Object.values(themes).forEach(theme => {
-          dropdown.addOption(theme.id, theme.name);
-        });
-        dropdown.setValue(this.plugin.settings.activeThemeId || '');
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.activeThemeId = value || undefined;
-          await this.plugin.saveSettings();
-          this.plugin.updateViews();
-        });
-      })
-      .addButton(button => button
-        .setButtonText('Manage Themes')
-        .setIcon('palette')
-        .onClick(() => {
-          new ManageThemesModal(this.app, this.plugin).open();
-        }));
 
     // New Tree input row
     const newTreeRow = containerEl.createDiv();
-    newTreeRow.style.cssText = S.TREE_ROW;
+    newTreeRow.classList.add('skill-tree-tree-row');
 
     const newTreeInput = newTreeRow.createEl('input', { attr: { placeholder: 'New tree name...' } });
-    newTreeInput.style.cssText = S.TREE_INPUT;
+    newTreeInput.classList.add('skill-tree-tree-input');
 
     const createTreeBtn = newTreeRow.createEl('button', { text: 'Create' });
-    createTreeBtn.style.cssText = S.BTN_PRIMARY_SMALL;
+    createTreeBtn.classList.add('skill-tree-btn', 'skill-tree-btn--primary-sm');
 
     const createNewTree = async () => {
       const name = newTreeInput.value.trim();
@@ -657,10 +585,11 @@ class SkillTreeSettingTab extends PluginSettingTab {
         edges: []
       };
       await this.plugin.saveSettings();
+      await this.plugin.switchTree(name);
       newTreeInput.value = '';
       new Notice(`Created tree "${name}"`);
       // Refresh the dropdown
-      this.display();
+      this.refreshTreeDropdown();
     };
 
     createTreeBtn.onclick = createNewTree;
@@ -674,31 +603,42 @@ class SkillTreeSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName('Rename Current Tree')
       .setDesc('Rename the currently selected skill tree')
-    // .addButton(button => button
-    //   .setButtonText('Rename')
-    //   .onClick(async () => {
-    //     const view = this.app.workspace.getActiveViewOfType(SkillTreeView);
-    //     if (!view) {
-    //       new Notice('No skill tree view open');
-    //       return;
-    //     }
-    //     const currentName = this.plugin.settings.currentTreeName;
-    //     const newName = await view.showRenameTreeDialog(currentName);
-    //     if (newName && newName.trim() && newName.trim() !== currentName) {
-    //       const trimmed = newName.trim();
-    //       if (this.plugin.settings.trees[trimmed]) {
-    //         new Notice('A tree with that name already exists');
-    //       } else {
-    //         this.plugin.settings.trees[trimmed] = this.plugin.settings.trees[currentName];
-    //         this.plugin.settings.trees[trimmed].name = trimmed;
-    //         delete this.plugin.settings.trees[currentName];
-    //         this.plugin.settings.currentTreeName = trimmed;
-    //         await this.plugin.saveSettings();
-    //         this.plugin.switchTree(trimmed);
-    //         new Notice(`Tree renamed to "${trimmed}"`);
-    //       }
-    //     }
-    //   }));
+      .addText(text => {
+        text.setPlaceholder(this.plugin.settings.currentTreeName || 'new name');
+        text.onChange(() => { });
+      })
+      .addButton(button => button
+        .setButtonText('Rename')
+        .onClick(async () => {
+          const inputEl = containerEl.querySelector('.setting-item:nth-last-child(2) input') as HTMLInputElement;
+          const newName = inputEl?.value?.trim();
+          if (!newName) {
+            new Notice('Please enter a new name');
+            return;
+          }
+          const currentName = this.plugin.settings.currentTreeName;
+          if (newName === currentName) {
+            new Notice('Name unchanged');
+            return;
+          }
+          if (this.plugin.settings.trees[newName]) {
+            new Notice('A tree with that name already exists');
+            return;
+          }
+          const currentTree = this.plugin.settings.trees[currentName];
+          if (!currentTree) {
+            new Notice('Current tree not found');
+            return;
+          }
+          this.plugin.settings.trees[newName] = currentTree;
+          this.plugin.settings.trees[newName].name = newName;
+          delete this.plugin.settings.trees[currentName];
+          this.plugin.settings.currentTreeName = newName;
+          await this.plugin.saveSettings();
+          this.plugin.switchTree(newName);
+          this.refreshTreeDropdown();
+          new Notice(`Tree renamed to "${newName}"`);
+        }));
 
     new Setting(containerEl)
       .setName('Delete Current Tree')
@@ -714,232 +654,24 @@ class SkillTreeSettingTab extends PluginSettingTab {
           }
           const treeName = this.plugin.getCurrentTreeName();
           if (confirm(`Delete tree "${treeName}"? This cannot be undone.`)) {
-            await this.plugin.deleteTree(treeName);
+            const { DeleteTree } = await import("./data/tree_manager");
+            await DeleteTree(treeName);
             new Notice(`Deleted "${treeName}"`);
           }
         }));
-  }
-}
 
-/**
- * Modal for managing custom CSS themes.
- */
-class ManageThemesModal extends Modal {
-  private plugin: SkillTreePlugin;
 
-  /**
-   * Creates a new ManageThemesModal.
-   * @param app - The Obsidian app instance
-   * @param plugin - The Skill Tree plugin instance
-   */
-  constructor(app: App, plugin: SkillTreePlugin) {
-    super(app);
-    this.plugin = plugin;
+    // new Setting(containerEl)
+    //   .setName("Custom TaskQuery")
+    //   .addTextArea((text) => {
+    //     text.setValue(this.plugin.settings.customTaskQuery || '')
+    //       .setPlaceholder("Enter custom tasks query...");
+    //     text.inputEl.addEventListener('change', async () => {
+    //       this.plugin.settings.customTaskQuery = text.getValue();
+    //       await this.plugin.saveSettings();
+    //     });
+    //   });
+
   }
 
-  /**
-   * Called when the modal opens. Renders the theme list UI.
-   */
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.style.padding = '20px';
-    contentEl.style.maxWidth = '600px';
-
-    const title = contentEl.createEl('h2', { text: 'Manage Custom Themes' });
-    title.style.marginTop = '0';
-
-    const listContainer = contentEl.createDiv();
-    listContainer.style.marginBottom = '16px';
-
-    const renderThemeList = () => {
-      listContainer.innerHTML = '';
-      const themes = this.plugin.settings.themes || {};
-
-      Object.values(themes).forEach(theme => {
-        const themeRow = listContainer.createDiv();
-        themeRow.style.cssText = S.THEME_ROW;
-
-        const themeName = themeRow.createSpan({ text: theme.name });
-        themeName.style.cssText = S.THEME_NAME;
-
-        const btnGroup = themeRow.createDiv();
-        btnGroup.style.cssText = S.SETTING_BTN_GROUP;
-
-        const editBtn = btnGroup.createEl('button', { text: 'Edit' });
-        editBtn.style.cssText = S.BTN_ICON;
-        editBtn.onclick = () => this.openThemeEditor(theme.id);
-
-        const deleteBtn = btnGroup.createEl('button', { text: 'Delete' });
-        deleteBtn.style.cssText = S.BTN_ICON;
-        deleteBtn.onclick = async () => {
-          if (confirm(`Delete theme "${theme.name}"?`)) {
-            delete this.plugin.settings.themes[theme.id];
-            // Reset active theme if it was this theme
-            if (this.plugin.settings.activeThemeId === theme.id) {
-              this.plugin.settings.activeThemeId = undefined;
-            }
-            await this.plugin.saveSettings();
-            this.plugin.updateViews();
-            renderThemeList();
-          }
-        };
-      });
-
-      if (Object.keys(themes).length === 0) {
-        const emptyMsg = listContainer.createDiv();
-        emptyMsg.style.cssText = S.EMPTY_MESSAGE;
-        emptyMsg.textContent = 'No custom themes yet. Create one to get started.';
-      }
-    };
-
-    const newThemeBtn = contentEl.createEl('button', { text: '+ New Theme' });
-    newThemeBtn.style.cssText = S.BTN_PRIMARY;
-    newThemeBtn.onclick = () => this.openThemeEditor();
-
-    const closeBtn = contentEl.createEl('button', { text: 'Close' });
-    closeBtn.style.cssText = S.CLOSE_BTN_ABSOLUTE;
-    closeBtn.onclick = () => this.close();
-
-    this.renderThemeList = renderThemeList;
-    renderThemeList();
-  }
-
-  private renderThemeList: () => void = () => { };
-
-  /**
-   * Opens the theme editor for creating or editing a theme.
-   * @param themeId - Optional ID of an existing theme to edit
-   */
-  private openThemeEditor(themeId?: string) {
-    const theme = themeId ? this.plugin.settings.themes[themeId] : null;
-    const isNew = !theme;
-
-    const { contentEl } = this;
-    contentEl.innerHTML = '';
-
-    const title = contentEl.createEl('h2', { text: isNew ? 'New Theme' : 'Edit Theme' });
-    title.style.marginTop = '0';
-
-    const nameSetting = new Setting(contentEl)
-      .setName('Theme Name')
-      .addText(text => {
-        text.inputEl.style.width = '100%';
-        if (theme) text.setValue(theme.name);
-        text.onChange(() => { });
-      });
-
-    const cssSetting = contentEl.createDiv();
-    cssSetting.style.cssText = S.SETTING_MARGIN;
-
-    const cssLabel = cssSetting.createEl('label', { text: 'Custom CSS' });
-    cssLabel.style.cssText = S.SETTING_LABEL;
-
-    const cssHint = cssSetting.createEl('p', { text: 'CSS is scoped to .skill-tree-canvas. Example: .skill-tree-canvas { background: #1a1a1a; }' });
-    cssHint.style.cssText = S.SETTING_HINT;
-
-    const cssTextarea = cssSetting.createEl('textarea');
-    cssTextarea.style.cssText = S.FORM_TEXTAREA;
-    if (theme) cssTextarea.value = theme.css;
-
-    const actions = contentEl.createDiv();
-    actions.style.cssText = S.BTN_ROW_LARGE;
-
-    const cancelBtn = actions.createEl('button', { text: 'Cancel' });
-    cancelBtn.style.cssText = S.BTN_SECONDARY;
-    cancelBtn.onclick = () => this.onOpen();
-
-    const saveBtn = actions.createEl('button', { text: 'Save' });
-    saveBtn.style.cssText = S.BTN_PRIMARY;
-    saveBtn.onclick = async () => {
-      const name = (nameSetting.descEl as HTMLElement).querySelector('input')?.value.trim() || 'Untitled Theme';
-      const css = cssTextarea.value;
-      const id = themeId || crypto.randomUUID();
-
-      this.plugin.settings.themes[id] = { id, name, css };
-      await this.plugin.saveSettings();
-      this.plugin.updateViews();
-      this.onOpen();
-    };
-  }
-}
-
-/**
- * Modal for selecting a skill tree with fuzzy search.
- */
-class TreeSelectModal extends FuzzySuggestModal<string> {
-  private treeItems: string[];
-  private onSelect: (tree: string) => void;
-
-  /**
-   * Creates a new TreeSelectModal.
-   * @param app - The Obsidian app instance
-   * @param items - List of tree names to suggest
-   * @param onSelect - Callback when a tree is selected
-   */
-  constructor(app: App, items: string[], onSelect: (tree: string) => void) {
-    super(app);
-    this.treeItems = items;
-    this.onSelect = onSelect;
-  }
-
-  getItems(): string[] {
-    return this.treeItems;
-  }
-
-  getItemText(item: string): string {
-    return item;
-  }
-
-  onChooseItem(item: string, evt: MouseEvent | KeyboardEvent): void {
-    this.onSelect(item);
-  }
-
-  renderSuggestion(item: FuzzyMatch<string>, el: HTMLElement): void {
-    el.setText(item.item);
-  }
-}
-
-
-export interface SkillTreeSettings {
-  mode: Mode
-  /** Minimum radius for nodes in pixels (default: 36) */
-  nodeRadius: number;
-  /** Maximum radius for nodes in pixels (default: 72) */
-  maxNodeRadius: number;
-  /** Whether to use curved bezier edges (non-gamified styles only) */
-  showBezier: boolean;
-  /** Default EXP value for new nodes (default: 10) */
-  defaultExp: number;
-  /** Whether to display EXP as fraction (e.g., "50/100") */
-  showExpAsFraction: boolean;
-  /** Name of the currently active skill tree */
-  currentTreeName: string;
-  /** All skill trees indexed by name */
-  trees: Record<string, SkillTreeData>;
-  /** Default directory for creating new node files (empty = root) */
-  defaultFilePath: string;
-  /** Visual style name (key from SKILL_TREE_STYLES) */
-  style: string;
-
-  handleRadius: number
-  /** Persisted positions for draggable modals (keys like 'statsModal', 'editorModal') */
-  modalPositions?: Record<string, { left: number; top: number }>;
-  /** Whether to suppress the delete confirmation dialog */
-  suppressDeleteConfirmation?: boolean;
-  /** Whether to show the level pane in the bottom-left corner */
-  showLevelPane?: boolean;
-  /** Whether to show the EXP pane in the top-right corner */
-  showExpPane?: boolean;
-  /** Level display mode: 'current' = current tree only, 'aggregate' = all trees, 'both' = both */
-  levelDisplayMode?: 'current' | 'aggregate' | 'both';
-  /** EXP display mode: 'current' = current tree only, 'aggregate' = all trees, 'both' = both */
-  expDisplayMode?: 'current' | 'aggregate' | 'both';
-  /** Whether to show level/exp in the status bar */
-  showStatusBar?: boolean;
-  /** Custom CSS themes (not exported with tree JSON) */
-  themes: Record<string, CustomTheme>;
-  /** Active custom theme ID (undefined = use default style) */
-  activeThemeId?: string;
-  /** Whether to suppress the node type change warning in JSON editor */
-  suppressNodeTypeWarning?: boolean;
 }

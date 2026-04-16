@@ -1,78 +1,62 @@
-import { editorEditorField, Notice } from "obsidian";
-import { SkillTreeView } from "./skilltreeview"
-import { Undo, Redo } from "./recorder";
-import {
-    TOOLBAR_DOM_EL_INFO,
-    TOOL_BAR_WRAPPER_DOM_EL_INFO,
-    TOOLBAR_BUTTON_DOM_EL_INFO,
-    COLLAPSE_DOM_EL_INFO
-} from "./constants";
-import { GetLastIndex, TestIsMobile } from "./utils"
+import { Notice } from "obsidian";
+import { Undo, Redo } from "./data/recorder";
+import { GetLastIndex } from "./types/utils"
 import {
     GetTreeCount,
     DeleteTree,
     UpdateTreeSelector,
     GetCurrentTree,
-    GetTreesLinkingToCurrent,
-    GetTreesWithIncompleteLinks,
     SwitchTree,
-    CreateTree,
     AddNode,
-    GetNodes,
-} from "./tree_manager"
-import { Recenter, Render, screenToWorld, UpdateToolbarUI } from "./renderer";
-import { ShowNewTreeDialog, ShowDeleteTreeDialog } from "./dialog";
-import { OpenAddRepeatingNodeDialog } from "./dialog/add_repeat_node_dialog";
-import { OpenAddTreeLinkDialog } from "./dialog/add_tree_link_dialog";
-import { InitAddNodeDialog, OpenAddNodeDialog } from "./dialog/add_node_dialog";
-import { RecordSnapshot, SaveNodes } from "./recorder";
-import { InitJSONEditor as OpenJsonEditor, RefreshJsonEditor } from "./dialog/json_editor";
+    AddNodeWithData,
+    GetTreesLinkingToCurrent,
+} from "./data/tree_manager"
+import { Recenter, Update, screenToWorld, SetupLockedTreeBanner, } from "./rendering/renderer";
+import { ShowNewTreeDialog, ShowDeleteTreeDialog } from "./ui/dialog";
+
+import { RecordSnapshot, SaveNodes } from "./data/recorder";
+import { RefreshJsonEditor } from "./ui/json_editor";
 import { skillTreeEvents, EVENTS } from "./utils/events";
-import { openNodeListModal as OpenNodeListModal, OpenOrphanedNodeListPane as OpenOrphanedNodeListModal } from "./modal/skilltree_pane";
-import { closeAllModals } from "./modal/skilltree_modal";
-import * as S from "./styles";
+import { NodeSuggestModal, OrphanNodeSuggestModal, TreeSuggestModal } from "./ui/fuzzy_suggest_modal";
+import { SkillModal } from "./ui/skilltree_modal";
+import { openFileLinkPickerWithCreate } from "./ui/file_link_picker";
+import { createEditModal } from "./ui/skilltree_edit_modal";
+import { view } from "./utils/globals";
 
-// TODO: bulletproof these later
+
 export let modeToggleBtn: HTMLButtonElement
-
-let view: SkillTreeView
-
-let isMobile: boolean
-// let toolBarElements: Record<string, HTMLElement> = {}
 export let editModeOnlyButtons: Array<HTMLElement> = []
-let collapseBtn: HTMLElement
-let toolbar: HTMLElement
-let toolbarWrapper: HTMLElement
-let collapseButtonWrapper: HTMLElement
-let toolbarButtons: HTMLElement
+export let collapseBtn: HTMLElement
+export let toolbar: HTMLElement
+export let toolbarWrapper: HTMLElement
+export let collapseButtonWrapper: HTMLElement
+export let toolbarButtons: HTMLElement
+export let nodeJumpBtn: HTMLElement
+export let orphanJumpBtn: HTMLElement
 let goToLinkedBtn: HTMLElement
-let nodeJumpBtn: HTMLElement
-let orphanJumpBtn: HTMLElement
-let treeSelectorDiv: HTMLElement
-let treeSelect: HTMLSelectElement
-let floatingExpandBtn: HTMLElement
-let toolbarCollapsed: boolean
-let terminalNodeBtn: HTMLButtonElement
+let addLinkedTreeBtn: HTMLElement
+export let treeSelectorDiv: HTMLElement
+export let treeSelect: HTMLSelectElement
+export let floatingExpandBtn: HTMLElement
+export let toolbarCollapsed: boolean
 
 
-export function InitToolBar(skillTreeView: SkillTreeView) {
-    view = skillTreeView
+export function InitToolBar() {
     view.containerEl.empty();
-    isMobile = TestIsMobile(); //currently not used for anything. just here for later
-    InitAddNodeDialog(view)
-    toolbar = view.containerEl.createEl('div', TOOLBAR_DOM_EL_INFO);
+    toolbar = view.containerEl.createEl('div');
+    toolbar.addClass('skill-tree-toolbar');
     toolbar.style.display = 'flex'
-    toolbar.style.marginTop = isMobile ? '60px' : '0px';
     toolbar.style.touchAction = 'none';
     SetupCollapseButtonWrapper()
     SetupFloatingExpandBtn()
     SetupCollapseButton()
     SetUpToolBarWrapper()
     SetupToolbarButtons()
+    UpdateToolbarUI()
 }
-
 function SetupCollapseButtonWrapper(): void {
-    const wrapper = toolbar.createEl('div', TOOL_BAR_WRAPPER_DOM_EL_INFO);
+    const wrapper = toolbar.createEl('div');
+    wrapper.addClass('skill-tree-toolbar-wrapper');
     wrapper.style.padding = '4px 16px';
     wrapper.style.display = 'flex';
     wrapper.style.position = 'relative'
@@ -83,7 +67,8 @@ function SetupCollapseButtonWrapper(): void {
 
 
 function SetUpToolBarWrapper(): void {
-    toolbarWrapper = toolbar.createEl('div', TOOL_BAR_WRAPPER_DOM_EL_INFO);
+    toolbarWrapper = toolbar.createEl('div');
+    toolbarWrapper.addClass('skill-tree-toolbar-wrapper');
     SetWrapperStyles()
 }
 
@@ -97,27 +82,24 @@ function SetWrapperStyles() {
 }
 
 function SetupCollapseButton(): void {
-    collapseBtn = collapseButtonWrapper.createEl('button', COLLAPSE_DOM_EL_INFO);
+    collapseBtn = collapseButtonWrapper.createEl('button');
+    collapseBtn.addClass('skill-tree-collapse-btn');
+    collapseBtn.textContent = '▼';
     collapseBtn.title = 'Collapse toolbar';
-    // collapseBtn.style.marginRight = '16px';
     collapseBtn.style.position = 'absolute';
     collapseBtn.style.left = '8px';
-    collapseBtn.style.top = isMobile ? '68px' : '8px';
     collapseBtn.style.zIndex = '100';
     collapseBtn.onclick = ToggleToolbar
-    if (isMobile) {
-        collapseBtn.style.marginTop = '60px';
-    }
 }
 
 function SetupToolbarButtons(): void {
-    const buttons = toolbarWrapper.createEl('div', TOOLBAR_BUTTON_DOM_EL_INFO)
+    const buttons = toolbarWrapper.createEl('div');
+    buttons.addClass('skill-tree-toolbar-buttons');
     buttons.style.marginLeft = '16px';
     toolbarButtons = buttons
 
     SetupModeToggleButton();
 
-    // TODO: add wrapper for these two buttons after I get the thing working
     SetupUndoButton();
     SetupRedoButton();
 
@@ -127,7 +109,6 @@ function SetupToolbarButtons(): void {
     SetupAddCheckpointButton();
     SetupAddSubTreeButton();
     SetupAddRepeatingButton();
-    SetupAddTerminalButton();
     SetupEditAsJSONButton();
 
     SetupJumpToNodeButton();
@@ -135,7 +116,17 @@ function SetupToolbarButtons(): void {
     SetupTreeSelectorDiv();
     SetupRenameTreeButton()
     SetupDeleteTreeButton();
-    SetUpGoToLinkedButton();
+    SetupGoToLinkedButton(toolbarButtons);
+
+    skillTreeEvents.on(EVENTS.TREE_ADDED, () => {
+        updateGoToLinkedBtnVisibility();
+        updateAddLinkedTreeBtnVisibility();
+    });
+    skillTreeEvents.on(EVENTS.TREE_DELETED, () => {
+        updateGoToLinkedBtnVisibility();
+        updateAddLinkedTreeBtnVisibility();
+    });
+
     SetUpRecenterButton();
 
     SetupLockedTreeBanner();
@@ -150,7 +141,7 @@ function SetupJumpToOrphanButton() {
     orphanJumpBtn = toolbarButtons.createEl('button', { text: 'Find Orphans' });
     orphanJumpBtn.style.marginLeft = '8px';
     orphanJumpBtn.onclick = () => {
-        OpenOrphanedNodeListModal();
+        new OrphanNodeSuggestModal(view.app).open();
     };
     updateOrphanJumpBtnVisibility();
 }
@@ -163,14 +154,82 @@ function SetupJumpToNodeButton() {
     nodeJumpBtn = toolbarButtons.createEl('button', { text: 'Jump to Node' });
     nodeJumpBtn.style.marginLeft = '8px';
     nodeJumpBtn.onclick = () => {
-        OpenNodeListModal();
+        new NodeSuggestModal(view.app).open();
     };
 }
 
+function SetupGoToLinkedButton(toolbarButtons: HTMLElement) {
+    goToLinkedBtn = toolbarButtons.createEl('button', { text: 'Go to Linked' });
+    goToLinkedBtn.style.marginLeft = '6px';
+    goToLinkedBtn.title = 'Jump to a tree that links to this one';
+
+    updateGoToLinkedBtnVisibility();
+
+    goToLinkedBtn.onclick = async () => {
+        const linkingTrees = GetTreesLinkingToCurrent();
+
+        if (linkingTrees.length === 0) {
+            return;
+        }
+
+        if (linkingTrees.length === 1) {
+            const firstTree = linkingTrees[0];
+            if (firstTree !== undefined) {
+                await SwitchTree(firstTree);
+            }
+            return;
+        }
+
+        new TreeSuggestModal(view.app, async (treeName) => {
+            await SwitchTree(treeName);
+            SkillModal.closeAll();
+        }, linkingTrees).open();
+    };
+}
+
+export function UpdateToolbarUI(): void {
+    switch (view.settings.mode) {
+        case "edit":
+            view.settings.mode = "edit"
+            modeToggleBtn.textContent = 'Edit Mode';
+            break;
+        case "view":
+            view.settings.mode = "view"
+            modeToggleBtn.textContent = 'View Mode';
+            break;
+        default:
+            new Notice("Somehow the toggle broke. Debugging needed...")
+            break;
+    }
+
+    for (let button of editModeOnlyButtons) {
+        button.style.display = view.settings.mode == "edit" ? 'inline-block' : 'none';
+    };
+
+    updateGoToLinkedBtnVisibility();
+}
+
+function updateGoToLinkedBtnVisibility(): void {
+    if (!goToLinkedBtn) return;
+
+    const linkingTrees = GetTreesLinkingToCurrent();
+    goToLinkedBtn.style.display = linkingTrees.length > 0 ? '' : 'none';
+}
+
 async function SetupAddNodeButton() {
-    AddEditModeButton('Add Node', 'Add a node with a file link')
+    AddEditModeButton('Add Skill', 'A linked skill with a note')
     GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        OpenAddNodeDialog();
+        let worldPos = { x: 200, y: 150 };
+        if (view.canvas) {
+            const rect = view.canvas.getBoundingClientRect();
+            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+        }
+        openFileLinkPickerWithCreate(view.app, { id: crypto.randomUUID() }, (path) => {
+            AddNode(worldPos.x, worldPos.y, path);
+            SaveNodes();
+            Update();
+            RefreshJsonEditor();
+        });
     };
 }
 
@@ -185,7 +244,7 @@ function SetupAddEmptyButton() {
         }
         AddNode(worldPos.x, worldPos.y);
         await SaveNodes();
-        Render();
+        Update();
         RefreshJsonEditor();
     };
 }
@@ -201,7 +260,7 @@ function SetupAddOptionalButton() {
         }
         AddNode(worldPos.x, worldPos.y, undefined, 'OptionalNode');
         await SaveNodes();
-        Render();
+        Update();
         RefreshJsonEditor();
     };
 }
@@ -217,28 +276,62 @@ function SetupAddCheckpointButton() {
         }
         AddNode(worldPos.x, worldPos.y, undefined, 'CheckpointNode');
         await SaveNodes();
-        Render();
+        Update();
         RefreshJsonEditor();
     };
 }
 
 function SetupAddSubTreeButton() {
-    // const canvas = view.canvas
-    // if (!canvas) return;
+    addLinkedTreeBtn = AddEditModeButton('Add Linked Skill Tree', 'Add a link to another skill tree')
 
-    AddEditModeButton('Add Sub Tree(Tree Link)', 'Add a link to another skill tree')
+    addLinkedTreeBtn.onclick = async () => {
+        const currentTreeName = GetCurrentTree();
+        const treeNames = Object.keys(view.settings.trees).filter(t => t !== currentTreeName);
 
-    console.log("what's happening with this button?")
+        if (treeNames.length === 0) {
+            new Notice('No other trees to link to');
+            return;
+        }
 
-    GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        RecordSnapshot();
-        let worldPos = { x: 200, y: 150 };
-        // if (view.canvas) {
-        //     const rect = canvas.getBoundingClientRect();
-        //     worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
-        // }
-        OpenAddTreeLinkDialog(worldPos.x, worldPos.y);
+        const targetTree = treeNames[0];
+
+        if (targetTree === undefined) {
+            new Notice('No other trees to link to');
+            return;
+        }
+
+        if (treeNames.length > 1) {
+            new TreeSuggestModal(view.app, async (selectedTree) => {
+                SkillModal.closeAll();
+                addTreeLinkNode(selectedTree);
+            }, treeNames).open();
+        } else {
+            addTreeLinkNode(targetTree);
+        }
     };
+
+    updateAddLinkedTreeBtnVisibility();
+}
+
+function addTreeLinkNode(targetTree: string): void {
+    RecordSnapshot();
+    let worldPos = { x: 200, y: 150 };
+    if (view.canvas) {
+        const rect = view.canvas.getBoundingClientRect();
+        worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+    }
+    const newNode = AddNodeWithData(worldPos.x, worldPos.y, undefined, 'TreeLinkNode', { treeLink: targetTree });
+    if (newNode) {
+        SaveNodes();
+        Update();
+        createEditModal(view, newNode);
+    }
+}
+
+function updateAddLinkedTreeBtnVisibility(): void {
+    if (!addLinkedTreeBtn) return;
+    const treeCount = Object.keys(view.settings.trees).length;
+    addLinkedTreeBtn.style.display = treeCount > 0 ? '' : 'none';
 }
 
 function SetupAddRepeatingButton() {
@@ -252,39 +345,14 @@ function SetupAddRepeatingButton() {
             const centerY = rect.height / 2;
             worldPos = screenToWorld({ x: centerX, y: centerY });
         }
-        OpenAddRepeatingNodeDialog(worldPos.x, worldPos.y);
-    };
-}
-
-function SetupAddTerminalButton() {
-    AddEditModeButton('Add Terminal', 'Add a terminal node (end of tree)');
-    terminalNodeBtn = GetLastIndex(editModeOnlyButtons) as HTMLButtonElement;
-    terminalNodeBtn.onclick = async () => {
-        RecordSnapshot();
-        let worldPos = { x: 200, y: 150 };
-        if (view.canvas) {
-            const rect = view.canvas.getBoundingClientRect();
-            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+        const newNode = AddNode(worldPos.x, worldPos.y, undefined, 'RepeatingNode');
+        if (newNode) {
+            (newNode as any).repeatCooldownHours = 1;
+            SaveNodes();
+            Update();
+            createEditModal(view, newNode);
         }
-        AddNode(worldPos.x, worldPos.y, undefined, 'TerminalNode');
-        await SaveNodes();
-        Render();
-        RefreshJsonEditor();
     };
-    updateTerminalNodeBtnVisibility();
-}
-
-function updateTerminalNodeBtnVisibility() {
-    if (!terminalNodeBtn) return;
-    const nodes = GetNodes();
-    let hasTerminal = false;
-    for (const node of nodes.values()) {
-        if (node.nodeTypeName === 'TerminalNode') {
-            hasTerminal = true;
-            break;
-        }
-    }
-    terminalNodeBtn.style.display = hasTerminal ? 'none' : '';
 }
 
 function SetupModeToggleButton(): void {
@@ -319,7 +387,7 @@ function SetupModeToggleButton(): void {
         }
         await view.plugin.saveSettings();
         UpdateToolbarUI();
-        Render();
+        Update();
     };
 }
 
@@ -340,22 +408,18 @@ function SetupRedoButton() {
     };
 }
 
-function AddEditModeButton(txt: string, title: string): void {
+function AddEditModeButton(txt: string, title: string): HTMLElement {
     const btn = toolbarButtons.createEl('button', { text: txt });
     btn.title = title;
     btn.style.marginLeft = '6px';
     editModeOnlyButtons.push(btn);
+    return btn;
 }
 
 
 function SetupEditAsJSONButton() {
-    AddEditModeButton('Edit as JSON', 'Edit nodes as JSON')
-    GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        // TODO: Implement JSON editor modal - createJsonEditorModal needs to be wired up
-    };
 }
 
-// TODO: refactor
 async function SetupDeleteTreeButton() {
     AddEditModeButton('Delete Tree', 'Delete Current Tree')
     GetLastIndex(editModeOnlyButtons).style.color = '#dc3545';
@@ -373,52 +437,83 @@ async function SetupDeleteTreeButton() {
         if (confirmDelete) {
             await DeleteTree(currentTree);
             UpdateTreeSelector(treeSelect);
-            Render()
+            Update()
         };
     };
 }
 
 function SetupRenameTreeButton() {
-    // const renameTreeBtn = treeSelectorDiv.createEl('button', { text: '✎' });
-    // renameTreeBtn.title = 'Rename current tree';
-    // renameTreeBtn.style.padding = '2px 6px';
-    // renameTreeBtn.style.marginLeft = '4px';
-    // renameTreeBtn.onclick = async () => {
-    //     const currentName = this.settings.currentTreeName;
-    //     const newName = await this.showRenameTreeDialog(currentName);
-    //     if (newName && newName.trim() && newName.trim() !== currentName) {
-    //         const trimmed = newName.trim();
-    //         if (this.settings.trees[trimmed]) {
-    //             new Notice('A tree with that name already exists');
-    //         } else {
-    //             // Rename the tree
-    //             this.settings.trees[trimmed] = this.settings.trees[currentName];
-    //             this.settings.trees[trimmed].name = trimmed;
-    //             delete this.settings.trees[currentName];
-    //             this.settings.currentTreeName = trimmed;
-    //             await this.plugin.saveSettings();
-    //             this.updateTreeSelector(treeSelect);
-    //             this.requestRender();
-    //             new Notice(`Tree renamed to "${trimmed}"`);
-    //         }
-    //     }
-    // };
+    const renameTreeBtn = treeSelectorDiv.createEl('button', { text: '✎' });
+    renameTreeBtn.title = 'Rename current tree';
+    renameTreeBtn.style.padding = '2px 6px';
+    renameTreeBtn.style.marginLeft = '4px';
+    renameTreeBtn.onclick = async () => {
+        const currentName = view.settings.currentTreeName;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentName;
+        input.classList.add('skill-tree-rename-modal-input');
+
+        const container = view.canvasWrap || view.containerEl;
+        const modal = container.createEl('div');
+        modal.classList.add('skill-tree-rename-modal');
+        modal.innerHTML = `<div class="skill-tree-rename-modal-title">Rename Tree</div>`;
+        modal.appendChild(input);
+
+        const btnRow = modal.createEl('div');
+        btnRow.classList.add('skill-tree-rename-modal-buttons');
+
+        const cancelBtn = btnRow.createEl('button', { text: 'Cancel' });
+        cancelBtn.classList.add('skill-tree-rename-modal-btn', 'skill-tree-rename-modal-btn--cancel');
+        cancelBtn.onclick = () => modal.remove();
+
+        const saveBtn = btnRow.createEl('button', { text: 'Rename' });
+        saveBtn.classList.add('skill-tree-rename-modal-btn', 'skill-tree-rename-modal-btn--save');
+        saveBtn.onclick = async () => {
+            const newName = input.value.trim();
+            if (newName && newName !== currentName) {
+                if (view.settings.trees[newName]) {
+                    new Notice('A tree with that name already exists');
+                } else {
+                    const currentTree = view.settings.trees[currentName];
+                    if (!currentTree) {
+                        new Notice('Current tree not found');
+                        return;
+                    }
+                    view.settings.trees[newName] = currentTree;
+                    view.settings.trees[newName].name = newName;
+                    delete view.settings.trees[currentName];
+                    view.settings.currentTreeName = newName;
+                    await view.plugin.saveSettings();
+                    UpdateTreeSelector(treeSelect);
+                    treeSelect.value = newName;
+                    Update();
+                    new Notice(`Tree renamed to "${newName}"`);
+                }
+            }
+            modal.remove();
+        };
+
+        input.focus();
+        input.select();
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') saveBtn.click();
+            if (e.key === 'Escape') modal.remove();
+        };
+    };
 }
 
 function SetupTreeSelectorDiv() {
     treeSelectorDiv = toolbarButtons.createEl('div');
-    treeSelectorDiv.style.display = 'inline-flex';
-    treeSelectorDiv.style.alignItems = 'center';
-    treeSelectorDiv.style.gap = '4px';
-    treeSelectorDiv.style.marginLeft = '8px';
-    const treeSelectLabel = treeSelectorDiv.createEl('label', { text: 'Current Tree:' });
+    treeSelectorDiv.classList.add('skill-tree-tree-selector-div');
+    // const treeSelectLabel = treeSelectorDiv.createEl('label', { text: 'Current Tree:' });
     treeSelect = treeSelectorDiv.createEl('select', { cls: 'skill-tree-toolbar-select' }) as HTMLSelectElement;
-    treeSelect.style.padding = '4px';
     UpdateTreeSelector(treeSelect);
 
     skillTreeEvents.on(EVENTS.TREE_ADDED, () => UpdateTreeSelector(treeSelect));
     skillTreeEvents.on(EVENTS.TREE_DELETED, () => UpdateTreeSelector(treeSelect));
-    skillTreeEvents.on(EVENTS.NODES_CHANGED, () => updateTerminalNodeBtnVisibility());
+    skillTreeEvents.on(EVENTS.TREE_SWITCHED, () => UpdateTreeSelector(treeSelect));
 
     treeSelect.onchange = async () => {
         if (treeSelect.value === '__NEW_TREE__') {
@@ -428,10 +523,8 @@ function SetupTreeSelectorDiv() {
                 if (view.settings.trees[trimmedName]) {
                     new Notice('A tree with that name already exists');
                 } else {
-                    await CreateTree(trimmedName);
                     await SwitchTree(trimmedName);
                     UpdateTreeSelector(treeSelect);
-                    Render();
                 }
             } else {
                 UpdateTreeSelector(treeSelect);
@@ -439,143 +532,10 @@ function SetupTreeSelectorDiv() {
         } else {
             await SwitchTree(treeSelect.value);
             UpdateTreeSelector(treeSelect);
-            Render();
         }
+        Update()
     };
 
-}
-
-function SetUpGoToLinkedButton() {
-    goToLinkedBtn = toolbarButtons.createEl('button', { text: 'Go to Linked' });
-    goToLinkedBtn.style.marginLeft = '6px';
-    goToLinkedBtn.title = 'Jump to a tree that links to this one';
-
-    goToLinkedBtn.onclick = async () => {
-        const linkingTrees = GetTreesLinkingToCurrent();
-
-        if (linkingTrees.length === 0) {
-            return;
-        }
-
-        if (linkingTrees.length === 1) {
-            await SwitchTree(linkingTrees[0]);
-            return;
-        }
-
-        const container = view.canvasWrap || view.containerEl;
-        if (!container) return;
-
-        closeAllModals();
-
-        const dropdown = container.createEl('div');
-        dropdown.style.cssText = `
-            position: fixed;
-            z-index: 10000;
-            background: var(--background-primary);
-            border: 1px solid var(--background-modifier-border);
-            border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            padding: 8px 0;
-            min-width: 180px;
-        `;
-
-        const rect = goToLinkedBtn.getBoundingClientRect();
-        dropdown.style.left = `${rect.left}px`;
-        dropdown.style.top = `${rect.bottom + 4}px`;
-
-        linkingTrees.forEach(treeName => {
-            const item = dropdown.createEl('div');
-            item.style.cssText = 'padding: 8px 16px; cursor: pointer; font-size: 14px;';
-            item.textContent = treeName;
-            item.onmouseenter = () => {
-                item.style.background = 'var(--background-modifier-hover)';
-            };
-            item.onmouseleave = () => {
-                item.style.background = '';
-            };
-            item.onclick = async () => {
-                dropdown.remove();
-                document.removeEventListener('click', outsideHandler);
-                await SwitchTree(treeName);
-            };
-        });
-
-        const outsideHandler = (e: MouseEvent) => {
-            if (!dropdown.contains(e.target as Node) && e.target !== goToLinkedBtn) {
-                dropdown.remove();
-                document.removeEventListener('click', outsideHandler);
-            }
-        };
-
-        setTimeout(() => {
-            document.addEventListener('click', outsideHandler);
-        }, 10);
-    };
-
-    updateGoToLinkedBtnVisibility();
-}
-
-let lockedTreeBanner: HTMLElement | null = null;
-
-function SetupLockedTreeBanner() {
-    updateLockedTreeBanner();
-    updateLevelPaneOnEvent();
-    skillTreeEvents.on(EVENTS.NODES_CHANGED, () => {
-        updateLockedTreeBanner();
-        updateLevelPaneOnEvent();
-    });
-    skillTreeEvents.on(EVENTS.TREE_SWITCHED, () => {
-        updateLockedTreeBanner();
-        updateLevelPaneOnEvent();
-    });
-}
-
-async function updateLevelPaneOnEvent() {
-    const { UpdateLevelPane } = await import('./renderer');
-    UpdateLevelPane();
-}
-
-function updateLockedTreeBanner() {
-    if (!view.canvasWrap) return;
-
-    const linkingWithIncomplete = GetTreesWithIncompleteLinks();
-
-    if (linkingWithIncomplete.length === 0) {
-        if (lockedTreeBanner) {
-            lockedTreeBanner.remove();
-            lockedTreeBanner = null;
-        }
-        return;
-    }
-
-    if (!lockedTreeBanner) {
-        lockedTreeBanner = view.canvasWrap.createEl('div');
-        lockedTreeBanner.style.cssText = S.LOCKED_BANNER;
-    }
-
-    const treeNames = linkingWithIncomplete.map((t: { treeName: string; nodeCount: number }) => {
-        const linkText = t.nodeCount === 1 ? t.treeName : `${t.treeName} (${t.nodeCount})`;
-        return `<a href="#" class="tree-link" data-tree="${t.treeName}" style="${S.LOCKED_BANNER_LINK}">${linkText}</a>`;
-    });
-
-    lockedTreeBanner.innerHTML = `
-        <span style="color: var(--text-muted, #888);">This tree is locked. Complete prerequisite nodes in:</span>
-        ${treeNames.join(', ')}
-    `;
-
-    lockedTreeBanner.querySelectorAll('.tree-link').forEach(link => {
-        (link as HTMLElement).onclick = async (e) => {
-            e.preventDefault();
-            const treeName = (link as HTMLElement).dataset.tree;
-            if (treeName) {
-                await SwitchTree(treeName);
-                updateLockedTreeBanner();
-                Render();
-            }
-        };
-    });
-
-    updateGoToLinkedBtnVisibility();
 }
 
 
@@ -595,20 +555,9 @@ function SetupFloatingExpandBtn() {
     floatingExpandBtn.style.display = 'none';
     floatingExpandBtn.style.position = 'absolute';
     floatingExpandBtn.style.left = '8px';
-    floatingExpandBtn.style.top = isMobile ? '68px' : '8px';
     floatingExpandBtn.style.zIndex = '100';
     floatingExpandBtn.onclick = ToggleToolbar
 }
-
-// TODO: rename to better name when understanding wtf it was used for
-function updateGoToLinkedBtnVisibility(): void {
-    if (!goToLinkedBtn) return;
-
-    const linkingTrees = GetTreesLinkingToCurrent();
-    goToLinkedBtn.style.display = linkingTrees.length > 0 ? '' : 'none';
-}
-
-
 
 function SetUpRecenterButton() {
     const recenterBtn = toolbarButtons.createEl('button', { text: 'Recenter' });

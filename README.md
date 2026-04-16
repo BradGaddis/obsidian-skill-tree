@@ -1,407 +1,379 @@
-# Skill Tree for Obsidian
+# Skill Tree
 
-A gamified skill tree visualization plugin for Obsidian. Design free-form node-based skill trees, link them to notes, and track progress with experience points (XP) and levels.
+<!-- badges -->
+[![Obsidian plugin](https://img.shields.io/badge/Obsidian-Plugin-blue?style=flat&logo=obsidian)](https://obsidian.md)
+[![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/anomalyco/opencode/blob/main/LICENSE)
+[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen)](https://github.com/anomalyco/opencode/releases)
+[![Download](https://img.shields.io/badge/Downloads-100+-success)](https://obsidian.md/plugins)
+
+Visualize your learning journey with an interactive, node-based skill tree.
+
+![Skill Tree Demo](demo.gif)
+<!-- Add screenshots: 
+     - Full skill tree view
+     - Edit mode with toolbar
+     - Node detail modal
+     - Settings panel
+-->
+
+## Wait, What is a Skill Tree?
+
+A skill tree is a visual representation of your learning journey—a graph where:
+
+* **Nodes** represent skills, concepts, or milestones you've achieved (or want to achieve)
+* **Edges** show dependencies—like needing to learn A before B
+* **XP** accumulates as you complete checkbox items in your linked notes
+
+Think of it like video game skill trees (think Zelda skill trees, Path of Exile, etc.) but for real-world learning.
+
+![Conceptual Overview](assets/concept.png)
+<!-- Add: 
+     - Simple diagram showing node → node connections
+     - XP flow from checkboxes through nodes to level
+-->
 
 ## Features
 
-- Create node-based skill trees on an interactive canvas
-- Link nodes to markdown notes with automatic progress tracking
-- Track progress with XP and level system (Level = floor(sqrt(EXP)))
-- Visual node states: complete, in-progress, unavailable, optional, checkpoint
-- Task integration (works with Tasks and Dataview plugins)
-- Multiple skill trees with import/export
-- Edit trees as JSON for bulk changes
-- Custom CSS themes
-- Pan, zoom, and touch gestures
+### Core Functionality
+* **Interactive Canvas** - Pan, zoom, and organize your skill tree freely
+* **Note Integration** - Link nodes to markdown notes with checkboxes
+* **Progress Tracking** - XP and level system to track your advancement
 
-## Installation
+### Organization
+* **Multiple Trees** - Create separate skill trees for different areas
+* **Tree Linking** - Connect trees together with prerequisite dependencies
 
-### Community Plugins (recommended)
-1. Open Obsidian Settings
-2. Navigate to Community Plugins
-3. Search for "Skill Tree"
-4. Click Install, then Enable
+### Node Types
+| Node Type | Icon | Description |
+|----------|------|------------|
+| **Regular** | Circle/Standard | Normal skill node |
+| **Optional** | Diamond | Optional path node |
+| **Checkpoint** | ⬡ Hexagon | Milestone node |
+| **Repeating** | ⟳ | Daily/recurring tasks with cooldown |
+| **Tree Link** | ↪ | Link to another skill tree |
 
-### Manual Installation
-1. Download the latest release from GitHub
-2. Copy `main.js`, `manifest.json`, and `styles.css` to your vault: `VaultFolder/.obsidian/plugins/skill-tree/`
-3. Enable the plugin in Obsidian settings
+![Node Types](assets/node-types.png)
+<!-- Add: 
+     - All 5 node types rendered in edit mode
+     - Visual distinction between each
+-->
+
+### Progress & Gamification
+* **XP System** - Earn experience for completing tasks
+* **Leveling** - Watch your level grow as you progress
+* **Repeating Nodes** - Track daily habits with automatic reset timers
+
+![Progress](assets/progress.png)
+<!-- Add:
+     - Level pane showing current level
+     - XP badge on nodes showing their EXP value
+     - Repeating node timer display
+-->
 
 ## Getting Started
 
-1. Click the dice icon in the sidebar to open the skill tree
-2. Enable **Edit Mode** to add and edit nodes
-3. Click **Add Node** to create a new node linked to a note
-4. Connect nodes by dragging from one node's handle to another
-5. Complete tasks in linked notes to automatically progress nodes
+### Quick Start
 
-## Node Types
+1. Open Obsidian and go to **Settings → Community Plugins**
+2. Search for "Skill Tree" and install
+3. Click the dice icon in the sidebar to open the plugin
+4. Toggle **Edit Mode** to start building your tree
 
-| Type | Description | Icon |
-|------|-------------|------|
-| **Regular** | Default node linked to a note | - |
-| **Optional** | Optional path node with `?` icon | `?` |
-| **Checkpoint** | Milestone node (diamond shape) | Diamond |
-| **Tree Link** | Links to another skill tree | Tree icon |
-| **Repeating** | Can be completed multiple times | Double-ring |
-| **Empty** | Node without a linked file | - |
+![First Tree](assets/first-tree.gif)
+<!-- Add:
+     - Screen recording from fresh install to first node
+     - Step-by-step click sequence
+-->
+
+### Your First Skill Tree
+
+Let's say you want to learn a new language. Here's how to build a simple tree:
+
+1. **Create a root node** - Click "Add Node" and select a note or create a new one
+2. **Add prerequisites** - Click and drag from the handle to new nodes
+3. **Link your notes** - Each node should link to notes with checkbox items
+
+![Minimal Tree Example](assets/minimal-tree.png)
+<!-- Add:
+     - Minimal 3-node tree with proper edges
+     - Brief walkthrough text
+-->
+
+## Creating Nodes
+
+In Edit Mode, click the toolbar buttons to add nodes:
+
+| Button | Keyboard | Description |
+|--------|----------|------------|
+| **Add Node** | `N` | Create a node linked to a note |
+| **Add Empty** | `E` | Create an unlinked node |
+| **Add Optional** | `O` | Optional path node |
+| **Add Checkpoint** | `C` | Milestone node |
+| **Add Sub Tree** | `T` | Link to another skill tree |
+| **Add Repeating** | `R` | Node with cooldown reset |
+
+### Connecting Nodes
+
+1. Hover over a node to reveal its handles (colored dots around edges)
+2. Click and drag from a handle to another node
+3. Release to connect—edges show the learning order
+
+![Creating Connections](assets/create-edge.gif)
+<!-- Add:
+     - Dragging from handle to another node
+     - Edge appearing
+-->
 
 ## Node States
 
-Node states are automatically determined by the state resolution algorithm:
+Nodes automatically update based on connections and checkbox completion:
 
-| State | Visual | Meaning |
-|-------|--------|---------|
-| **Complete** | Gold/green | All linked tasks done |
-| **In Progress** | Blue/purple | Some tasks complete, children available |
+### State Reference
+
+| State | Color | Description |
+|-------|-------|-------------|
+| **Complete** | Green | All tasks done or no prerequisites |
+| **In Progress** | Blue | Some tasks complete, children unlocked |
 | **Unavailable** | Gray | Prerequisites not met |
-| **Optional** | Sky blue | Optional path node |
-| **Checkpoint (Incomplete)** | Red outline | Checkpoint not yet reached |
+| **On Hold** | Yellow | Manually set to on hold |
+| **Error** | Red | Linked note not found |
 
-## Node Shapes
+![Node States](assets/node-states.png)
+<!-- Add:
+     - All 5 states shown together
+     - Each with distinct colors
+-->
 
-Override shape in note frontmatter:
+## Settings
+
+Access via **Settings → Plugin Settings → Skill Tree**:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Handle Radius | Hit area for edge handles | 8px |
+| Node Radius (Min/Max) | Size range for nodes | 40-100px |
+| Show EXP as Fraction | Display as "50/100" | Off |
+| Level Display Mode | Current, aggregate, or both | Current |
+| Level Multiplier | Higher = slower leveling | 1 |
+| Default Skill EXP | EXP for new linked nodes | 10 |
+| Default File Path | Folder for new note files | Root |
+
+### Node-Level Settings
+
+You can customize individual nodes:
 
 ```yaml
 ---
-shape: hexagon  # circle, square, hexagon, diamond
+# In your note's frontmatter
+skilltree-node: my-language-node
+skilltree-node-exp: 50
+shape: hexagon  # Optional shape override
+color: #ff5555  # Optional color override
 ---
+
+- [ ] Task 1
+- [x] Task 2
+- [ ] Task 3
 ```
 
-- **circle** - Default for simple styles
-- **square** - Square shape
-- **hexagon** - Default for gamified style
-- **diamond** - Checkpoint nodes
-- **tree-link** - Tree link nodes
-- **repeat** - Repeating nodes (double-ring circle)
-
-## Repeating Nodes
-
-Repeating nodes are nodes that can be completed multiple times - useful for daily quests, practice routines, or any repeatable skill.
-
-### Creating a Repeating Node
-
-**Option 1: Toolbar**
-1. Enable Edit Mode
-2. Click "Add Repeating" in the toolbar
-3. Configure reset mode, max repeats, and EXP
-
-**Option 2: Frontmatter**
-Add to your note's frontmatter:
-```yaml
----
-skilltree-node: 123
-skilltree-node-repeat: true
-skilltree-node-repeat-reset: daily
-skilltree-node-repeat-max: 30
-skilltree-node-repeat-cooldown: 24
----
-```
-
-### Reset Modes
-
-| Mode | Behavior |
-|------|----------|
-| **manual** | Stays complete until manually reset |
-| **daily** | Resets to in-progress at midnight |
-| **weekly** | Resets at the start of each week |
-| **monthly** | Resets at the start of each month |
-| **cooldown** | Resets after X hours |
-
-### Frontmatter Properties
-
-All properties can be set via frontmatter OR the toolbar:
-
-| Property | Description | Example |
-|----------|-------------|---------|
-| `skilltree-node-repeat` | Enable repeating | `true` |
-| `skilltree-node-repeat-count` | Current completion count | `5` |
-| `skilltree-node-repeat-max` | Maximum repeats (0=unlimited) | `30` |
-| `skilltree-node-repeat-reset` | Reset mode | `daily` |
-| `skilltree-node-repeat-cooldown` | Hours for cooldown mode | `24` |
-| `skilltree-node-repeat-last` | Timestamp of last completion | `1700000000000` |
-
-### Visual Indicator
-
-Repeating nodes display a gold badge showing completion count:
-- `×5` - Completed 5 times
-- `10✓` - Completed 10 times (at max)
-
-The node uses the "repeat" shape (double-ring circle) by default.
-
-## Canvas Interactions
-
-### View Mode
-| Action | Result |
-|--------|--------|
-| Click node | Select and center |
-| Click checkbox | Complete node |
-| Drag canvas | Pan view |
-| Scroll wheel | Zoom in/out |
-| Ctrl + scroll | Pan view |
-
-### Edit Mode
-| Action | Result |
-|--------|--------|
-| Click empty space | Add node (via dialog) |
-| Double-click node | Open node editor |
-| Right-click node | Open node editor |
-| Click + drag node | Move node |
-| Click node handle | Start creating edge |
-| Drag edge endpoint | Reconnect edge |
-| Drag edge body | Delete/reconnect edge |
-| Click checkbox | Complete node |
-| Delete key | Delete selected node |
-
-### Multi-Select (Edit Mode)
-| Action | Result |
-|--------|--------|
-| Shift + drag | Box select nodes |
-| Click (with selection) | Add to selection |
-| Drag selected node | Move all selected |
-
-### Touch Gestures
-- **Single tap** on task: Select task
-- **Tap checkbox**: Complete all tasks
-- **Long press** (600ms): Open editor (edit mode only)
-- **Pinch**: Zoom
-- **Single finger drag**: Pan (view mode) or drag (edit mode)
-
-## Task Integration
-
-The plugin automatically parses checkboxes from linked notes:
-
-```markdown
-- [ ] Uncompleted task
-- [x] Completed task
-* [ ] Also works with asterisks
-  - [ ] Nested task
-```
-
-### Supported Plugins (in priority order)
-1. **Tasks Plugin** - Full task parsing
-2. **Dataview Plugin** - Frontmatter queries
-3. **Manual Regex** - Fallback parsing
-
-### State Resolution Algorithm
-
-Nodes are automatically updated using a 6-pass algorithm:
-1. **Orphan Handling** - Disconnected nodes use task completion
-2. **Child Activation** - Sets children to in-progress, marks ancestors unavailable
-3. **Optional Children** - Optional in-progress promotes parent to optional
-4. **Regular Children** - All children complete = parent in-progress
-5. **Optional Collapse** - Optional nodes without tasks collapse to optional
-6. **Checkpoint Finalization** - Checkpoints only have 2 states
+![Settings Panel](assets/settings.png)
+<!-- Add:
+     - Full settings panel screenshot
+     - Each setting annotated
+-->
 
 ## Note Frontmatter
 
-The plugin writes to linked notes' YAML frontmatter:
+When you link a node to a note, these properties are automatically added:
 
 ```yaml
 ---
-skilltree-node: 123           # Node ID
-skilltree-node-exp: 10        # EXP value
-shape: hexagon               # Node shape override
-skilltree-node-to: [124, 125] # Connected node IDs
-skilltree-node-from: [126]    # Parent node IDs
+skilltree-node: <node-id>
+skilltree-node-exp: <current-exp>
+skilltree-node-to: [<child-node-ids>]
+skilltree-node-from: [<parent-node-ids>]
 ---
 ```
 
-## Level/XP System
+### Customizing Node Appearance
 
-- **Level calculation**: `floor(sqrt(EXP))`
-- **Progress bar**: Shows completed EXP / Total possible EXP
-- **Orphaned and complete nodes don't block progress**
-- **Optional and checkpoint nodes don't contribute XP**
+Override node shape in your note's frontmatter:
 
-## Commands
-
-Open the command palette (Ctrl/Cmd + P) and search for:
-
-| Command | Description |
-|---------|-------------|
-| **Open Skill Tree** | Open the skill tree view |
-| **Toggle Edit Mode** | Switch between view and edit mode |
-| **Jump to Node** | Quick navigation modal to any node |
-
-## Toolbar
-
-### Always Visible
-- **Edit Mode** toggle
-- **Undo / Redo**
-- **Jump to Node**
-- **Find Orphans**
-- **Recenter**
-- **Tree selector** dropdown
-
-### Edit Mode Only
-- **Add Node** - Create linked node
-- **Add Empty** - Create unlinked node
-- **Add Optional** - Create optional path
-- **Add Checkpoint** - Create checkpoint
-- **Add Tree Link** - Link to another tree
-- **Add Repeating** - Create repeating node
-- **Edit as JSON** - JSON editor
-- **Delete Tree** - Delete current tree
-- **Show Handles** toggle
+| Shape | Description |
+|-------|------------|
+| `circle` | Normal (default) |
+| `square` | Square corners |
+| `hexagon` | Six-sided |
+| `diamond` | Rotated square |
+| `star` | Star shape |
+| `repeat` | Repeating/loop icon |
 
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Ctrl/Cmd + Z | Undo |
-| Ctrl/Cmd + Y | Redo |
-| Ctrl/Cmd + Shift + Z | Redo (alternative) |
-| Delete | Delete selected (edit mode) |
+| `Ctrl/Cmd + Z` | Undo |
+| `Ctrl/Cmd + Y` | Redo |
+| `Delete` | Delete selected node (edit mode) |
+| `Space` | Toggle selected node complete |
+| `1-5` | Set node state (edit mode) |
 
-## Settings
+## Commands
 
-### Visual Settings
-- **Style** - Choose visual style (Gamified, Simple Light, Simple Dark)
-- **Min/Max node radius** - Node size range (default: 36-72px)
-- **Show handles** - Display connection points on nodes
-- **Show EXP as fraction** - Display as "50/100" vs "50"
-- **Show level pane** - Bottom-left level display
-- **Show EXP pane** - Top-right EXP display
-- **Bezier edges** - Curved lines (non-gamified styles)
+Open the Obsidian command palette (`Ctrl/Cmd + P`):
 
-### File Settings
-- **Default file path** - Directory for new node files (with folder browser)
+- **Skill Tree: Open** - Open the skill tree view
+- **Skill Tree: Switch to Tree** - Switch between saved trees
+- **Skill Tree: Reload** - Reload the current tree from disk
+- **Skill Tree: Export** - Export current tree as JSON
 
-### Tree Management
-- **Current Tree** - Switch between skill trees
-- **Create new tree** - Add additional trees
-- **Delete Tree** - Remove current tree
+## Touch & Mobile Support
 
-### Import/Export
-- **Import JSON** - Load tree from file
-- **Export JSON** - Download tree as file
+Skill Tree works on touch devices with full gesture support:
 
-### Custom Themes
+| Gesture | Action |
+|---------|--------|
+| **Single tap** | Select node |
+| **Double tap** | Open selected node |
+| **Drag** | Pan the canvas |
+| **Pinch** | Zoom in/out |
+| **Long press** | Start dragging a node/handle |
 
-Create custom CSS themes to override the default visual styling. Go to **Settings > Custom Themes > Manage Themes**.
+![Mobile View](assets/mobile.png)
+<!-- Add:
+     - Phone screenshot showing skill tree
+     - Pinch gesture indicator
+-->
 
-1. Click **+ New Theme**
-2. Enter a name (e.g., "Dark Purple")
-3. Write your CSS rules
+## Import/Export
 
-**CSS is scoped to `.skill-tree-canvas`** - all your styles should target this container.
+### JSON Format
 
-**Available selectors:**
+Save your trees as JSON for backup or sharing:
 
-**Canvas & Background**
-| Selector | Description |
-|----------|-------------|
-| `.skill-tree-canvas` | The main canvas container |
-| `.skill-tree-view` | The view wrapper element |
-
-**Nodes**
-| Selector | Description |
-|----------|-------------|
-| `.skill-tree-node` | All nodes (base styling) |
-| `.skill-tree-node-complete` | Complete nodes (gold/green) |
-| `.skill-tree-node-in-progress` | In-progress nodes (blue/purple) |
-| `.skill-tree-node-unavailable` | Unavailable nodes (gray) |
-| `.skill-tree-node-optional` | Optional path nodes (sky blue) |
-| `.skill-tree-node-error` | Nodes with file link issues |
-
-**Panes & Overlays**
-| Selector | Description |
-|----------|-------------|
-| `.skill-tree-level-pane` | Level display panel (bottom-left) |
-| `.skill-tree-level-content` | Level text and progress bar wrapper |
-| `.skill-tree-level-progress-inner` | Progress bar fill |
-| `.gamified-exp-badge` | EXP badge styling |
-| `.gamified-level-badge` | Level badge styling |
-
-**Toolbar**
-| Selector | Description |
-|----------|-------------|
-| `.skill-tree-toolbar` | Toolbar container |
-| `.skill-tree-toolbar-wrapper` | Wrapper with flex layout |
-| `.skill-tree-toolbar-buttons` | Button container with flex wrap |
-| `.skill-tree-handle` | Connection handles |
-| `.skill-tree-handle-toggle` | Show handles toggle |
-
-**Modals**
-| Selector | Description |
-|----------|-------------|
-| `.gamified-modal` | Modal styling for gamified theme |
-| `.skill-tree-node-modal` | Node editor modal |
-| `.skill-tree-node-list-pane` | Node list modal |
-| `.st-desc` | Description text in modals |
-| `.st-desc a` | Links in descriptions |
-| `.st-note-link` | Note link in header |
-| `.st-note-icon` | Note link icon |
-
-**Node Overlay**
-| Selector | Description |
-|----------|-------------|
-| `.skill-tree-node-overlay` | Jump to node overlay |
-| `.skill-tree-node-overlay.open` | Overlay when visible |
-| `.st-overlay-header` | Overlay header with search |
-| `.st-overlay-search` | Search input field |
-
-**Progress Bar**
-| Selector | Description |
-|----------|-------------|
-| `.gamified-progress-inner` | Progress bar fill (gradient) |
-
-**Example theme:**
-
-```css
-/* Dark purple theme */
-.skill-tree-canvas {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-}
-
-.skill-tree-node {
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-.skill-tree-node-complete {
-  background: #9b59b6;
-  border-color: #8e44ad;
-}
-
-.skill-tree-level-pane {
-  background: rgba(26, 26, 46, 0.9);
-  color: #a29bfe;
-  font-size: 18px;
-}
-
-/* Custom progress bar */
-.gamified-progress-inner {
-  background: linear-gradient(90deg, #9b59b6, #8e44ad);
-}
-
-/* Modal styling */
-.gamified-modal {
-  background: #1a1a2e;
-  border: 2px solid #9b59b6;
+```json
+{
+  "trees": {
+    "node-name": {
+      "nodes": [...],
+      "edges": [...]
+    }
+  },
+  "settings": {...}
 }
 ```
 
-After saving, select your theme from the **Active Theme** dropdown.
+### Importing
+
+1. **Settings → Plugin Settings → Import**
+2. Select your JSON file
+3. Confirm import
 
 ## Multiple Trees
 
-Create unlimited skill trees:
-1. Go to Settings > Tree Management
-2. Enter a name and click Create
-3. Switch between trees using the toolbar dropdown
-4. Use Tree Link nodes to connect trees
+Create separate trees for different learning areas:
+
+![Multi-Tree](assets/multi-tree.png)
+<!-- Add:
+     - Tree selector dropdown
+     - Two different tree screenshots
+-->
+
+### Creating New Trees
+
+In Edit Mode, use the tree selector in the toolbar:
+
+1. Click the tree name dropdown
+2. Select "Create New Tree..."
+3. Enter a name for your tree
+
+## Workflow Examples
+
+### Language Learning
+
+```
+Root: English Fluency
+  ├── Basics (unlock after 5 tasks)
+  │   ├── Pronunciation
+  │   ├── Grammar Fundamentals
+  │   └── Vocabulary Daily (repeating)
+  ├── Speaking Practice
+  │   ├── Conversation Topics
+  │   └── Pronunciation Drills
+  └── Advanced
+      ├── Idioms
+      └── Business Writing
+```
+
+### Video Game Skill Tree
+
+```
+Core Mechanics
+  ├── Movement
+  │   ├── Dash
+  │   └── Jump
+  ├── Combat
+  │   ├── Light Attack
+  │   ├── Heavy Attack
+  │   └── Dodge
+  └── Abilities
+      ├── Fireball
+      ├── Ice Blast
+      └── Lightning Strike
+```
 
 ## Development
 
 ```bash
+# Install dependencies
 npm install
-npm run dev   # Watch mode with hot reload
-npm run build # Production build
-npm test      # Run tests
+
+# Development (watch mode)
+npm run dev
+
+# Production build
+npm run build
+
+# Type checking
+npm run typecheck
 ```
+
+### Project Structure
+
+```
+src/
+├── handlers/        # Event handlers (click, touch, zoom, etc.)
+├── nodes/          # Node type definitions
+├── rendering/      # Canvas rendering logic
+├── data/           # Tree data management
+├── ui/            # Modal and UI components
+└── types/         # TypeScript definitions
+```
+
+## Troubleshooting
+
+### "Plugin not loading"
+- Make sure Community Plugins are enabled in Obsidian settings
+- Check the console (Developer Tools → Console) for errors
+
+### "Nodes not showing"
+- Try reloading: Cmd+Shift+P → "Skill Tree: Reload"
+- Check that your notes exist in the linked path
+
+### "Edges aren't connecting"
+- Ensure you're in Edit Mode
+- Click and drag from the handles (not the node center)
+
+![Troubleshooting](assets/troubleshoot.png)
+<!-- Add:
+     - Common error messages
+     - Solutions for each
+-->
 
 ## License
 
-MIT
+MIT License - Feel free to use, modify, and distribute.
+
+---
+
+*Like this plugin? Help others find it by leaving a ⭐ on the [plugin page]().*
