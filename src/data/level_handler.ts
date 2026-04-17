@@ -30,7 +30,7 @@ export function GetExpForLevel(level: number): number {
 
 export function GetExpToNextLevel(currentExp: number): number {
     const currentLevel = CalculateLevel(currentExp);
-    const expForCurrent = GetExpForLevel(currentLevel);
+    GetExpForLevel(currentLevel);
     const expForNext = GetExpForLevel(currentLevel + 1);
     return expForNext - currentExp;
 }

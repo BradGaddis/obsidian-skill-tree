@@ -78,10 +78,16 @@ export class SkillNode implements ISkillNode {
         this.totalExp = data.totalExp ?? 0
     }
 
-    getDisplayLabel(label: string = ''): LabelInfo {
-        if (this.fileLink) {
-            this.displayText += this.fileLink.split('/').pop()?.replace('.md', '') || this.fileLink;
+    //TODO: finish this tomorrow
+    getDisplayLabel(): LabelInfo {
+        let label: string = ''
+
+        label = this.displayText ?? ''
+
+        if (this.fileLink && !this.displayText) {
+            this.displayText = this.fileLink.split('/').pop()?.replace('.md', '') || label;
         }
+
 
         const words = (label || '').split(/\s+/).filter(Boolean);
 
@@ -91,7 +97,7 @@ export class SkillNode implements ISkillNode {
             lines.push(words.slice(i, i + WORDS_PER_LINE).join(' '));
         }
 
-        if (!this.fileLink && this.linkable) {
+        if (this.linkable && !this.fileLink) {
             lines.push(UNLINKED_LABEL)
         }
 

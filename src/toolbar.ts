@@ -1,6 +1,7 @@
-import { Notice } from "obsidian";
+import { Notice, TFile } from "obsidian";
+import { validateFrontmatter } from "./utils/frontmatter_validator";
 import { Undo, Redo } from "./data/recorder";
-import { GetLastIndex } from "./types/utils"
+import { GetLastIndex, toTitleCase, findTreeByCaseInsensitive } from "./types/utils"
 import {
     GetTreeCount,
     DeleteTree,
@@ -217,20 +218,34 @@ function updateGoToLinkedBtnVisibility(): void {
 }
 
 async function SetupAddNodeButton() {
-    AddEditModeButton('Add Skill', 'A linked skill with a note')
-    GetLastIndex(editModeOnlyButtons).onclick = async () => {
-        let worldPos = { x: 200, y: 150 };
-        if (view.canvas) {
-            const rect = view.canvas.getBoundingClientRect();
-            worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
-        }
-        openFileLinkPickerWithCreate(view.app, { id: crypto.randomUUID() }, (path) => {
-            AddNode(worldPos.x, worldPos.y, path);
-            SaveNodes();
-            Update();
-            RefreshJsonEditor();
-        });
-    };
+AddEditModeButton('Add Skill', 'A linked skill with a note')
+        GetLastIndex(editModeOnlyButtons).onclick = async () => {
+            let worldPos = { x: 200, y: 150 };
+            if (view.canvas) {
+                const rect = view.canvas.getBoundingClientRect();
+                worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
+            }
+            openFileLinkPickerWithCreate(view.app, { id: crypto.randomUUID() }, async (path) => {
+                const filePath = path.endsWith('.md') ? path : path + '.md';
+                const newNode = AddNode(worldPos.x, worldPos.y, filePath);
+                if (newNode) {
+                    const file = view.app.vault.getAbstractFileByPath(filePath);
+                    if (file && file instanceof TFile) {
+                        const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
+                        if (fm) {
+                            const validated = validateFrontmatter(fm);
+                            if (validated.displayText) newNode.displayText = validated.displayText;
+                            if (validated.shape) newNode.shape = validated.shape;
+                            if (validated.x !== undefined) newNode.x = validated.x;
+                            if (validated.y !== undefined) newNode.y = validated.y;
+                        }
+                    }
+                }
+                SaveNodes();
+                Update();
+                RefreshJsonEditor();
+            });
+        };
 }
 
 function SetupAddEmptyButton() {
@@ -471,10 +486,12 @@ function SetupRenameTreeButton() {
         const saveBtn = btnRow.createEl('button', { text: 'Rename' });
         saveBtn.classList.add('skill-tree-rename-modal-btn', 'skill-tree-rename-modal-btn--save');
         saveBtn.onclick = async () => {
-            const newName = input.value.trim();
-            if (newName && newName !== currentName) {
-                if (view.settings.trees[newName]) {
-                    new Notice('A tree with that name already exists');
+            const newNameRaw = input.value.trim();
+            if (newNameRaw && newNameRaw !== currentName) {
+                const newName = toTitleCase(newNameRaw);
+                const existingMatch = findTreeByCaseInsensitive(newNameRaw, view.settings.trees);
+                if (existingMatch) {
+                    new Notice(`A tree with that name already exists: "${existingMatch}"`);
                 } else {
                     const currentTree = view.settings.trees[currentName];
                     if (!currentTree) {
@@ -517,13 +534,14 @@ function SetupTreeSelectorDiv() {
 
     treeSelect.onchange = async () => {
         if (treeSelect.value === '__NEW_TREE__') {
-            const newName = await ShowNewTreeDialog();
-            if (newName && newName.trim()) {
-                const trimmedName = newName.trim();
-                if (view.settings.trees[trimmedName]) {
-                    new Notice('A tree with that name already exists');
+            const newNameRaw = await ShowNewTreeDialog();
+            if (newNameRaw && newNameRaw.trim()) {
+                const newName = toTitleCase(newNameRaw.trim());
+                const existingMatch = findTreeByCaseInsensitive(newNameRaw, view.settings.trees);
+                if (existingMatch) {
+                    new Notice(`A tree with that name already exists: "${existingMatch}"`);
                 } else {
-                    await SwitchTree(trimmedName);
+                    await SwitchTree(newName);
                     UpdateTreeSelector(treeSelect);
                 }
             } else {

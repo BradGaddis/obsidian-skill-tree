@@ -1,5 +1,5 @@
 import { App, FuzzySuggestModal, FuzzyMatch } from "obsidian";
-import { linkedNodes } from "../handlers/file_watcher";
+import { linkedNodes } from "../handlers/linked_nodes";
 import { view } from "../utils/globals";
 import { GetNodes, GetEdges } from "../data/tree_manager";
 import { CenterOnNode, Update } from "../rendering/renderer";
@@ -122,10 +122,10 @@ export class VaultFileSuggestModal extends FuzzySuggestModal<string> {
 
     onChooseItem(item: string): void {
         if (item.startsWith(CREATE_PREFIX)) {
-            const path = item.replace(CREATE_PREFIX, '').replace(/\.md$/, '');
+            const path = item.replace(CREATE_PREFIX, '');
             this.onCreate(path);
         } else {
-            this.onSelect(item.replace(/\.md$/, ''));
+            this.onSelect(item);
         }
         this.close();
     }

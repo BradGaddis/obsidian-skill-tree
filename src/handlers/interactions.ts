@@ -1,5 +1,5 @@
 import { Update, nodeRadii, screenToWorld, handleRadius, levelPaneElement, GetLevelPaneDragState, UpdateLevelPanePosition } from "../rendering/renderer";
-import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, SetSelectedNodeID, IsCurrentTreeLocked } from "../data/tree_manager";
+import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, SetSelectedNodeID, IsCurrentTreeLocked, SyncNodeMetadataToFile } from "../data/tree_manager";
 import { RecordSnapshot, SaveNodes } from "../data/recorder";
 import { SkillNode } from "../nodes/skill_node";
 import { Coordinate, Handle } from "../types/types";
@@ -523,7 +523,7 @@ export function endNodeDrag(): void {
     SaveNodes();
     Update();
     if (node && node.fileLink && node.userCompletable) {
-        import("../data/tree_manager").then(m => m.SyncNodeMetadataToFile(node));
+        SyncNodeMetadataToFile(node);
     }
 }
 

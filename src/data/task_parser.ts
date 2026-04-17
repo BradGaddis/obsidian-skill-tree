@@ -16,8 +16,7 @@ function parseDate(dateStr: string): Date {
 export async function parseTasksFromNode(app: App, node: SkillNode): Promise<SkillTask[]> {
     if (!node.fileLink) return [];
 
-    const normalizedPath = node.fileLink.endsWith('.md') ? node.fileLink : node.fileLink + '.md';
-    const file = app.vault.getAbstractFileByPath(normalizedPath);
+    const file = app.vault.getAbstractFileByPath(node.fileLink);
     if (!file || !(file instanceof TFile)) return [];
 
     const content = await app.vault.read(file);

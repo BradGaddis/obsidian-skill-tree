@@ -3,8 +3,8 @@ import { SkillNode } from "../nodes/skill_node";
 import { ModalButton } from "../types/interfaces";
 import { SkillModal } from "./skilltree_modal";
 import { openFileLinkPickerWithCreate } from "./file_link_picker";
-import { RemoveNode } from "../data/tree_manager";
-import { AddToLinkedNodes, RemoveFromLinkedNodes } from "../handlers/file_watcher";
+import { RemoveNode, GetNodes } from "../data/tree_manager";
+import { AddToLinkedNodes, RemoveFromLinkedNodes } from "../handlers/linked_nodes";
 import { SaveNodes, RecordSnapshot } from "../data/recorder";
 import { Update } from "../rendering/renderer";
 import { GetCurrentTree } from "../data/tree_manager";
@@ -257,8 +257,12 @@ function createEditModalFileRow(view: SkillTreeView, content: HTMLElement, node:
 export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLElement {
     SkillModal.closeAll();
     const modal = SkillModal.create();
-    SkillModal.createContainer(modal, 'Edit Node')
-    const content = SkillModal.createContent(modal)
+    SkillModal.createContainer(modal, 'Edit Node');
+    const content = SkillModal.createContent(modal);
+
+    (modal as any).node = node;
+    (modal as any).modalType = 'edit';
+    (modal as any).view = view;
 
     createEditModalStateRow(content, node);
     createEditModalDisplayTextRow(content, node);
@@ -314,7 +318,40 @@ export function createEditModal(view: SkillTreeView, node: SkillNode): HTMLEleme
 
     SkillModal.installOutsideClickHandler();
 
+    const viewInstance = (view as any);
+    if (viewInstance.openModals) {
+        viewInstance.openModals.set(node.id, { type: 'edit', element: modal });
+    }
+
     return modal;
+}
+
+export function refreshEditModal(modal: HTMLElement, nodeId: string | number): void {
+    const node = GetNodes().get(nodeId);
+    if (!node) {
+        SkillModal.close(modal);
+        return;
+    }
+
+    const view = (modal as any).view;
+
+    (modal as any).node = node;
+
+    const content = modal.querySelector('.skill-tree-modal-content') as HTMLElement | null;
+    if (content) {
+        content.empty();
+        createEditModalStateRow(content, node);
+        createEditModalDisplayTextRow(content, node);
+
+        const editRowBuilder = editModalRowBuilders[node.nodeTypeName];
+        if (editRowBuilder) {
+            editRowBuilder(view, node, content);
+        }
+
+        if (node.linkable && !node.fileLink) {
+            createEditModalFileRow(view, content, node);
+        }
+    }
 }
 
 const editModalRowBuilders: Record<string, (view: SkillTreeView, node: SkillNode, content: HTMLElement) => void> = {

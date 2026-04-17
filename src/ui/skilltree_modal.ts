@@ -2,6 +2,15 @@ import { view } from "../utils/globals";
 import { ModalDragHandler } from "./modal_drag_handler";
 import { ModalButton } from "../types/interfaces";
 import { MODAL_WIDTH, MODAL_HEIGHT, MODAL_DEFAULT_TOP_OFFSET, MODAL_CENTER_THRESHOLD } from "../types/constants";
+import { skillTreeEvents, EVENTS } from "../utils/events";
+
+let treeSwitchCleanup: (() => void) | null = null;
+
+function setupTreeSwitchListener(): void {
+    if (treeSwitchCleanup) return;
+    treeSwitchCleanup = () => SkillModal.closeAll();
+    skillTreeEvents.on(EVENTS.TREE_SWITCHED, treeSwitchCleanup);
+}
 
 function getSidebarWidth(): number {
     const rightSidebar = view.app.workspace.rightSplit;
@@ -42,6 +51,7 @@ function removeOutsideClickHandler(): void {
 
 export const SkillModal = {
     create(): HTMLElement {
+        setupTreeSwitchListener();
         const modal = view.canvasWrap || view.containerEl;
         return modal.createEl('div', { cls: 'skill-tree-node-modal' });
     },
@@ -165,12 +175,23 @@ export const SkillModal = {
     },
 
     close(modal: HTMLElement): void {
+        const node = (modal as any).node;
+        if (node) {
+            const viewInstance = (view as any);
+            if (viewInstance.openModals) {
+                viewInstance.openModals.delete(node.id);
+            }
+        }
         modal.remove();
         removeOutsideClickHandler();
     },
 
     closeAll(): void {
         try {
+            const viewInstance = (view as any);
+            if (viewInstance.openModals) {
+                viewInstance.openModals.clear();
+            }
             if (view.containerEl) {
                 const nodeModal = view.containerEl.querySelectorAll('.skill-tree-node-modal');
                 nodeModal.forEach((n) => n.remove());

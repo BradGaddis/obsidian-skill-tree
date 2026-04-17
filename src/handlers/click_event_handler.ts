@@ -220,7 +220,7 @@ function handleMouseUp(e: MouseEvent): void {
 
     RemoveEdge(targetEdge.id);
 
-    if (draggedNode.fileLink && draggedNode.userCompletable) {
+    if (draggedNode.fileLink) {
         SyncNodeMetadataToFile(draggedNode);
     }
 

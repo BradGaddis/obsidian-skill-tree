@@ -9,6 +9,7 @@ export class TaskNode extends SkillNode {
     constructor(data: Partial<TaskNode> = {}) {
         super(data);
         this.previousType = data?.previousType ?? ""
+        this.tasks = data?.tasks ?? []
     }
 
     get userCompletable(): boolean {
@@ -26,6 +27,7 @@ export class TaskNode extends SkillNode {
         return {
             ...super.toJSON(),
             previousType: this.previousType,
+            tasks: this.tasks,
         };
     }
 

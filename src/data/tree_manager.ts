@@ -3,7 +3,8 @@ import { DEFAULT_FRONTMATTER_TEMPLATE } from "../types/constants";
 import { Direction } from "../types/enums";
 import {
     SkillEdge,
-    SkillTreeData
+    SkillTreeData,
+    FrontmatterProperties
 } from "../types/interfaces";
 import {
     Handle,
@@ -17,6 +18,7 @@ import { TaskNode } from "../nodes/task_node";
 import { TerminalNode } from "../nodes/terminal_node";
 import { TreeLinkNode } from "../nodes/tree_link_node";
 import { parseTasksFromNode } from "./task_parser";
+import { toTitleCase, findTreeByCaseInsensitive, parseTreeList, ensureCurrentTreeInList } from "../types/utils";
 import {
     nodeRadii,
     handleRadius,
@@ -31,13 +33,12 @@ import { validateFrontmatter } from "../utils/frontmatter_validator";
 import { view } from "../utils/globals";
 import { floatingEdge } from "../handlers/interactions";
 import {
-    SetupFileWatchers,
-    CleanupFileWatchers,
     linkedNodes,
     RefreshLinkedNodes,
     AddToLinkedNodes,
     RemoveFromLinkedNodes
-} from "../handlers/file_watcher";
+} from "../handlers/linked_nodes";
+import { SetupFileWatchers, CleanupFileWatchers } from "../handlers/watcher_setup";
 
 export async function InitTreeManager(): Promise<void> {
     await LoadTree()
@@ -112,6 +113,9 @@ export function SetNodes(nodesData: any[]): void {
         const node = NodeFromJSON(data);
         if (node) {
             nodes.set(node.id, node);
+            if (node.fileLink) {
+                AddToLinkedNodes(node.fileLink, node);
+            }
         }
     }
     SyncNodeConnections();
@@ -195,48 +199,37 @@ function updateNodeFrontmatterOnRemove(node: SkillNode, _nodeId: string | number
     const fileLink = node.fileLink;
     if (!fileLink) return;
 
-    try {
-        let normalizedPath = fileLink.trim();
-        if (normalizedPath.startsWith('/')) {
-            normalizedPath = normalizedPath.substring(1);
-        }
-        if (!normalizedPath.endsWith('.md')) {
-            normalizedPath = normalizedPath + '.md';
-        }
-
-        const file = view.app.vault.getAbstractFileByPath(normalizedPath);
-        if (!file || !(file instanceof TFile)) return;
-
-        const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
-        if (!fm) return;
-
-        const currentTrees: string[] = (Array.isArray(fm['skilltree-tree'])
-            ? fm['skilltree-tree']
-            : fm['skilltree-tree']
-                ? [fm['skilltree-tree']]
-                : []) as string[];
-
-        const currentTreeName = view.settings.currentTreeName;
-        const remainingTrees = currentTrees.filter(t => t !== currentTreeName);
-
-        view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-            if (remainingTrees.length === 0) {
-                // Node no longer in any tree - delete ALL skilltree-* properties
-                delete frontmatter['skilltree-node'];
-                delete frontmatter['skilltree-tree'];
-                delete frontmatter['skilltree-exp'];
-                delete frontmatter['skilltree-shape'];
-                delete frontmatter['skilltree-x'];
-                delete frontmatter['skilltree-y'];
-                delete frontmatter['skilltree-display-text'];
-            } else {
-                // Node in other trees - only update skilltree-tree
-                frontmatter['skilltree-tree'] = remainingTrees;
-            }
-        });
-    } catch (e) {
-        console.warn('[RemoveNode] Failed to update frontmatter:', e);
+    const file = view.app.vault.getAbstractFileByPath(fileLink);
+    if (!file || !(file instanceof TFile)) {
+        console.error('[SyncNodeMetadataToFile] File not found or not a TFile:', fileLink);
+        return;
     }
+
+    const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
+    if (!fm) {
+        console.error('[SyncNodeMetadataToFile] No frontmatter found for file:', fileLink);
+        return;
+    }
+
+    const rawTrees = fm['skilltree-tree'];
+    let currentTrees = parseTreeList(rawTrees);
+
+    const currentTreeName = view.settings.currentTreeName;
+    const remainingTrees = currentTrees.filter(t => t !== currentTreeName);
+
+    view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        if (remainingTrees.length === 0) {
+            delete frontmatter['skilltree-node'];
+            delete frontmatter['skilltree-tree'];
+            delete frontmatter['skilltree-exp'];
+            delete frontmatter['skilltree-shape'];
+            delete frontmatter['skilltree-x'];
+            delete frontmatter['skilltree-y'];
+            delete frontmatter['skilltree-display-text'];
+        } else {
+            frontmatter['skilltree-tree'] = remainingTrees;
+        }
+    });
 }
 
 export function CreateEdge(edge: SkillEdge) {
@@ -392,6 +385,8 @@ export function FindEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
 export function ValidateEdges(): void {
     for (const node of nodes.values()) { node.from = []; node.to = []; }
 
+    const hasRadii = Object.keys(nodeRadii).length > 0;
+
     for (const edge of edges) {
         const toNode = nodes.get(edge.to as string | number);
         const fromNode = nodes.get(edge.from as string | number);
@@ -408,20 +403,22 @@ export function ValidateEdges(): void {
             continue
         }
 
-        let nearest = FindNearestHandleOnNode(fromNode, toNode.x, toNode.y);
-        if (!nearest) {
-            continue
+        if (hasRadii) {
+            let nearest = FindNearestHandleOnNode(fromNode, toNode.x, toNode.y);
+            if (!nearest) {
+                continue
+            }
+            edge.fromX = nearest.hx;
+            edge.fromY = nearest.hy;
+            edge.fromSide = nearest.side as any;
+            nearest = FindNearestHandleOnNode(toNode, fromNode.x, fromNode.y);
+            if (!nearest) {
+                continue
+            }
+            edge.toX = nearest.hx;
+            edge.toY = nearest.hy;
+            edge.toSide = nearest.side as any;
         }
-        edge.fromX = nearest.hx;
-        edge.fromY = nearest.hy;
-        edge.fromSide = nearest.side as any;
-        nearest = FindNearestHandleOnNode(toNode, fromNode.x, fromNode.y);
-        if (!nearest) {
-            continue
-        }
-        edge.toX = nearest.hx;
-        edge.toY = nearest.hy;
-        edge.toSide = nearest.side as any;
 
         toNode.updateRelationShips(edge)
         fromNode.updateRelationShips(edge)
@@ -597,19 +594,25 @@ export function UpdateTreeSelector(select: HTMLSelectElement) {
 
 
 export async function SwitchTree(treeName: string) {
-    if (treeName !== view.settings.currentTreeName) {
-        ClearHistory();
-    }
-    view.settings.currentTreeName = treeName;
-    if (!view.settings.trees[treeName]) {
-        view.settings.trees[treeName] = {
-            name: treeName,
+    const normalizedName = toTitleCase(treeName);
+    const existingMatch = findTreeByCaseInsensitive(treeName, view.settings.trees);
+
+    if (existingMatch) {
+        view.settings.currentTreeName = existingMatch;
+    } else {
+        view.settings.currentTreeName = normalizedName;
+        view.settings.trees[normalizedName] = {
+            name: normalizedName,
             nodes: [],
             edges: []
         };
     }
 
-    ensureTerminalNode(treeName);
+    if (normalizedName !== view.settings.currentTreeName) {
+        ClearHistory();
+    }
+
+    ensureTerminalNode(view.settings.currentTreeName);
 
     await LoadTree();
 
@@ -652,6 +655,8 @@ export async function LoadTree() {
 
     await UpdateNodesFromNotes();
 
+    const nodesArray = Array.from(nodes.values());
+    ValidateTreeState(nodesArray);
 
     await SaveNodes();
 }
@@ -664,18 +669,11 @@ export async function ValidateLinkedFiles(): Promise<number> {
     for (const node of nodes.values()) {
         if (!node.fileLink) continue;
 
-        let normalizedPath = node.fileLink.trim();
-        if (normalizedPath.startsWith('/')) {
-            normalizedPath = normalizedPath.substring(1);
-        }
-        if (!normalizedPath.endsWith('.md')) {
-            normalizedPath = normalizedPath + '.md';
-        }
-
-        if (!allFiles.has(normalizedPath)) {
+        if (!allFiles.has(node.fileLink)) {
+            const oldFileLink = node.fileLink;
             node.fileLink = undefined;
             node.tasks = [];
-            RemoveFromLinkedNodes(normalizedPath);
+            if (oldFileLink) RemoveFromLinkedNodes(oldFileLink);
             unlinkedCount++;
         }
     }
@@ -703,41 +701,64 @@ export async function UpdateNodesFromNotes(): Promise<void> {
 
         if (existingNode) {
             if (!existingNode.fileLink) {
-                existingNode.fileLink = file.path.replace(/\.md$/, '');
+                existingNode.fileLink = file.path;
+            }
+
+            if (validated.displayText !== null) {
+                existingNode.displayText = validated.displayText || undefined;
+            }
+            if (validated.x !== undefined) {
+                existingNode.x = validated.x;
+            }
+            if (validated.y !== undefined) {
+                existingNode.y = validated.y;
+            }
+            if (validated.shape) {
+                existingNode.shape = validated.shape;
             }
 
             linkedNodes.set(file.path, existingNode);
             continue;
         }
 
-        const nodeX = fm['skilltree-node-x'] ?? 200;
-        const nodeY = fm['skilltree-node-y'] ?? 200;
-        const exp = fm['skilltree-node-exp'] ?? view.settings.defaultExp;
+        const nodeX = validated.x ?? 200;
+        const nodeY = validated.y ?? 200;
+        const exp = validated.exp ?? view.settings.defaultExp;
+        const displayText = validated.displayText;
+        const shape = validated.shape;
         const desc = fm['skilltree-node-desc'] ?? '';
-        const fileLink = file.path.replace(/\.md$/, '');
+        const fileLink = file.path;
 
         const newNode = AddNode(nodeX, nodeY, fileLink, 'BaseNode');
         if (!newNode) continue;
 
         newNode.exp = exp;
+        if (displayText) {
+            newNode.displayText = displayText;
+        }
+        if (shape) {
+            newNode.shape = shape;
+        }
         (newNode as any).description = desc;
         (newNode as any).id = nodeId;
         nodes.set(nodeId, newNode);
-        nodes.delete(newNode.id);
-
+        linkedNodes.set(file.path, newNode);
 
         const currentTree = GetCurrentTreeData();
         if (currentTree) {
-            currentTree.nodes.push({
-                id: nodeId,
-                x: nodeX,
-                y: nodeY,
-                state: 'unavailable',
-                nodeTypeName: 'BaseNode',
-                fileLink: fileLink,
-                exp: exp,
-                description: desc
-            } as any);
+            const existingIdx = currentTree.nodes.findIndex(n => n.id === nodeId);
+            if (existingIdx === -1) {
+                currentTree.nodes.push({
+                    id: nodeId,
+                    x: nodeX,
+                    y: nodeY,
+                    state: 'unavailable',
+                    nodeTypeName: 'BaseNode',
+                    fileLink: fileLink,
+                    exp: exp,
+                    description: desc
+                } as any);
+            }
         }
     }
 }
@@ -885,7 +906,7 @@ const SYNC_COOLDOWN_MS = 500;
 const nodeSyncTimestamps = new Map<string, number>();
 
 export async function SyncNodeMetadataToFile(node: SkillNode): Promise<void> {
-    if (!node.fileLink || !node.userCompletable) return;
+    if (!node.fileLink) return;
 
     const nodeKey = node.fileLink;
     const now = Date.now();
@@ -893,40 +914,36 @@ export async function SyncNodeMetadataToFile(node: SkillNode): Promise<void> {
     if (now - lastSync < SYNC_COOLDOWN_MS) return;
     nodeSyncTimestamps.set(nodeKey, now);
 
-    try {
-        let normalizedPath = node.fileLink.trim();
-        if (normalizedPath.startsWith('/')) {
-            normalizedPath = normalizedPath.substring(1);
-        }
-        if (!normalizedPath.endsWith('.md')) {
-            normalizedPath = normalizedPath + '.md';
-        }
+    const file = view.app.vault.getAbstractFileByPath(node.fileLink);
+    if (!file || !(file instanceof TFile)) return;
 
-        const file = view.app.vault.getAbstractFileByPath(normalizedPath);
-        if (!file || !(file instanceof TFile)) return;
+    const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
 
-        const treeName = view.settings.currentTreeName;
+    const rawTrees = fm?.['skilltree-tree'];
+    const currentTrees = ensureCurrentTreeInList(parseTreeList(rawTrees));
 
-        await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
-            // Skip if node ID is already correct (avoids unnecessary file writes)
-            if (frontmatter['skilltree-node'] === String(node.id)) {
-                return;
-            }
+    const skilltreeProps: FrontmatterProperties = {
+        'skilltree-exp': node.exp ?? 10,
+        'skilltree-shape': node.shape,
+        'skilltree-x': node.x,
+        'skilltree-y': node.y,
+    };
 
-            // Just overwrite values directly
-            frontmatter['skilltree-node'] = String(node.id);
-            frontmatter['skilltree-tree'] = [treeName];
-            frontmatter['skilltree-exp'] = node.exp ?? 10;
-            frontmatter['skilltree-shape'] = node.shape;
-            frontmatter['skilltree-x'] = node.x;
-            frontmatter['skilltree-y'] = node.y;
-            if (node.displayText && node.displayText.trim()) {
-                frontmatter['skilltree-display-text'] = node.displayText;
-            }
-        });
-    } catch (e) {
-        console.warn('[SyncNodeMetadata] Failed to sync to file:', e);
+    if (currentTrees.length === 1) {
+        skilltreeProps['skilltree-tree'] = currentTrees[0];
+    } else {
+        skilltreeProps['skilltree-tree'] = currentTrees;
     }
+
+    if (node.displayText && node.displayText.trim()) {
+        skilltreeProps['skilltree-display-text'] = node.displayText;
+    }
+
+    await view.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        Object.assign(frontmatter, skilltreeProps);
+    });
+
+    await view.plugin.saveSettings();
 }
 
 
@@ -940,17 +957,23 @@ export function ValidateTreeState(nodes: SkillNode[]) {
     const seenLinks = new Set<string>();
 
     for (const node of nodes) {
-        // Check for duplicate IDs first
         if (seenIds.has(node.id)) {
             RemoveNode(node.id)
+            const currentTree = GetCurrentTreeData();
+            if (currentTree) {
+                currentTree.nodes = currentTree.nodes.filter(n => n.id !== node.id);
+            }
             continue;
         }
         seenIds.add(node.id);
 
-        // Also check for duplicate fileLinks (skip empty/undefined)
         const fileLink = node.fileLink;
         if (fileLink && seenLinks.has(fileLink)) {
             RemoveNode(node.id)
+            const currentTree = GetCurrentTreeData();
+            if (currentTree) {
+                currentTree.nodes = currentTree.nodes.filter(n => n.id !== node.id);
+            }
             continue;
         }
         if (fileLink) {
@@ -973,12 +996,12 @@ export function ValidateTreeState(nodes: SkillNode[]) {
 
 export async function createSkillNodeFile(node: SkillNode, path: string): Promise<void> {
     const defaultPath = view.plugin.settings.defaultFilePath || '';
-    const fullPath = (defaultPath ? defaultPath + '/' : '') + path;
-    const filePath = fullPath.endsWith('.md') ? fullPath : fullPath + '.md';
+    const basePath = (defaultPath ? defaultPath + '/' : '') + path;
+    const fullPath = basePath.endsWith('.md') ? basePath : basePath + '.md';
     const treeName = view.settings.currentTreeName;
     const exp = view.settings.defaultExp;
     const content = DEFAULT_FRONTMATTER_TEMPLATE(node.id, treeName, exp);
-    await view.app.vault.create(filePath, content);
+    await view.app.vault.create(fullPath, content);
     node.fileLink = fullPath;
     AddToLinkedNodes(fullPath, node);
     SaveNodes();

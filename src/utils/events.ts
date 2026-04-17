@@ -33,4 +33,5 @@ export const EVENTS = {
     TREE_SWITCHED: 'tree:switched',
     TREE_DELETED: 'tree:deleted',
     NODES_CHANGED: 'nodes:changed',
+    NODE_UPDATED: 'node:updated',
 } as const;

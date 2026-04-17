@@ -1,11 +1,12 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
 
 import { SkillTreeSettings } from './types/interfaces';
-import { LOOP_UPPER_LIMIT, VIEW_TYPE_SKILLTREE } from './types/constants';
+import { toTitleCase, findTreeByCaseInsensitive } from './types/utils';
+import { VIEW_TYPE_SKILLTREE } from './types/constants';
 
 import { SkillTreeView } from './skilltreeview';
 import { GetCurrentTreeData } from './data/tree_manager';
-import { SetupFileWatchers } from './handlers/file_watcher';
+import { SetupFileWatchers } from './handlers/watcher_setup';
 import { SetSettings, SetView } from './utils/globals';
 import { skillTreeEvents, EVENTS } from './utils/events';
 import { TreeSuggestModal, FolderSuggestionModal } from './ui/fuzzy_suggest_modal';
@@ -169,7 +170,7 @@ export default class SkillTreePlugin extends Plugin {
       if (view && view.loadSettings) {
         await view.loadSettings();
         const { LoadTree } = await import("./data/tree_manager");
-        const { CleanupFileWatchers, SetupFileWatchers } = await import("./handlers/file_watcher");
+        const { CleanupFileWatchers, SetupFileWatchers } = await import("./handlers/watcher_setup");
         CleanupFileWatchers();
         await LoadTree();
         SetupFileWatchers();
@@ -218,12 +219,10 @@ export default class SkillTreePlugin extends Plugin {
       throw new Error('Invalid JSON: missing required fields');
     }
 
-    let treeName = data.name;
-    let counter = 1;
-    while (this.settings.trees[treeName]) {
-      if (counter >= LOOP_UPPER_LIMIT) break
-      treeName = `${data.name}-${counter}`;
-      counter++;
+    const treeName = toTitleCase(data.name);
+    const existingMatch = findTreeByCaseInsensitive(data.name, this.settings.trees);
+    if (existingMatch) {
+      throw new Error(`A tree with that name already exists: "${existingMatch}"`);
     }
 
     data.name = treeName;

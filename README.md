@@ -3,31 +3,28 @@
 <!-- badges -->
 [![Obsidian plugin](https://img.shields.io/badge/Obsidian-Plugin-blue?style=flat&logo=obsidian)](https://obsidian.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/anomalyco/opencode/blob/main/LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen)](https://github.com/anomalyco/opencode/releases)
-[![Download](https://img.shields.io/badge/Downloads-100+-success)](https://obsidian.md/plugins)
 
-Visualize your learning journey with an interactive, node-based skill tree.
+Visualize and gamify your learning with an interactive, node-based skill tree.
 
 ![Skill Tree Demo](demo.gif)
-<!-- Add screenshots: 
+<!-- Add screenshots:
      - Full skill tree view
      - Edit mode with toolbar
      - Node detail modal
      - Settings panel
 -->
 
-## Wait, What is a Skill Tree?
+## Skill Tree:
 
-A skill tree is a visual representation of your learning journey—a graph where:
+A visual representation of linked notes and nodes where:
 
 * **Nodes** represent skills, concepts, or milestones you've achieved (or want to achieve)
 * **Edges** show dependencies—like needing to learn A before B
 * **XP** accumulates as you complete checkbox items in your linked notes
 
-Think of it like video game skill trees (think Zelda skill trees, Path of Exile, etc.) but for real-world learning.
 
 ![Conceptual Overview](assets/concept.png)
-<!-- Add: 
+<!-- Add:
      - Simple diagram showing node → node connections
      - XP flow from checkboxes through nodes to level
 -->
@@ -42,58 +39,48 @@ Think of it like video game skill trees (think Zelda skill trees, Path of Exile,
 ### Organization
 * **Multiple Trees** - Create separate skill trees for different areas
 * **Tree Linking** - Connect trees together with prerequisite dependencies
+  * You can also add sub-trees that can't be completed until the corresponding node is ready
 
 ### Node Types
-| Node Type | Icon | Description |
-|----------|------|------------|
-| **Regular** | Circle/Standard | Normal skill node |
-| **Optional** | Diamond | Optional path node |
-| **Checkpoint** | ⬡ Hexagon | Milestone node |
-| **Repeating** | ⟳ | Daily/recurring tasks with cooldown |
-| **Tree Link** | ↪ | Link to another skill tree |
+| Node Type |Description |
+|----------|------|
+| **Regular**  | Normal skill node |
+| **Optional**  | Optional path node |
+| **Checkpoint**   | Milestone node |
+| **Repeating**   | Daily/recurring tasks with cooldown |
+| **Tree Link**    | Link to another skill tree |
+| **Task Nodes**   | Nodes that have tasks that must be completed before moving on |
 
-![Node Types](assets/node-types.png)
-<!-- Add: 
+You can change these (mostly) freely in the metadata of a linked note.
+
+<!-- ![Node Types](assets/node-types.png) -->
+<!-- Add:
      - All 5 node types rendered in edit mode
      - Visual distinction between each
 -->
 
 ### Progress & Gamification
-* **XP System** - Earn experience for completing tasks
-* **Leveling** - Watch your level grow as you progress
+* **XP System** - Earn experience for completing skills
+* **Leveling** - A basic leveling system that grows with skills added
 * **Repeating Nodes** - Track daily habits with automatic reset timers
 
-![Progress](assets/progress.png)
+<!-- ![Progress](assets/progress.png) -->
 <!-- Add:
      - Level pane showing current level
      - XP badge on nodes showing their EXP value
      - Repeating node timer display
 -->
 
-## Getting Started
+<!-- ## Getting Started -->
 
-### Quick Start
-
-1. Open Obsidian and go to **Settings → Community Plugins**
-2. Search for "Skill Tree" and install
-3. Click the dice icon in the sidebar to open the plugin
-4. Toggle **Edit Mode** to start building your tree
-
-![First Tree](assets/first-tree.gif)
+<!-- ![First Tree](assets/first-tree.gif) -->
 <!-- Add:
      - Screen recording from fresh install to first node
      - Step-by-step click sequence
 -->
 
-### Your First Skill Tree
-
-Let's say you want to learn a new language. Here's how to build a simple tree:
-
-1. **Create a root node** - Click "Add Node" and select a note or create a new one
-2. **Add prerequisites** - Click and drag from the handle to new nodes
-3. **Link your notes** - Each node should link to notes with checkbox items
-
-![Minimal Tree Example](assets/minimal-tree.png)
+<!-- ## Example -->
+<!-- ![Minimal Tree Example](assets/minimal-tree.png) -->
 <!-- Add:
      - Minimal 3-node tree with proper edges
      - Brief walkthrough text
@@ -102,15 +89,6 @@ Let's say you want to learn a new language. Here's how to build a simple tree:
 ## Creating Nodes
 
 In Edit Mode, click the toolbar buttons to add nodes:
-
-| Button | Keyboard | Description |
-|--------|----------|------------|
-| **Add Node** | `N` | Create a node linked to a note |
-| **Add Empty** | `E` | Create an unlinked node |
-| **Add Optional** | `O` | Optional path node |
-| **Add Checkpoint** | `C` | Milestone node |
-| **Add Sub Tree** | `T` | Link to another skill tree |
-| **Add Repeating** | `R` | Node with cooldown reset |
 
 ### Connecting Nodes
 
@@ -127,16 +105,6 @@ In Edit Mode, click the toolbar buttons to add nodes:
 ## Node States
 
 Nodes automatically update based on connections and checkbox completion:
-
-### State Reference
-
-| State | Color | Description |
-|-------|-------|-------------|
-| **Complete** | Green | All tasks done or no prerequisites |
-| **In Progress** | Blue | Some tasks complete, children unlocked |
-| **Unavailable** | Gray | Prerequisites not met |
-| **On Hold** | Yellow | Manually set to on hold |
-| **Error** | Red | Linked note not found |
 
 ![Node States](assets/node-states.png)
 <!-- Add:
@@ -158,6 +126,7 @@ Access via **Settings → Plugin Settings → Skill Tree**:
 | Default Skill EXP | EXP for new linked nodes | 10 |
 | Default File Path | Folder for new note files | Root |
 
+
 ### Node-Level Settings
 
 You can customize individual nodes:
@@ -168,7 +137,6 @@ You can customize individual nodes:
 skilltree-node: my-language-node
 skilltree-node-exp: 50
 shape: hexagon  # Optional shape override
-color: #ff5555  # Optional color override
 ---
 
 - [ ] Task 1
@@ -176,60 +144,10 @@ color: #ff5555  # Optional color override
 - [ ] Task 3
 ```
 
-![Settings Panel](assets/settings.png)
-<!-- Add:
-     - Full settings panel screenshot
-     - Each setting annotated
--->
 
-## Note Frontmatter
-
-When you link a node to a note, these properties are automatically added:
-
-```yaml
----
-skilltree-node: <node-id>
-skilltree-node-exp: <current-exp>
-skilltree-node-to: [<child-node-ids>]
-skilltree-node-from: [<parent-node-ids>]
----
-```
-
-### Customizing Node Appearance
-
-Override node shape in your note's frontmatter:
-
-| Shape | Description |
-|-------|------------|
-| `circle` | Normal (default) |
-| `square` | Square corners |
-| `hexagon` | Six-sided |
-| `diamond` | Rotated square |
-| `star` | Star shape |
-| `repeat` | Repeating/loop icon |
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl/Cmd + Z` | Undo |
-| `Ctrl/Cmd + Y` | Redo |
-| `Delete` | Delete selected node (edit mode) |
-| `Space` | Toggle selected node complete |
-| `1-5` | Set node state (edit mode) |
-
-## Commands
-
-Open the Obsidian command palette (`Ctrl/Cmd + P`):
-
-- **Skill Tree: Open** - Open the skill tree view
-- **Skill Tree: Switch to Tree** - Switch between saved trees
-- **Skill Tree: Reload** - Reload the current tree from disk
-- **Skill Tree: Export** - Export current tree as JSON
 
 ## Touch & Mobile Support
 
-Skill Tree works on touch devices with full gesture support:
 
 | Gesture | Action |
 |---------|--------|
@@ -239,88 +157,10 @@ Skill Tree works on touch devices with full gesture support:
 | **Pinch** | Zoom in/out |
 | **Long press** | Start dragging a node/handle |
 
-![Mobile View](assets/mobile.png)
-<!-- Add:
-     - Phone screenshot showing skill tree
-     - Pinch gesture indicator
--->
 
 ## Import/Export
 
-### JSON Format
 
-Save your trees as JSON for backup or sharing:
-
-```json
-{
-  "trees": {
-    "node-name": {
-      "nodes": [...],
-      "edges": [...]
-    }
-  },
-  "settings": {...}
-}
-```
-
-### Importing
-
-1. **Settings → Plugin Settings → Import**
-2. Select your JSON file
-3. Confirm import
-
-## Multiple Trees
-
-Create separate trees for different learning areas:
-
-![Multi-Tree](assets/multi-tree.png)
-<!-- Add:
-     - Tree selector dropdown
-     - Two different tree screenshots
--->
-
-### Creating New Trees
-
-In Edit Mode, use the tree selector in the toolbar:
-
-1. Click the tree name dropdown
-2. Select "Create New Tree..."
-3. Enter a name for your tree
-
-## Workflow Examples
-
-### Language Learning
-
-```
-Root: English Fluency
-  ├── Basics (unlock after 5 tasks)
-  │   ├── Pronunciation
-  │   ├── Grammar Fundamentals
-  │   └── Vocabulary Daily (repeating)
-  ├── Speaking Practice
-  │   ├── Conversation Topics
-  │   └── Pronunciation Drills
-  └── Advanced
-      ├── Idioms
-      └── Business Writing
-```
-
-### Video Game Skill Tree
-
-```
-Core Mechanics
-  ├── Movement
-  │   ├── Dash
-  │   └── Jump
-  ├── Combat
-  │   ├── Light Attack
-  │   ├── Heavy Attack
-  │   └── Dodge
-  └── Abilities
-      ├── Fireball
-      ├── Ice Blast
-      └── Lightning Strike
-```
 
 ## Development
 
@@ -338,18 +178,6 @@ npm run build
 npm run typecheck
 ```
 
-### Project Structure
-
-```
-src/
-├── handlers/        # Event handlers (click, touch, zoom, etc.)
-├── nodes/          # Node type definitions
-├── rendering/      # Canvas rendering logic
-├── data/           # Tree data management
-├── ui/            # Modal and UI components
-└── types/         # TypeScript definitions
-```
-
 ## Troubleshooting
 
 ### "Plugin not loading"
@@ -364,11 +192,6 @@ src/
 - Ensure you're in Edit Mode
 - Click and drag from the handles (not the node center)
 
-![Troubleshooting](assets/troubleshoot.png)
-<!-- Add:
-     - Common error messages
-     - Solutions for each
--->
 
 ## License
 
@@ -376,4 +199,4 @@ MIT License - Feel free to use, modify, and distribute.
 
 ---
 
-*Like this plugin? Help others find it by leaving a ⭐ on the [plugin page]().*
+*Like this plugin? Help others find it by leaving a ⭐ or buying me a coffee.

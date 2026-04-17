@@ -1,6 +1,8 @@
+import { TFile } from "obsidian";
 import { SkillTreeView } from "../skilltreeview";
 import { GetNodes, AddNode } from "../data/tree_manager";
-import { linkedNodes } from "../handlers/file_watcher";
+import { linkedNodes } from "../handlers/linked_nodes";
+import { validateFrontmatter } from "../utils/frontmatter_validator";
 import { DEFAULT_FRONTMATTER_TEMPLATE } from "../types/constants";
 import { SaveNodes, RecordSnapshot } from "../data/recorder";
 import { Update, screenToWorld } from "../rendering/renderer";
@@ -328,7 +330,20 @@ export async function createNewNode(
         worldPos = screenToWorld({ x: rect.width / 2, y: rect.height / 2 });
     }
 
-    AddNode(worldPos.x, worldPos.y, selectedPath);
+    const newNode = AddNode(worldPos.x, worldPos.y, selectedPath);
+    if (newNode) {
+        const file = view.app.vault.getAbstractFileByPath(selectedPath);
+        if (file && file instanceof TFile) {
+            const fm = view.app.metadataCache.getFileCache(file)?.frontmatter;
+            if (fm) {
+                const validated = validateFrontmatter(fm);
+                if (validated.displayText) newNode.displayText = validated.displayText;
+                if (validated.shape) newNode.shape = validated.shape;
+                if (validated.x !== undefined) newNode.x = validated.x;
+                if (validated.y !== undefined) newNode.y = validated.y;
+            }
+        }
+    }
     await SaveNodes();
     Update();
 }

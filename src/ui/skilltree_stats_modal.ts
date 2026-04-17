@@ -1,9 +1,9 @@
 import { SkillNode } from "../nodes/skill_node";
 import { DEFAULT_NODE_DESCRIPTION } from "../types/constants";
-import { TFile } from "obsidian";
+import { TFile, WorkspaceLeaf } from "obsidian";
 import { SkillModal } from "./skilltree_modal";
 import { Update, CenterOnNode } from "../rendering/renderer";
-import { SwitchTree } from "../data/tree_manager";
+import { SwitchTree, GetNodes } from "../data/tree_manager";
 import { MarkdownRenderer } from "obsidian";
 import { view } from "../utils/globals";
 import { SkillTask } from "../types/interfaces";
@@ -18,6 +18,13 @@ export function SkillModalCreateExpBadge(el: HTMLElement, node: SkillNode) {
     el.appendChild(expBadge);
 }
 
+function findOpenLeafForFile(app: any, filePath: string): WorkspaceLeaf | null {
+    return app.workspace.getLeavesOfType("markdown").find((leaf: WorkspaceLeaf) => {
+        const viewFile = (leaf.view as any)?.file;
+        return viewFile?.path === filePath;
+    }) || null;
+}
+
 export async function SkillModalOpenFileButton(node: SkillNode, container: HTMLElement) {
 
     const openBtn = container.createEl('button', { text: 'Open Note', cls: 'skill-tree-btn--go' });
@@ -25,7 +32,16 @@ export async function SkillModalOpenFileButton(node: SkillNode, container: HTMLE
     openBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         if (!node.fileLink) return;
-        await view.app.workspace.openLinkText(node.fileLink, '', false);
+
+        const file = view.app.vault.getAbstractFileByPath(node.fileLink);
+        if (!file || !(file instanceof TFile)) return;
+
+        const existingLeaf = findOpenLeafForFile(view.app, node.fileLink);
+        if (existingLeaf) {
+            view.app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+        } else {
+            await view.app.workspace.openLinkText(node.fileLink, '', false);
+        }
     });
 }
 
@@ -66,10 +82,7 @@ export function SkillModalDescription(node: SkillNode, modal: HTMLElement) {
     try {
         let descText = DEFAULT_NODE_DESCRIPTION;
         if (node.fileLink) {
-            let normalizedPath = node.fileLink.trim();
-            if (normalizedPath.startsWith('/')) normalizedPath = normalizedPath.substring(1);
-            if (!normalizedPath.endsWith('.md')) normalizedPath = normalizedPath + '.md';
-            const file = view.plugin.app.vault.getAbstractFileByPath(normalizedPath);
+            const file = view.plugin.app.vault.getAbstractFileByPath(node.fileLink);
             if (file && file instanceof TFile) {
                 const fm = view.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
                 const fmDesc = fm?.['skilltree-node-desc'];
@@ -106,7 +119,6 @@ export async function SkillModalTasks(node: SkillNode, modal: HTMLElement) {
 
     const tasksBlock = buildTasksQuery(targetPathForQuery);
     if (view.isTasksPluginInstalled()) {
-        console.log("is this triggering?")
         await renderTasksQuery(tasksBlock, tasksWrap, fileObj);
     } else {
         await renderTasksFallback(node, node.tasks, tasksWrap, fileObj);
@@ -119,26 +131,12 @@ function canRenderTasks(node: SkillNode): boolean {
 }
 
 function getTaskFileInfo(node: SkillNode): { fileObj: TFile | null; targetPathForQuery: string } {
-    let sourcePath = node.fileLink?.trim() || '';
-    if (sourcePath.startsWith('/')) sourcePath = sourcePath.substring(1);
-    let candidate = sourcePath;
-    if (!candidate.endsWith('.md')) candidate = candidate + '.md';
-    let fileObj = view.app.vault.getAbstractFileByPath(candidate) as TFile | null;
-    if (!fileObj && sourcePath && !sourcePath.endsWith('.md')) {
-        fileObj = view.app.vault.getAbstractFileByPath(sourcePath) as TFile | null;
+    if (!node.fileLink) {
+        return { fileObj: null, targetPathForQuery: '' };
     }
 
-    let targetPathForQuery = '';
-
-    if (node.fileLink) {
-        targetPathForQuery = node.fileLink.trim();
-        if (targetPathForQuery.startsWith('/')) targetPathForQuery = targetPathForQuery.substring(1);
-    } else if (fileObj) {
-        targetPathForQuery = fileObj.path;
-    } else {
-        targetPathForQuery = candidate;
-    }
-    if (!targetPathForQuery.endsWith('.md')) targetPathForQuery = targetPathForQuery + '.md';
+    const fileObj = view.app.vault.getAbstractFileByPath(node.fileLink) as TFile | null;
+    const targetPathForQuery = fileObj?.path || node.fileLink;
 
     return { fileObj, targetPathForQuery };
 }
@@ -223,6 +221,9 @@ export async function createStatsModal(node: SkillNode): Promise<HTMLElement> {
     SkillModal.createContainer(modal, 'Skill Stats')
     SkillModal.createContent(modal);
 
+    (modal as any).node = node;
+    (modal as any).modalType = 'stats';
+
     const builder = statsModalContentBuilders[node.nodeTypeName] || buildDefaultStatsModalContent;
     await builder(node, modal);
     SkillModalFromSection(node, modal);
@@ -230,7 +231,23 @@ export async function createStatsModal(node: SkillNode): Promise<HTMLElement> {
     SkillModal.createFooterContainer(modal)
     SkillModal.makeDraggable(modal, 'edit');
     SkillModal.installOutsideClickHandler();
+
+    const viewInstance = (view as any);
+    if (viewInstance.openModals) {
+        viewInstance.openModals.set(node.id, { type: 'stats', element: modal });
+    }
+
     return modal;
+}
+
+export async function refreshStatsModal(modal: HTMLElement, nodeId: string | number): Promise<void> {
+    const node = GetNodes().get(nodeId);
+    if (!node) {
+        SkillModal.close(modal);
+        return;
+    }
+
+    await createStatsModal(node);
 }
 
 export function SkillModalFromSection(node: SkillNode, modal: HTMLElement) {

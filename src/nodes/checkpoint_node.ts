@@ -23,7 +23,7 @@ export class CheckpointNode extends SkillNode {
     }
 
     getDisplayLabel(): LabelInfo {
-        return super.getDisplayLabel(this.displayText)
+        return super.getDisplayLabel()
         // return { label: "Check Point", lines: ["Check Point"] };
     }
 

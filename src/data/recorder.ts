@@ -1,5 +1,5 @@
 import { Update } from "../rendering/renderer";
-import { GetCurrentTreeData, GetNodes, GetEdges, SetNodes, SetEdges } from "./tree_manager";
+import { GetCurrentTreeData, GetNodes, GetEdges, SetNodes, SetEdges, SyncNodeMetadataToFile } from "./tree_manager";
 import { HISTORY_UPPER_BOUNDS } from "../types/constants";
 import { skillTreeEvents, EVENTS } from "../utils/events";
 import { view } from "../utils/globals";
@@ -82,27 +82,22 @@ export async function SaveNodes() {
         const currentTree = GetCurrentTreeData();
         const nodeList = Array.from(GetNodes().values());
         const edges = GetEdges();
+        const snapshot = { nodes: JSON.parse(JSON.stringify(nodeList)), edges: JSON.parse(JSON.stringify(edges)) };
+
         if (currentTree) {
-            currentTree.nodes = JSON.parse(JSON.stringify(nodeList));
-            currentTree.edges = JSON.parse(JSON.stringify(edges));
+            currentTree.nodes = snapshot.nodes;
+            currentTree.edges = snapshot.edges;
         } else {
             view.settings.trees[view.settings.currentTreeName] = {
                 name: view.settings.currentTreeName,
-                nodes: JSON.parse(JSON.stringify(nodeList)),
-                edges: JSON.parse(JSON.stringify(edges))
+                ...snapshot
             };
         }
 
         for (const node of nodeList) {
-            if (node.fileLink && node.userCompletable) {
-                try {
-                    const treeManager = await import("../data/tree_manager");
-                    if (treeManager.SyncNodeMetadataToFile) {
-                        await treeManager.SyncNodeMetadataToFile(node);
-                    }
-                } catch (e) {
-                    console.warn('[SAVE] Failed to sync metadata to note:', e);
-                }
+            if (!node.userCompletable && !node.displayText) continue;
+            if (SyncNodeMetadataToFile) {
+                await SyncNodeMetadataToFile(node);
             }
         }
 

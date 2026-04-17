@@ -1,4 +1,5 @@
 import { ValidatedFrontmatter } from "../types/interfaces";
+import { parseTreeList } from "../types/utils";
 
 const VALID_SHAPES = ['circle', 'square', 'hexagon', 'diamond', 'repeat'];
 
@@ -13,12 +14,7 @@ export function validateFrontmatter(fm: Record<string, any> | null | undefined):
     : null;
 
   const skilltreeTreeRaw = fm['skilltree-tree'];
-  let skilltreeTrees: string[] = [];
-  if (typeof skilltreeTreeRaw === 'string' && skilltreeTreeRaw.trim() !== '') {
-    skilltreeTrees = [skilltreeTreeRaw.trim()];
-  } else if (Array.isArray(skilltreeTreeRaw)) {
-    skilltreeTrees = skilltreeTreeRaw.filter((x): x is string => typeof x === 'string').map(x => x.trim());
-  }
+  let skilltreeTrees = parseTreeList(skilltreeTreeRaw);
 
   const expRaw = fm['skilltree-exp'];
   const exp = (typeof expRaw === 'number' && !isNaN(expRaw)) ? expRaw : 10;

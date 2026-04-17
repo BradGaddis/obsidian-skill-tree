@@ -23,6 +23,7 @@ export interface ISkillNode {
 
     userModified?: boolean;
     fromNote?: boolean;
+    linkable?: boolean;
 
     nodeTypeName: string;
 
@@ -82,6 +83,21 @@ export interface ValidatedFrontmatter {
     x?: number;
     y?: number;
     displayText: string | null;
+}
+
+export interface FrontmatterProperties {
+    'skilltree-exp': number;
+    'skilltree-shape': string;
+    'skilltree-x': number;
+    'skilltree-y': number;
+    'skilltree-tree'?: string | string[];
+    'skilltree-display-text'?: string;
+    'skilltree-node-repeat'?: boolean;
+    'skilltree-node-repeat-count'?: number;
+    'skilltree-node-repeat-max'?: number;
+    'skilltree-node-repeat-reset'?: 'cooldown';
+    'skilltree-node-repeat-cooldown'?: number;
+    'skilltree-node-repeat-last'?: number | null;
 }
 
 export interface LabelInfo {

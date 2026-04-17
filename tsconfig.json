@@ -2,6 +2,7 @@
 	"compilerOptions": {
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
+		"noEmit": true,
 		"baseUrl": "src",
 		"inlineSourceMap": true,
 		"inlineSources": true,
