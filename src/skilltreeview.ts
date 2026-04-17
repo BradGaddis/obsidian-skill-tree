@@ -81,10 +81,29 @@ export class SkillTreeView extends ItemView {
     }
 
     protected async onClose(): Promise<void> {
-        this.uxCleanup?.();
-        this.resizeObserver?.disconnect();
-        this.renderCleanup?.();
+        // Clean up modal event listeners
         this.modalEventCleanup?.();
+        this.modalEventCleanup = null;
+
+        // Clean up open modals from DOM to prevent memory leaks
+        for (const [, modalInfo] of this.openModals) {
+            if (modalInfo.element && modalInfo.element.parentNode) {
+                modalInfo.element.remove();
+            }
+        }
+        this.openModals.clear();
+
+        // Clean up UX handlers
+        this.uxCleanup?.();
+        this.uxCleanup = null;
+
+        // Clean up resize observer
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
+
+        // Clean up renderer
+        this.renderCleanup?.();
+        this.renderCleanup = null;
     }
 
     async loadSettings() {

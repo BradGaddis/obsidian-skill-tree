@@ -1,4 +1,4 @@
-import { App, TAbstractFile, TFile } from "obsidian";
+import { App, Notice, TAbstractFile, TFile } from "obsidian";
 import { linkedNodes, RemoveFromLinkedNodes } from "./linked_nodes";
 import { GetNodes } from "../data/tree_manager";
 import { parseTasksFromNode } from "../data/task_parser";
@@ -31,18 +31,23 @@ export async function handleFileModify(app: App, file: TAbstractFile): Promise<v
     const node = linkedNodes.get(file.path);
     if (!node) return;
 
-    const fileContent = await app.vault.read(file);
-    const frontmatterMatch = fileContent.match(/^---\n([\s\S]*?)\n---/);
-    if (frontmatterMatch && frontmatterMatch[1]) {
-        const fm = parseYamlFrontmatter(frontmatterMatch[1]);
-        const validated = validateFrontmatter(fm);
-        await handleMetadataChange(node, file, validated);
-    }
+    try {
+        const fileContent = await app.vault.read(file);
+        const frontmatterMatch = fileContent.match(/^---\n([\s\S]*?)\n---/);
+        if (frontmatterMatch && frontmatterMatch[1]) {
+            const fm = parseYamlFrontmatter(frontmatterMatch[1]);
+            const validated = validateFrontmatter(fm);
+            await handleMetadataChange(node, file, validated);
+        }
 
-    const newTasks = await parseTasksFromNode(app, node);
-    if (node.tasks === newTasks) return;
-    node.tasks = newTasks;
-    skillTreeEvents.emit(EVENTS.NODE_UPDATED, node.id);
+        const newTasks = await parseTasksFromNode(app, node);
+        if (node.tasks === newTasks) return;
+        node.tasks = newTasks;
+        skillTreeEvents.emit(EVENTS.NODE_UPDATED, node.id);
+    } catch (err) {
+        console.error('[handleFileModify] Error processing file:', file.path, err);
+        new Notice(`Failed to process file: ${file.name}`);
+    }
 }
 
 export function handleDataFileChange(file: TAbstractFile): void {

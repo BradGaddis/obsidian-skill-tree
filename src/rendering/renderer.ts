@@ -24,6 +24,7 @@ import { HandleCollision } from "../utils/collision";
 import { view } from "../utils/globals";
 import { skillTreeEvents, EVENTS } from "../utils/events";
 import { DrawNodeShape, DrawOrthogonalArrow, DrawSelectedNode, DrawCheckBox, DrawSubLabel, Blend, TIMER_LABEL_FONT_SCALE, TIMER_LABEL_RADIUS_SCALE, TIMER_LABEL_PADDING_PX, DrawRoundedRect } from "./drawing";
+import { escapeHtml } from "../utils/html_escape";
 
 const dpr = window.devicePixelRatio || 1;
 
@@ -42,6 +43,11 @@ let lockedTreeBanner: HTMLElement | null = null;
 
 let latestUpdate: FrameRequestCallback
 
+/**
+ * Initializes the renderer by setting up the canvas, resize observer, and level pane.
+ * Sets up event listeners for repeating node timer ticks to update timer labels.
+ * @returns A cleanup function that removes event listeners (call on plugin unload)
+ */
 export function InitRenderer(): { cleanup: () => void } {
     SetupCanvas();
     const canvas = view.canvas;
@@ -73,7 +79,11 @@ export function InitRenderer(): { cleanup: () => void } {
     };
 }
 
-// TODO: implement task mode update 
+/**
+ * Triggers a render update for the skill tree canvas.
+ * Uses requestAnimationFrame to batch updates for performance.
+ * @param force - If true, immediately renders in the current frame without batching
+ */
 export function Update(force: boolean = false): void {
     if (force) {
         latestUpdate = UpdateInRAFID
@@ -89,6 +99,11 @@ export function Update(force: boolean = false): void {
     rafId = requestAnimationFrame(latestUpdate);
 }
 
+/**
+ * Recenters the view so all nodes are centered in the canvas.
+ * Calculates the bounding box of all nodes and shifts them so the center
+ * of the node cluster aligns with the canvas center. Resets scale to 1.
+ */
 export function Recenter() {
     view.scale = 1;
     const nodes = Array.from(GetNodes().values());
@@ -117,6 +132,11 @@ export function Recenter() {
     Update(true)
 }
 
+/**
+ * Centers the view on a specific node, positioning it in the middle of the canvas.
+ * Adjusts the view offset based on the node's position and current scale.
+ * @param node - The node to center the view on
+ */
 export function CenterOnNode(node: SkillNode) {
     if (!view.canvas) return;
     const canvasWidth = view.canvas.width / dpr;
@@ -128,10 +148,22 @@ export function CenterOnNode(node: SkillNode) {
     Update();
 }
 
+/**
+ * Converts screen coordinates to world coordinates based on current view offset and scale.
+ * @param screenCoords - The coordinates in screen space (pixels)
+ * @returns The corresponding coordinates in world space
+ */
 export function screenToWorld(screenCoords: Coordinate) {
     return { x: (screenCoords.x - view.offset.x) / view.scale, y: (screenCoords.y - view.offset.y) / view.scale };
 }
 
+/**
+ * Updates the position of the level pane to the specified coordinates.
+ * Clamps the position to ensure the pane stays within the viewport bounds.
+ * Saves the new position to plugin settings.
+ * @param x - The desired left position
+ * @param y - The desired top position
+ */
 export async function UpdateLevelPanePosition(x: number, y: number): Promise<void> {
     if (!levelPaneElement) return;
 
@@ -150,14 +182,23 @@ export async function UpdateLevelPanePosition(x: number, y: number): Promise<voi
 
     levelPaneElement.style.left = `${clampedX}px`;
     levelPaneElement.style.top = `${clampedY}px`;
-    (view.plugin.settings as any).levelPanePosition = { left: clampedX, top: clampedY };
+    view.plugin.settings.levelPanePosition = { left: clampedX, top: clampedY };
     await view.plugin.saveSettings();
 }
 
+/**
+ * Gets the current drag state of the level pane (used for drag handling).
+ * @returns The level pane drag state object with isDragging, startX, startY, initialLeft, initialTop
+ */
 export function GetLevelPaneDragState() {
     return levelPaneDragState;
 }
 
+/**
+ * Updates the level pane UI with current experience data.
+ * Gets the latest exp display data and rebuilds the HTML content.
+ * Does nothing if the level pane element doesn't exist.
+ */
 export function UpdateLevelPane() {
     if (!levelPaneElement) return;
 
@@ -167,6 +208,10 @@ export function UpdateLevelPane() {
     levelPaneElement.innerHTML = FormatLevelPaneHtml(data);
 }
 
+/**
+ * Toggles the visibility of the level pane.
+ * @param visible - true to show the pane, false to hide
+ */
 export function ToggleLevelPane(visible: boolean) {
     if (!levelPaneElement) return;
 
@@ -177,6 +222,11 @@ export function ToggleLevelPane(visible: boolean) {
     }
 }
 
+/**
+ * Sets up the banner that displays when the current tree is locked due to incomplete
+ * prerequisite links from other trees. Updates the banner when nodes change or trees switch.
+ * Listens to EVENTS.NODES_CHANGED and EVENTS.TREE_SWITCHED to refresh the banner.
+ */
 export function SetupLockedTreeBanner() {
     updateLockedTreeBanner();
     UpdateLevelPaneOnEvent();
@@ -209,8 +259,9 @@ export function updateLockedTreeBanner() {
     }
 
     const treeNames = linkingWithIncomplete.map((t: { treeName: string; nodeCount: number }) => {
-        const linkText = t.nodeCount === 1 ? t.treeName : `${t.treeName} (${t.nodeCount})`;
-        return `<a href="#" class="tree-link skill-tree-locked-banner-link" data-tree="${t.treeName}">${linkText}</a>`;
+        const safeTreeName = escapeHtml(t.treeName);
+        const linkText = t.nodeCount === 1 ? safeTreeName : `${safeTreeName} (${t.nodeCount})`;
+        return `<a href="#" class="tree-link skill-tree-locked-banner-link" data-tree="${safeTreeName}">${linkText}</a>`;
     });
 
     lockedTreeBanner.innerHTML = `
@@ -234,6 +285,14 @@ export function updateLockedTreeBanner() {
 let rafId: number | null = null;
 let levelPaneDragState = { isDragging: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0 };
 
+/**
+ * Calculates the display radius of a node based on its label text.
+ * Measures the width of each line in the node's display label and computes
+ * a radius large enough to contain the text with padding.
+ * @param node - The node to calculate radius for
+ * @param context - The canvas 2D rendering context (for text measuring)
+ * @returns The calculated radius in world units
+ */
 function CalculateNodeRadius(node: SkillNode, context: CanvasRenderingContext2D): number {
     const { lines } = node.getDisplayLabel();
 
@@ -260,7 +319,7 @@ function CreateLevelPane() {
     levelPaneElement.classList.add('skill-tree-level-pane');
     levelPaneElement.style.display = 'none';
 
-    const savedPos = (view.plugin.settings as any).levelPanePosition;
+    const savedPos = view.plugin.settings.levelPanePosition;
     if (savedPos && typeof savedPos.left === 'number' && typeof savedPos.top === 'number') {
         levelPaneElement.style.left = `${savedPos.left}px`;
         levelPaneElement.style.top = `${savedPos.top}px`;
@@ -360,9 +419,12 @@ function FormatLevelPaneHtml(data: ExpDisplayData): string {
             ? `All ${data.aggregateLevel + 1}`
             : `Current ${data.currentLevel + 1}`;
 
+    // Escape user-controlled tree name to prevent XSS
+    const safeTreeName = escapeHtml(view.settings.currentTreeName);
+
     return `
         <div>
-            <div class="skill-tree-level-pane-title">Current Tree: ${view.settings.currentTreeName}</div>
+            <div class="skill-tree-level-pane-title">Current Tree: ${safeTreeName}</div>
             <div class="skill-tree-level-pane-level">${levelHeader}</div>
             <div class="skill-tree-level-pane-progress">
                 <div class="skill-tree-level-pane-progress-fill" style="width: ${barPercent}%"></div>
@@ -646,6 +708,16 @@ function SetupCanvas() {
     view.context = context;
 }
 
+/**
+ * The main render function executed via requestAnimationFrame.
+ * Performs a complete frame render including:
+ * 1. Clear canvas and set up transform based on pan/zoom
+ * 2. Update node radii for all nodes
+ * 3. Validate tree state (edge connections, collision detection)
+ * 4. Calculate visible nodes (culling nodes outside viewport)
+ * 5. Render edges, nodes, and temporary edge if dragging
+ * 6. Render handles if in edit mode
+ */
 function UpdateInRAFID() {
     if (!view.context || !view.canvas) {
         return;
@@ -714,8 +786,8 @@ function UpdateStatusBar(): void {
 
     const statusBarText = FormatStatusBarText(data);
 
-    if (view.plugin && (view.plugin as any).updateStatusBar) {
-        (view.plugin as any).updateStatusBar(statusBarText);
+    if (view.plugin) {
+        view.plugin.updateStatusBar(statusBarText);
     }
 }
 

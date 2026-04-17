@@ -1,15 +1,17 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
 
-import { SkillTreeSettings } from './types/interfaces';
+import { SkillTreeSettings, SkillTreeData } from './types/interfaces';
 import { toTitleCase, findTreeByCaseInsensitive } from './types/utils';
 import { VIEW_TYPE_SKILLTREE } from './types/constants';
 
 import { SkillTreeView } from './skilltreeview';
 import { GetCurrentTreeData } from './data/tree_manager';
-import { SetupFileWatchers } from './handlers/watcher_setup';
+import { SetupFileWatchers, CleanupFileWatchers } from './handlers/watcher_setup';
 import { SetSettings, SetView } from './utils/globals';
 import { skillTreeEvents, EVENTS } from './utils/events';
 import { TreeSuggestModal, FolderSuggestionModal } from './ui/fuzzy_suggest_modal';
+import { isValidTreeName, sanitizeTreeName } from './utils/html_escape';
+import { validateSkillTreeData, formatValidationErrors } from './utils/json_validator';
 
 export function defaultSettings(): SkillTreeSettings {
   return {
@@ -42,13 +44,15 @@ export function defaultSettings(): SkillTreeSettings {
 
 export default class SkillTreePlugin extends Plugin {
   settings: SkillTreeSettings = defaultSettings();
+  settingsTab: SkillTreeSettingTab | null = null;
 
   statusBarItem: HTMLElement | null = null;
 
   async onload() {
     await this.loadSettings();
 
-    this.addSettingTab(new SkillTreeSettingTab(this.app, this));
+    this.settingsTab = new SkillTreeSettingTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     this.registerView?.(VIEW_TYPE_SKILLTREE, (leaf: WorkspaceLeaf) => {
       let view: SkillTreeView = new SkillTreeView(leaf, this)
@@ -145,6 +149,14 @@ export default class SkillTreePlugin extends Plugin {
   onunload() {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_SKILLTREE);
 
+    // Clean up setting tab event listeners
+    if (this.settingsTab) {
+      this.settingsTab.cleanup();
+      this.settingsTab = null;
+    }
+
+    // Clean up file watchers
+    CleanupFileWatchers();
   }
 
   async loadSettings() {
@@ -166,7 +178,7 @@ export default class SkillTreePlugin extends Plugin {
 
   updateViews() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-      const view = leaf.view as any;
+      const view = leaf.view as SkillTreeView | undefined;
       if (view && view.loadSettings) {
         await view.loadSettings();
         const { LoadTree } = await import("./data/tree_manager");
@@ -182,7 +194,7 @@ export default class SkillTreePlugin extends Plugin {
 
   updateLevelPaneVisibility() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-      const view = leaf.view as any;
+      const view = leaf.view as SkillTreeView | undefined;
       if (view && view.settings) {
         const { ToggleLevelPane, UpdateLevelPane } = await import("./rendering/renderer");
         ToggleLevelPane(view.settings.showLevelPane !== false);
@@ -214,9 +226,16 @@ export default class SkillTreePlugin extends Plugin {
     return null;
   }
 
-  async importTree(data: any): Promise<void> {
-    if (!data || !data.name || !Array.isArray(data.nodes)) {
-      throw new Error('Invalid JSON: missing required fields');
+  async importTree(data: SkillTreeData): Promise<void> {
+    // Validate the imported JSON data against schema
+    const validation = validateSkillTreeData(data);
+    if (!validation.valid) {
+      throw new Error(formatValidationErrors(validation.errors));
+    }
+
+    // Validate and sanitize the tree name
+    if (!isValidTreeName(data.name)) {
+      throw new Error('Invalid tree name: tree names cannot contain HTML tags or script content');
     }
 
     const treeName = toTitleCase(data.name);
@@ -225,15 +244,16 @@ export default class SkillTreePlugin extends Plugin {
       throw new Error(`A tree with that name already exists: "${existingMatch}"`);
     }
 
-    data.name = treeName;
-    this.settings.trees[treeName] = data;
-    this.settings.currentTreeName = treeName;
+    // Sanitize the tree name to ensure safety
+    data.name = sanitizeTreeName(treeName) || treeName;
+    this.settings.trees[data.name] = data;
+    this.settings.currentTreeName = data.name;
     await this.saveData(this.settings);
     this.updateViews();
-    skillTreeEvents.emit(EVENTS.TREE_ADDED, treeName);
+    skillTreeEvents.emit(EVENTS.TREE_ADDED, data.name);
   }
 
-  exportTree(): any {
+  exportTree(): SkillTreeData {
     const currentTree = GetCurrentTreeData();
     if (currentTree) {
       return JSON.parse(JSON.stringify(currentTree));
@@ -273,12 +293,31 @@ export default class SkillTreePlugin extends Plugin {
 class SkillTreeSettingTab extends PluginSettingTab {
   plugin: SkillTreePlugin;
   treeDropdown: any = null;
+  private treeAddedCallback: (() => void) | null = null;
+  private treeDeletedCallback: (() => void) | null = null;
 
   constructor(app: App, plugin: SkillTreePlugin) {
     super(app, plugin);
     this.plugin = plugin;
-    skillTreeEvents.on(EVENTS.TREE_ADDED, () => this.refreshTreeDropdown());
-    skillTreeEvents.on(EVENTS.TREE_DELETED, () => this.refreshTreeDropdown());
+    this.treeAddedCallback = () => this.refreshTreeDropdown();
+    this.treeDeletedCallback = () => this.refreshTreeDropdown();
+    skillTreeEvents.on(EVENTS.TREE_ADDED, this.treeAddedCallback);
+    skillTreeEvents.on(EVENTS.TREE_DELETED, this.treeDeletedCallback);
+  }
+
+  /**
+   * Clean up event listeners registered by this settings tab.
+   * Must be called when the plugin is unloaded to prevent memory leaks.
+   */
+  cleanup(): void {
+    if (this.treeAddedCallback) {
+      skillTreeEvents.off(EVENTS.TREE_ADDED, this.treeAddedCallback);
+      this.treeAddedCallback = null;
+    }
+    if (this.treeDeletedCallback) {
+      skillTreeEvents.off(EVENTS.TREE_DELETED, this.treeDeletedCallback);
+      this.treeDeletedCallback = null;
+    }
   }
 
   refreshTreeDropdown() {
@@ -371,7 +410,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.settings.levelDisplayMode = value as 'current' | 'aggregate' | 'both';
           await this.plugin.saveSettings();
           this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-            const view = leaf.view as any;
+            const view = leaf.view as SkillTreeView | undefined;
             if (view) {
               const { UpdateLevelPane } = await import("./rendering/renderer");
               UpdateLevelPane();
@@ -391,7 +430,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.settings.expDisplayMode = value as 'current' | 'aggregate' | 'both';
           await this.plugin.saveSettings();
           this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-            const view = leaf.view as any;
+            const view = leaf.view as SkillTreeView | undefined;
             if (view) {
               const { UpdateLevelPane } = await import("./rendering/renderer");
               UpdateLevelPane();
@@ -411,7 +450,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
             this.plugin.settings.levelMultiplier = num;
             await this.plugin.saveSettings();
             this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-              const view = leaf.view as any;
+              const view = leaf.view as SkillTreeView | undefined;
               if (view) {
                 const { UpdateLevelPane } = await import("./rendering/renderer");
                 UpdateLevelPane();
@@ -429,7 +468,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.settings.showLevelPane = value;
           await this.plugin.saveSettings();
           this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-            const view = leaf.view as any;
+            const view = leaf.view as SkillTreeView | undefined;
             if (view) {
               const { ToggleLevelPane, UpdateLevelPane } = await import("./rendering/renderer");
               ToggleLevelPane(value);
@@ -447,7 +486,7 @@ class SkillTreeSettingTab extends PluginSettingTab {
           this.plugin.settings.showStatusBar = value;
           await this.plugin.saveSettings();
           this.app.workspace.getLeavesOfType(VIEW_TYPE_SKILLTREE).forEach(async leaf => {
-            const view = leaf.view as any;
+            const view = leaf.view as SkillTreeView | undefined;
             if (view && view.settings) {
               view.settings.showStatusBar = value;
               const { UpdateLevelPane } = await import("./rendering/renderer");
@@ -515,7 +554,8 @@ class SkillTreeSettingTab extends PluginSettingTab {
                 await this.plugin.importTree(data);
                 new Notice('Skill tree imported successfully!');
               } catch (err) {
-                new Notice('Failed to import: Invalid JSON');
+                const errorMessage = (err as Error).message || 'Invalid JSON';
+                new Notice(`Import failed: ${errorMessage}`);
               }
             }
           };
@@ -574,19 +614,24 @@ class SkillTreeSettingTab extends PluginSettingTab {
         new Notice('Please enter a tree name');
         return;
       }
+      if (!isValidTreeName(name)) {
+        new Notice('Invalid tree name: cannot contain HTML tags or script content');
+        return;
+      }
       if (this.plugin.settings.trees[name]) {
         new Notice('A tree with that name already exists');
         return;
       }
-      this.plugin.settings.trees[name] = {
-        name: name,
+      const safeName = sanitizeTreeName(name);
+      this.plugin.settings.trees[safeName] = {
+        name: safeName,
         nodes: [],
         edges: []
       };
       await this.plugin.saveSettings();
-      await this.plugin.switchTree(name);
+      await this.plugin.switchTree(safeName);
       newTreeInput.value = '';
-      new Notice(`Created tree "${name}"`);
+      new Notice(`Created tree "${safeName}"`);
       // Refresh the dropdown
       this.refreshTreeDropdown();
     };
@@ -615,6 +660,10 @@ class SkillTreeSettingTab extends PluginSettingTab {
             new Notice('Please enter a new name');
             return;
           }
+          if (!isValidTreeName(newName)) {
+            new Notice('Invalid tree name: cannot contain HTML tags or script content');
+            return;
+          }
           const currentName = this.plugin.settings.currentTreeName;
           if (newName === currentName) {
             new Notice('Name unchanged');
@@ -629,14 +678,15 @@ class SkillTreeSettingTab extends PluginSettingTab {
             new Notice('Current tree not found');
             return;
           }
-          this.plugin.settings.trees[newName] = currentTree;
-          this.plugin.settings.trees[newName].name = newName;
+          const safeName = sanitizeTreeName(newName);
+          this.plugin.settings.trees[safeName] = currentTree;
+          this.plugin.settings.trees[safeName].name = safeName;
           delete this.plugin.settings.trees[currentName];
-          this.plugin.settings.currentTreeName = newName;
+          this.plugin.settings.currentTreeName = safeName;
           await this.plugin.saveSettings();
-          this.plugin.switchTree(newName);
+          this.plugin.switchTree(safeName);
           this.refreshTreeDropdown();
-          new Notice(`Tree renamed to "${newName}"`);
+          new Notice(`Tree renamed to "${safeName}"`);
         }));
 
     new Setting(containerEl)

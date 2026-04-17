@@ -18,6 +18,7 @@ import { ShowNewTreeDialog, ShowDeleteTreeDialog } from "./ui/dialog";
 import { RecordSnapshot, SaveNodes } from "./data/recorder";
 import { RefreshJsonEditor } from "./ui/json_editor";
 import { skillTreeEvents, EVENTS } from "./utils/events";
+import { isValidTreeName, sanitizeTreeName } from "./utils/html_escape";
 import { NodeSuggestModal, OrphanNodeSuggestModal, TreeSuggestModal } from "./ui/fuzzy_suggest_modal";
 import { SkillModal } from "./ui/skilltree_modal";
 import { openFileLinkPickerWithCreate } from "./ui/file_link_picker";
@@ -488,7 +489,11 @@ function SetupRenameTreeButton() {
         saveBtn.onclick = async () => {
             const newNameRaw = input.value.trim();
             if (newNameRaw && newNameRaw !== currentName) {
-                const newName = toTitleCase(newNameRaw);
+                if (!isValidTreeName(newNameRaw)) {
+                    new Notice('Invalid tree name: cannot contain HTML tags or script content');
+                    return;
+                }
+                const newName = toTitleCase(sanitizeTreeName(newNameRaw) || newNameRaw);
                 const existingMatch = findTreeByCaseInsensitive(newNameRaw, view.settings.trees);
                 if (existingMatch) {
                     new Notice(`A tree with that name already exists: "${existingMatch}"`);

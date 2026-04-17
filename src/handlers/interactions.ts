@@ -2,16 +2,19 @@ import { Update, nodeRadii, screenToWorld, handleRadius, levelPaneElement, GetLe
 import { FindNodeAt, GetNodes, GetEdges, CreateEdge, RemoveEdge, FindEdgeAtHandle, GetEdgeDirection, SetSelectedNodeID, IsCurrentTreeLocked, SyncNodeMetadataToFile } from "../data/tree_manager";
 import { RecordSnapshot, SaveNodes } from "../data/recorder";
 import { SkillNode } from "../nodes/skill_node";
-import { Coordinate, Handle } from "../types/types";
+import { Coordinate, Handle, HandleSide } from "../types/types";
 import { SkillEdge } from "../types/interfaces";
 import { Direction } from "../types/enums";
-import { distanceTo, pointToSegmentDistance } from "../types/utils";
 import { view } from "../utils/globals";
 import { Notice } from "obsidian";
+import { findEdgeAtWorld } from "../types/utils";
 
-const EDGE_STRAIGHT_LINE_THRESHOLD = 10;
 
-
+/**
+ * Checks if the skill tree is currently in edit mode.
+ * Edit mode enables additional UI elements like node handles and allows node/edge manipulation.
+ * @returns true if in edit mode, false otherwise
+ */
 export function isInEditMode(): boolean {
     return view?.settings?.mode === "edit";
 }
@@ -32,31 +35,62 @@ export const HANDLE_HIT_BASE = 20;
 export const HANDLE_HIT_SCALE = 2;
 
 // Setters/Getters
+/**
+ * Sets the current hit node (the node under the cursor/mouse).
+ * @param node - The node that was hit, or null if no node
+ */
 export function setHitNode(node: SkillNode | null): void {
     hitNode = node;
 }
 
+/**
+ * Sets the global dragging state flag.
+ * @param dragging - true if currently dragging something (node or edge)
+ */
 export function setIsDragging(dragging: boolean): void {
     isDragging = dragging;
 }
 
+/**
+ * Sets the edge currently being hovered over during drag operations.
+ * @param edge - The edge under the cursor, or null if not over an edge
+ */
 export function setDraggingOverEdge(edge: SkillEdge | null): void {
     draggingOverEdge = edge;
 }
 
+/**
+ * Sets the handle that an edge is being dragged from.
+ * @param handle - The handle (node + side + position) where drag starts
+ */
 export function setEdgeDragFrom(handle: Handle): void {
     edgeDragFrom = handle;
 }
 
+/**
+ * Gets the handle that an edge is being dragged from (if any).
+ * @returns The handle or null if not currently dragging an edge
+ */
 export function getEdgeDragFrom(): Handle | null {
     return edgeDragFrom;
 }
 
+/**
+ * Sets the target position for an edge being dragged.
+ * @param coord - The world coordinates of the drag target, or null to clear
+ */
 export function setEdgeDragTarget(coord: Coordinate | null): void {
     edgeDragTarget = coord;
 }
 
 
+/**
+ * Converts DOM mouse event coordinates to world coordinates.
+ * Takes clientX/clientY from a mouse event and returns the corresponding world position.
+ * @param clientX - The X coordinate from the mouse event
+ * @param clientY - The Y coordinate from the mouse event
+ * @returns The world coordinates or null if canvas not available
+ */
 export function screenToWorldCoordinate(clientX: number, clientY: number): Coordinate | null {
     const canvas = view?.canvas;
     if (!canvas) return null;
@@ -64,6 +98,12 @@ export function screenToWorldCoordinate(clientX: number, clientY: number): Coord
     return screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
 }
 
+/**
+ * Converts DOM mouse event coordinates to world coordinates (alias for screenToWorldCoordinate).
+ * @param clientX - The X coordinate from the mouse event
+ * @param clientY - The Y coordinate from the mouse event
+ * @returns The world coordinates or null if canvas not available
+ */
 export function EventToWorldCoordinate(clientX: number, clientY: number): Coordinate | null {
     const canvas = view?.canvas
     if (!canvas) return null
@@ -71,10 +111,22 @@ export function EventToWorldCoordinate(clientX: number, clientY: number): Coordi
     return screenToWorld({ x: clientX - rect.left, y: clientY - rect.top });
 }
 
+/**
+ * Finds a node at the given world position (wrapper around tree_manager's FindNodeAt).
+ * @param worldPos - The world coordinates to check
+ * @returns The SkillNode at that position, or null if none found
+ */
 export function findNodeAt(worldPos: Coordinate): SkillNode | null {
     return FindNodeAt(worldPos.x, worldPos.y);
 }
 
+/**
+ * Finds a handle (connection point) at the given world position.
+ * Checks handles extended by handleRadius (for easier hit detection during edge creation).
+ * Skips TerminalNode as it doesn't have handles.
+ * @param worldPos - The world coordinates to check
+ * @returns The Handle at that position, or null if none found
+ */
 export function findHandleAt(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     for (const node of nodes.values()) {
@@ -104,6 +156,12 @@ export function findHandleAt(worldPos: Coordinate): Handle | null {
     return null;
 }
 
+/**
+ * Gets a handle at world position using a larger threshold (2x handleRadius).
+ * Used for snapping when dragging edges - allows more lenient handle detection.
+ * @param coords - The world coordinates to check
+ * @returns The Handle at that position, or null if none within range
+ */
 export function getHandleAtWorld(coords: Coordinate): Handle | null {
     const nodes = GetNodes()
     for (const node of nodes.values()) {
@@ -126,13 +184,21 @@ export function getHandleAtWorld(coords: Coordinate): Handle | null {
             const dy = coords.y - h.hy
             const dist2 = dx * dx + dy * dy
             if (dist2 <= handleRadius * 2) {
-                return { node, side: h.side, hx: h.hx, hy: h.hy }
+                return { node, side: h.side as HandleSide, hx: h.hx, hy: h.hy }
             }
         }
     }
     return null
 }
 
+/**
+ * Finds the nearest handle on a target node to a given reference position.
+ * Used to determine which side of a node to connect an edge to.
+ * @param targetNode - The node to find the nearest handle on
+ * @param refX - Reference X coordinate to measure distance from
+ * @param refY - Reference Y coordinate to measure distance from
+ * @returns Object with side, hx (handle x), hy (handle y) or null if no handles
+ */
 export function findNearestHandle(targetNode: SkillNode, refX: number, refY: number): { side: string, hx: number, hy: number } | null {
     const r = nodeRadii[targetNode.id];
     if (r === undefined) {
@@ -160,6 +226,13 @@ export function findNearestHandle(targetNode: SkillNode, refX: number, refY: num
     return nearest
 }
 
+/**
+ * Finds the checkbox (for user-completable nodes) at the given world position.
+ * Only checks nodes that are userCompletable and in 'inProgress' or 'complete' state.
+ * Calculates checkbox position based on node's label and radius.
+ * @param worldPos - The world coordinates to check
+ * @returns The node whose checkbox was hit, or null if none
+ */
 export function getCheckboxAtWorld(worldPos: Coordinate): SkillNode | null {
     const nodes = GetNodes()
     for (const node of nodes.values()) {
@@ -210,6 +283,14 @@ export function getCheckboxAtWorld(worldPos: Coordinate): SkillNode | null {
     return null
 }
 
+/**
+ * Handles a click on a node's checkbox (for user-completable nodes).
+ * If the node is in 'inProgress' state, marks it as 'complete'.
+ * Records the change and triggers a render update.
+ * Does nothing if tree is locked or node is not user-completable.
+ * @param node - The node whose checkbox was clicked
+ * @returns true if the click was handled, false otherwise
+ */
 export function handleCheckboxClick(node: SkillNode): boolean {
     if (!node || !node.userCompletable) return false;
     if (IsCurrentTreeLocked()) {
@@ -228,254 +309,82 @@ export function handleCheckboxClick(node: SkillNode): boolean {
     return true;
 }
 
+/**
+ * Finds an edge endpoint (from or to handle) at the given world position.
+ * Used during edge dragging to detect when mouse is near an edge endpoint.
+ * Uses a threshold scaled by view scale for consistent detection.
+ * @param worldPos - The world coordinates to check
+ * @returns The Handle at that position, or null if none found
+ */
 export function getEdgeEndpointAtWorld(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes()
     const edges = GetEdges()
     const threshold = 20 / view.scale
 
-    for (const e of edges) {
-        if (!e.from || !e.to) continue
+    const hit = findEdgeAtWorld(worldPos, edges, nodes, nodeRadii, threshold);
+    if (!hit) return null;
 
-        const a = nodes.get(e.from as string | number)
-        const b = nodes.get(e.to as string | number)
-        if (!a || !b) continue
+    const a = nodes.get(hit.edge.from as string | number);
+    const b = nodes.get(hit.edge.to as string | number);
+    if (!a || !b) return null;
 
-        const rFrom = nodeRadii[a.id]
-        const rTo = nodeRadii[b.id]
-        if (rFrom === undefined) {
-            console.error(`nodeRadii missing for node ${a.id} (from) in getEdgeEndpointAtWorld`);
-            continue;
-        }
-        if (rTo === undefined) {
-            console.error(`nodeRadii missing for node ${b.id} (to) in getEdgeEndpointAtWorld`);
-            continue;
-        }
-
-        let fromX = a.x, fromY = a.y
-        if (e.fromSide === 'top') fromY -= rFrom
-        else if (e.fromSide === 'right') fromX += rFrom
-        else if (e.fromSide === 'bottom') fromY += rFrom
-        else if (e.fromSide === 'left') fromX -= rFrom
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1
-            fromX = a.x + (dx / d) * rFrom
-            fromY = a.y + (dy / d) * rFrom
-        }
-
-        let toX = b.x, toY = b.y
-        if (e.toSide === 'top') toY -= rTo
-        else if (e.toSide === 'right') toX += rTo
-        else if (e.toSide === 'bottom') toY += rTo
-        else if (e.toSide === 'left') toX -= rTo
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1
-            toX = b.x - (dx / d) * rTo
-            toY = b.y - (dy / d) * rTo
-        }
-
-        let dist: number;
-        const dx = toX - fromX;
-        const dy = toY - fromY;
-        const midSegmentLength = Math.abs(dx) >= Math.abs(dy) ? Math.abs(dy) : Math.abs(dx);
-
-        if (midSegmentLength < EDGE_STRAIGHT_LINE_THRESHOLD) {
-            dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY);
-        } else {
-            const midX = (fromX + toX) / 2;
-            const midY = (fromY + toY) / 2;
-
-            if (Math.abs(dx) >= Math.abs(dy)) {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, midX, fromY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, fromY, midX, toY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, toY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            } else {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, fromX, midY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, midY, toX, midY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, toX, midY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            }
-        }
-
-        if (dist <= threshold) {
-            const fromDist = distanceTo(worldPos, { x: fromX, y: fromY })
-            const toDist = distanceTo(worldPos, { x: toX, y: toY })
-
-            if (fromDist <= toDist) {
-                return { node: a, side: e.fromSide || 'right', hx: fromX, hy: fromY }
-            } else {
-                return { node: b, side: e.toSide || 'left', hx: toX, hy: toY }
-            }
-        }
+    if (hit.closerToFrom) {
+        return { node: a, side: (hit.edge.fromSide || 'right') as HandleSide, hx: hit.fromX, hy: hit.fromY };
+    } else {
+        return { node: b, side: (hit.edge.toSide || 'left') as HandleSide, hx: hit.toX, hy: hit.toY };
     }
-
-    return null
 }
 
+/**
+ * Finds an edge endpoint at the given world position using a larger threshold (30/scale).
+ * Similar to getEdgeEndpointAtWorld but with different threshold for specific use cases.
+ * @param worldPos - The world coordinates to check
+ * @returns The Handle at that position, or null if none found
+ */
 export function findEdgeEndpointAt(worldPos: Coordinate): Handle | null {
     const nodes = GetNodes();
     const edges = GetEdges();
     const scale = view?.scale || 1;
     const threshold = 30 / scale;
 
-    for (const e of edges) {
-        if (!e.from || !e.to) continue;
+    const hit = findEdgeAtWorld(worldPos, edges, nodes, nodeRadii, threshold);
+    if (!hit) return null;
 
-        const a = nodes.get(e.from as string | number);
-        const b = nodes.get(e.to as string | number);
-        if (!a || !b) continue;
+    const a = nodes.get(hit.edge.from as string | number);
+    const b = nodes.get(hit.edge.to as string | number);
+    if (!a || !b) return null;
 
-        const rFrom = nodeRadii[a.id];
-        const rTo = nodeRadii[b.id];
-        if (rFrom === undefined) {
-            console.error(`nodeRadii missing for node ${a.id} (from) in findEdgeEndpointAt`);
-            continue;
-        }
-        if (rTo === undefined) {
-            console.error(`nodeRadii missing for node ${b.id} (to) in findEdgeEndpointAt`);
-            continue;
-        }
-
-        let fromX = a.x, fromY = a.y;
-        if (e.fromSide === 'top') fromY -= rFrom;
-        else if (e.fromSide === 'right') fromX += rFrom;
-        else if (e.fromSide === 'bottom') fromY += rFrom;
-        else if (e.fromSide === 'left') fromX -= rFrom;
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-            fromX = a.x + (dx / d) * rFrom;
-            fromY = a.y + (dy / d) * rFrom;
-        }
-
-        let toX = b.x, toY = b.y;
-        if (e.toSide === 'top') toY -= rTo;
-        else if (e.toSide === 'right') toX += rTo;
-        else if (e.toSide === 'bottom') toY += rTo;
-        else if (e.toSide === 'left') toX -= rTo;
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-            toX = b.x - (dx / d) * rTo;
-            toY = b.y - (dy / d) * rTo;
-        }
-
-        let dist: number;
-        const dx = toX - fromX;
-        const dy = toY - fromY;
-        const midSegmentLength = Math.abs(dx) >= Math.abs(dy) ? Math.abs(dy) : Math.abs(dx);
-
-        if (midSegmentLength < EDGE_STRAIGHT_LINE_THRESHOLD) {
-            dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY);
-        } else {
-            const midX = (fromX + toX) / 2;
-            const midY = (fromY + toY) / 2;
-
-            if (Math.abs(dx) >= Math.abs(dy)) {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, midX, fromY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, fromY, midX, toY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, toY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            } else {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, fromX, midY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, midY, toX, midY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, toX, midY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            }
-        }
-
-        if (dist <= threshold) {
-            const fromDist = distanceTo(worldPos, { x: fromX, y: fromY });
-            const toDist = distanceTo(worldPos, { x: toX, y: toY });
-
-            if (fromDist <= toDist) {
-                return { node: a, side: (e.fromSide || 'right') as 'top' | 'right' | 'bottom' | 'left', hx: fromX, hy: fromY };
-            } else {
-                return { node: b, side: (e.toSide || 'left') as 'top' | 'right' | 'bottom' | 'left', hx: toX, hy: toY };
-            }
-        }
+    if (hit.closerToFrom) {
+        return { node: a, side: (hit.edge.fromSide || 'right') as Handle['side'], hx: hit.fromX, hy: hit.fromY };
+    } else {
+        return { node: b, side: (hit.edge.toSide || 'left') as Handle['side'], hx: hit.toX, hy: hit.toY };
     }
-
-    return null;
 }
 
+/**
+ * Finds an edge at the given world position.
+ * Uses a threshold scaled by view scale for consistent hit detection.
+ * @param worldPos - The world coordinates to check
+ * @returns The SkillEdge at that position, or null if none found
+ */
 export function findEdgeAt(worldPos: Coordinate): SkillEdge | null {
     const nodes = GetNodes();
     const edges = GetEdges();
     const scale = view?.scale || 1;
     const threshold = 30 / scale;
 
-    for (const e of edges) {
-        if (!e.from || !e.to) continue;
-
-        const a = nodes.get(e.from as string | number);
-        const b = nodes.get(e.to as string | number);
-        if (!a || !b) continue;
-
-        const rFrom = nodeRadii[a.id];
-        const rTo = nodeRadii[b.id];
-        if (rFrom === undefined) {
-            console.error(`nodeRadii missing for node ${a.id} (from) in findEdgeAt`);
-            continue;
-        }
-        if (rTo === undefined) {
-            console.error(`nodeRadii missing for node ${b.id} (to) in findEdgeAt`);
-            continue;
-        }
-
-        let fromX = a.x, fromY = a.y;
-        if (e.fromSide === 'top') fromY -= rFrom;
-        else if (e.fromSide === 'right') fromX += rFrom;
-        else if (e.fromSide === 'bottom') fromY += rFrom;
-        else if (e.fromSide === 'left') fromX -= rFrom;
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-            fromX = a.x + (dx / d) * rFrom;
-            fromY = a.y + (dy / d) * rFrom;
-        }
-
-        let toX = b.x, toY = b.y;
-        if (e.toSide === 'top') toY -= rTo;
-        else if (e.toSide === 'right') toX += rTo;
-        else if (e.toSide === 'bottom') toY += rTo;
-        else if (e.toSide === 'left') toX -= rTo;
-        else {
-            const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-            toX = b.x - (dx / d) * rTo;
-            toY = b.y - (dy / d) * rTo;
-        }
-
-        let dist: number;
-        const dx = toX - fromX;
-        const dy = toY - fromY;
-        const midSegmentLength = Math.abs(dx) >= Math.abs(dy) ? Math.abs(dy) : Math.abs(dx);
-
-        if (midSegmentLength < EDGE_STRAIGHT_LINE_THRESHOLD) {
-            dist = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, toX, toY);
-        } else {
-            const midX = (fromX + toX) / 2;
-            const midY = (fromY + toY) / 2;
-
-            if (Math.abs(dx) >= Math.abs(dy)) {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, midX, fromY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, fromY, midX, toY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, midX, toY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            } else {
-                const seg1 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, fromY, fromX, midY);
-                const seg2 = pointToSegmentDistance(worldPos.x, worldPos.y, fromX, midY, toX, midY);
-                const seg3 = pointToSegmentDistance(worldPos.x, worldPos.y, toX, midY, toX, toY);
-                dist = Math.min(seg1, seg2, seg3);
-            }
-        }
-
-        if (dist <= threshold) {
-            return e;
-        }
-    }
-
-    return null;
+    const hit = findEdgeAtWorld(worldPos, edges, nodes, nodeRadii, threshold);
+    return hit?.edge ?? null;
 }
 
 // Edge dragging
+
+/**
+ * Begins dragging an existing edge from a handle.
+ * Records a snapshot for undo support and sets up floating edge state.
+ * If an edge exists at the handle, stores it as floatingEdge and determines direction.
+ * @param handle - The handle (node side) where the drag begins
+ */
 export function startEdgeDrag(handle: Handle): void {
     RecordSnapshot();
     isDragging = true;
@@ -487,6 +396,11 @@ export function startEdgeDrag(handle: Handle): void {
     }
 }
 
+/**
+ * Updates the position of a floating (dragging) edge.
+ * Moves the dragged endpoint to the new world position and detaches it from its node.
+ * @param worldPos - The new world position for the floating edge endpoint
+ */
 export function updateFloatingEdge(worldPos: Coordinate): void {
     if (!floatingEdge) return;
 
@@ -502,12 +416,22 @@ export function updateFloatingEdge(worldPos: Coordinate): void {
     Update();
 }
 
+/**
+ * Begins dragging a node (for repositioning).
+ * Records a snapshot for undo support and sets the hit node and dragging state.
+ * @param node - The node to start dragging
+ */
 export function startNodeDrag(node: SkillNode): void {
     RecordSnapshot();
     hitNode = node;
     isDragging = true;
 }
 
+/**
+ * Updates a node's position during a drag operation.
+ * Moves the hit node to the new world coordinates.
+ * @param worldPos - The new world position for the dragged node
+ */
 export function updateNodeDrag(worldPos: Coordinate): void {
     if (!hitNode || !isDragging) return;
 
@@ -516,6 +440,10 @@ export function updateNodeDrag(worldPos: Coordinate): void {
     Update();
 }
 
+/**
+ * Ends a node drag operation.
+ * Clears drag state, saves nodes, and syncs metadata to file if the node has a linked file.
+ */
 export function endNodeDrag(): void {
     const node = hitNode;
     hitNode = null;
@@ -527,12 +455,24 @@ export function endNodeDrag(): void {
     }
 }
 
+/**
+ * Handles the drag motion of an edge endpoint (not a full edge, but the endpoint being repositioned).
+ * Updates both the source position and target position for rendering the temporary line.
+ * @param worldPos - Current world position of the drag
+ */
 export function handleEdgeEndpointDrag(worldPos: Coordinate): void {
     edgeDragSourcePos = worldPos;
     edgeDragTarget = worldPos;
     Update();
 }
 
+/**
+ * Completes an edge drag operation by either:
+ * 1. Handling the floating edge (reconnecting or removing it)
+ * 2. Creating a new edge if dragging to a valid target node
+ * Checks for duplicate edges and finds the nearest handle on the target node.
+ * @param worldPos - The final world position where the drag ended
+ */
 export function completeEdgeDrag(worldPos: Coordinate): void {
     HandleFloatingEdge(worldPos);
 
@@ -588,6 +528,13 @@ export function completeEdgeDrag(worldPos: Coordinate): void {
     resetDragState();
 }
 
+/**
+ * Completes a new edge creation (not modifying an existing edge).
+ * Creates an edge from the source handle to the target node at the given position.
+ * Checks for duplicates and finds the nearest handle on the target node.
+ * @param worldPos - The target world position for the new edge
+ * @returns true if edge was created, false otherwise (no source, same node, or duplicate)
+ */
 export function completeEdgeCreation(worldPos: Coordinate): boolean {
     if (!edgeDragFrom) return false
 
@@ -616,6 +563,13 @@ export function completeEdgeCreation(worldPos: Coordinate): boolean {
     return true
 }
 
+/**
+ * Handles the completion of dragging a floating edge.
+ * If dropped on a node, reconnects the edge to that node (finding nearest handle).
+ * If dropped on empty space, removes the floating edge.
+ * If dropped back on the original node, restores the original edge.
+ * @param worldPos - The world position where the drag ended
+ */
 export function HandleFloatingEdge(worldPos: Coordinate): void {
     const prevEdge = previousEdgeFromFloating;
     if (!floatingEdge || !prevEdge) return;
@@ -661,6 +615,12 @@ export function HandleFloatingEdge(worldPos: Coordinate): void {
     Update()
 }
 
+/**
+ * Resets all drag-related state variables to their defaults.
+ * Clears: hitNode, floatingEdge, previousEdgeFromFloating, edgeDragFrom, edgeDragTarget,
+ * edgeDragSourcePos, isDragging, isDraggingEdgeEndpoint, draggingEdgeEndpoint, floatingEdgeDirection,
+ * draggingOverEdge. Also saves nodes and triggers a render update.
+ */
 export function resetDragState(): void {
     hitNode = null;
     floatingEdge = null;
@@ -677,15 +637,28 @@ export function resetDragState(): void {
     Update();
 }
 
+/**
+ * Sets the currently selected node by ID.
+ * @param node - The node to select
+ */
 export function selectNode(node: SkillNode): void {
     SetSelectedNodeID(node.id);
 }
 
+/**
+ * Clears the current node selection by setting selected ID to null.
+ */
 export function clearSelection(): void {
     SetSelectedNodeID(null);
 }
 
 // Level pane drag handlers
+
+/**
+ * Starts dragging the level pane.
+ * Records initial position and cursor style for computing drag offset.
+ * @param initialPos - The initial mouse position where drag started
+ */
 export function startLevelPaneDrag(initialPos: { x: number, y: number }): void {
     if (!levelPaneElement) return;
     const dragState = GetLevelPaneDragState();
@@ -697,6 +670,11 @@ export function startLevelPaneDrag(initialPos: { x: number, y: number }): void {
     levelPaneElement.style.cursor = 'grabbing';
 }
 
+/**
+ * Moves the level pane during a drag operation.
+ * Calculates the new position based on the difference from the initial drag position.
+ * @param currentPos - The current mouse position
+ */
 export function moveLevelPane(currentPos: { x: number, y: number }): void {
     if (!levelPaneElement) return;
     const dragState = GetLevelPaneDragState();
@@ -708,6 +686,9 @@ export function moveLevelPane(currentPos: { x: number, y: number }): void {
     UpdateLevelPanePosition(newLeft, newTop);
 }
 
+/**
+ * Ends the level pane drag operation by resetting the drag state and cursor style.
+ */
 export function endLevelPaneDrag(): void {
     if (!levelPaneElement) return;
     const dragState = GetLevelPaneDragState();

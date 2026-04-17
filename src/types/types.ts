@@ -9,6 +9,11 @@ export type Mode = Partial<'view' | 'edit'>
 
 export type RepeatResetMode = 'cooldown';
 
-export type Handle = { node: SkillNode, side: string, hx: number, hy: number }
+/**
+ * Handle side positions for node connections.
+ */
+export type HandleSide = 'top' | 'right' | 'bottom' | 'left';
+
+export type Handle = { node: SkillNode, side: HandleSide, hx: number, hy: number }
 export type EdgeDrag = { handle: Handle }
 

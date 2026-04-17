@@ -1,4 +1,3 @@
-import { SkillNode } from "../nodes/skill_node";
 import { NodeState, NodeShape } from "../nodes/types";
 import { NODE_COLORS } from "./constants";
 
@@ -63,9 +62,53 @@ export interface SkillEdge {
     toSide?: 'top' | 'right' | 'bottom' | 'left';
 }
 
+/**
+ * Represents the serialized JSON data for a skill tree node.
+ * This is the raw data structure stored in settings and serialized to JSON.
+ */
+export interface SkillNodeData {
+    id?: string | number;
+    x: number;
+    y: number;
+    state: NodeState;
+    nodeTypeName: string;
+    exp?: number;
+    accumulatedExp?: number;
+    totalExp?: number;
+    fileLink?: string;
+    shape?: NodeShape;
+    displayText?: string;
+    heldState?: NodeState | null;
+    tasks?: Array<{
+        id?: number;
+        text: string;
+        line: number;
+        originalTask: string;
+        exp: number;
+        status: ' ' | 'x' | '/';
+        children: Array<SkillTask>;
+        scheduled: Date;
+        due: Date;
+        startDate: Date;
+        parent?: SkillTask;
+        priority: string;
+        filePath: string;
+        recurring: boolean;
+    }>;
+    // Additional properties for specific node types
+    treeLink?: string;           // TreeLinkNode
+    description?: string;       // BaseNode from file
+    stopTimer?: number;         // RepeatingNode - timestamp when timer was stopped
+    repeatLastCompleted?: number | null;   // RepeatingNode
+    repeatCount?: number;       // RepeatingNode
+    repeatMax?: number;          // RepeatingNode
+    previousType?: string;    // TaskNode - original node type before promotion
+    checkpointProgress?: number;// CheckpointNode
+}
+
 export interface SkillTreeData {
     name: string;
-    nodes: SkillNode[];
+    nodes: SkillNodeData[];
     edges: SkillEdge[];
 }
 
@@ -137,6 +180,7 @@ export interface SkillTreeSettings {
     fontSize: number;
     customTaskQuery?: string;
     lastModified?: number;
+    levelPanePosition?: { left: number; top: number };
 }
 
 export interface ZoomConfig {

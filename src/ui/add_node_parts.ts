@@ -7,6 +7,7 @@ import { DEFAULT_FRONTMATTER_TEMPLATE } from "../types/constants";
 import { SaveNodes, RecordSnapshot } from "../data/recorder";
 import { Update, screenToWorld } from "../rendering/renderer";
 import { AddNodeContentElements } from "../types/interfaces";
+import { escapeHtml } from "../utils/html_escape";
 
 interface FuzzyResult {
     item: string;
@@ -147,7 +148,7 @@ export function updateWarningState(
         warning.style.background = 'rgba(255,193,7,0.15)';
         warning.style.borderColor = 'rgba(255,193,7,0.4)';
         warning.style.color = 'var(--text-warning)';
-        warning.innerHTML = `<strong>Note:</strong> "${query}" will be created when you continue.`;
+        warning.innerHTML = `<strong>Note:</strong> "${escapeHtml(query)}" will be created when you continue.`;
         createBtn.textContent = 'Create New';
         createBtn.disabled = false;
         setSelectedPath(normalizedPath);

@@ -1,4 +1,4 @@
-import { App, TFile } from "obsidian";
+import { App, Notice, TFile } from "obsidian";
 import { SkillTask } from "../types/interfaces";
 import { LOOP_UPPER_LIMIT } from "../types/constants";
 import { SkillNode } from "../nodes/skill_node";
@@ -19,108 +19,113 @@ export async function parseTasksFromNode(app: App, node: SkillNode): Promise<Ski
     const file = app.vault.getAbstractFileByPath(node.fileLink);
     if (!file || !(file instanceof TFile)) return [];
 
-    const content = await app.vault.read(file);
-    const lines = content.split('\n');
-    const rootSkillTasks: SkillTask[] = [];
-    const stack: { task: SkillTask; indent: number }[] = [];
-    let id = 0;
+    try {
+        const content = await app.vault.read(file);
+        const lines = content.split('\n');
+        const rootSkillTasks: SkillTask[] = [];
+        const stack: { task: SkillTask; indent: number }[] = [];
+        let id = 0;
 
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line === undefined) {
-            console.error(`Line ${i} is undefined in parseTasksFromNode`);
-            continue;
-        }
-        const match = line.match(CHECKBOX_REGEX);
-        if (!match) continue;
-        if (match[1] === undefined || match[2] === undefined) {
-            console.error(`Match is missing required groups at line ${i}`);
-            continue;
-        }
-
-        const status = match[1].toLowerCase() as ' ' | 'x' | '/';
-        const text = match[2].trim();
-        const currentIndent = line.search(/\S/);
-
-        const dateMatches = [...text.matchAll(DATE_REGEX)];
-        let scheduled = new Date(0);
-        let due = new Date(0);
-        let startDate = new Date(0);
-        let cleanedText = text;
-
-        for (const dateMatch of dateMatches) {
-            const [fullMatch, emoji, dateStr] = dateMatch;
-            if (emoji === undefined || dateStr === undefined) {
-                console.error('Date match is missing required groups');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line === undefined) {
+                console.error(`Line ${i} is undefined in parseTasksFromNode`);
                 continue;
             }
-            const parsedDate = parseDate(dateStr);
-            if (emoji === '⏳') {
-                scheduled = parsedDate;
-            } else if (emoji === '📅') {
-                due = parsedDate;
-            } else if (emoji === '🛫') {
-                startDate = parsedDate;
+            const match = line.match(CHECKBOX_REGEX);
+            if (!match) continue;
+            if (match[1] === undefined || match[2] === undefined) {
+                console.error(`Match is missing required groups at line ${i}`);
+                continue;
             }
-            cleanedText = cleanedText.replace(fullMatch, '').trim();
-        }
 
-        const priorityMatch = cleanedText.match(PRIORITY_REGEX);
-        let priority = 'normal';
-        if (priorityMatch && priorityMatch[1] !== undefined) {
-            const emoji = priorityMatch[1];
-            priority = emoji === '🔺' ? 'highest'
-                : emoji === '⏫' ? 'high'
-                    : emoji === '🔼' ? 'medium'
-                        : emoji === '🔽' ? 'low'
-                            : 'lowest';
-            cleanedText = cleanedText.replace(emoji, '').trim();
-        }
+            const status = match[1].toLowerCase() as ' ' | 'x' | '/';
+            const text = match[2].trim();
+            const currentIndent = line.search(/\S/);
 
-        const task: SkillTask = {
-            id: id++,
-            text: cleanedText,
-            line: i + 1,
-            originalTask: line,
-            exp: 10,
-            status,
-            children: [],
-            scheduled,
-            due,
-            startDate,
-            filePath: file.path,
-            recurring: false,
-            priority
-        };
+            const dateMatches = [...text.matchAll(DATE_REGEX)];
+            let scheduled = new Date(0);
+            let due = new Date(0);
+            let startDate = new Date(0);
+            let cleanedText = text;
 
-        let safetyCounter = 0;
-        while (
-            stack.length > 0 &&
-            safetyCounter < LOOP_UPPER_LIMIT
-        ) {
-            const top = stack[stack.length - 1];
-            if (top === undefined || top.indent < currentIndent) {
-                break;
+            for (const dateMatch of dateMatches) {
+                const [fullMatch, emoji, dateStr] = dateMatch;
+                if (emoji === undefined || dateStr === undefined) {
+                    console.error('Date match is missing required groups');
+                    continue;
+                }
+                const parsedDate = parseDate(dateStr);
+                if (emoji === '⏳') {
+                    scheduled = parsedDate;
+                } else if (emoji === '📅') {
+                    due = parsedDate;
+                } else if (emoji === '🛫') {
+                    startDate = parsedDate;
+                }
+                cleanedText = cleanedText.replace(fullMatch, '').trim();
             }
-            stack.pop();
-            safetyCounter++;
-        }
 
-        if (stack.length === 0) {
-            task.parent = undefined;
-            rootSkillTasks.push(task);
-        } else {
-            const parentTask = stack[stack.length - 1];
-            if (parentTask) {
-                task.parent = parentTask.task;
-                parentTask.task.children.push(task);
+            const priorityMatch = cleanedText.match(PRIORITY_REGEX);
+            let priority = 'normal';
+            if (priorityMatch && priorityMatch[1] !== undefined) {
+                const emoji = priorityMatch[1];
+                priority = emoji === '🔺' ? 'highest'
+                    : emoji === '⏫' ? 'high'
+                        : emoji === '🔼' ? 'medium'
+                            : emoji === '🔽' ? 'low'
+                                : 'lowest';
+                cleanedText = cleanedText.replace(emoji, '').trim();
             }
+
+            const task: SkillTask = {
+                id: id++,
+                text: cleanedText,
+                line: i + 1,
+                originalTask: line,
+                exp: 10,
+                status,
+                children: [],
+                scheduled,
+                due,
+                startDate,
+                filePath: file.path,
+                recurring: false,
+                priority
+            };
+
+            let safetyCounter = 0;
+            while (
+                stack.length > 0 &&
+                safetyCounter < LOOP_UPPER_LIMIT
+            ) {
+                const top = stack[stack.length - 1];
+                if (top === undefined || top.indent < currentIndent) {
+                    break;
+                }
+                stack.pop();
+                safetyCounter++;
+            }
+
+            if (stack.length === 0) {
+                task.parent = undefined;
+                rootSkillTasks.push(task);
+            } else {
+                const parentTask = stack[stack.length - 1];
+                if (parentTask) {
+                    task.parent = parentTask.task;
+                    parentTask.task.children.push(task);
+                }
+            }
+
+            stack.push({ task, indent: currentIndent });
         }
 
-        stack.push({ task, indent: currentIndent });
+        return rootSkillTasks;
+    } catch (err) {
+        console.error(`[parseTasksFromNode] Error parsing tasks from file ${node.fileLink}:`, err);
+        return [];
     }
-
-    return rootSkillTasks;
 }
 
 
@@ -180,24 +185,35 @@ export async function toggleComplete(task: SkillTask, complete: boolean, app: Ap
 
     const file = app.vault.getAbstractFileByPath(task.filePath) as TFile | null;
     if (file) {
-        let content = await app.vault.read(file);
-        const lines = content.split('\n');
+        try {
+            let content = await app.vault.read(file);
+            const lines = content.split('\n');
 
-        for (const affectedSkillTask of affectedSkillTasks.values()) {
-            const lineIdx = affectedSkillTask.line - 1;
-            if (lineIdx >= 0 && lineIdx < lines.length) {
-                const line = lines[lineIdx];
-                if (line !== undefined) {
-                    lines[lineIdx] = line.replace(
-                        /(-\s+\[)([ xX/])(\])/,
-                        `$1${affectedSkillTask.status}$3`
-                    );
-                    affectedSkillTask.originalTask = lines[lineIdx];
+            for (const affectedSkillTask of affectedSkillTasks.values()) {
+                const lineIdx = affectedSkillTask.line - 1;
+                if (lineIdx >= 0 && lineIdx < lines.length) {
+                    const line = lines[lineIdx];
+                    if (line !== undefined) {
+                        lines[lineIdx] = line.replace(
+                            /(-\s+\[)([ xX/])(\])/,
+                            `$1${affectedSkillTask.status}$3`
+                        );
+                        affectedSkillTask.originalTask = lines[lineIdx];
+                    }
                 }
             }
-        }
 
-        await app.vault.modify(file, lines.join('\n'));
+            await app.vault.modify(file, lines.join('\n'));
+        } catch (err) {
+            console.error('[toggleComplete] Error modifying file:', task.filePath, err);
+            new Notice('Failed to update task in file');
+            // Revert the status changes since the file write failed
+            const revertStatus: ' ' | 'x' = complete ? ' ' : 'x';
+            setChildrenStatus(task, revertStatus);
+            if (task.parent) {
+                propagateUp(task.parent);
+            }
+        }
     }
 
     return task;

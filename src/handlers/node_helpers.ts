@@ -62,7 +62,7 @@ function buildNodeMap(tree: any): Map<string, SkillNode> | null {
     const nodes = new Map<string, SkillNode>();
     for (const nodeData of tree.nodes || []) {
         const node = NodeFromJSON(nodeData);
-        if (node) nodes.set(node.id, node);
+        if (node) nodes.set(node.id as string, node);
     }
     return nodes;
 }
@@ -94,7 +94,9 @@ function createNodeFromValidated(validated: any, targetNodeId: string, fileLink:
         exp: exp
     };
 
-    return NodeFromJSON(nodeData);
+    const node = NodeFromJSON(nodeData);
+    if (!node) throw new Error('Failed to create node from validated data');
+    return node;
 }
 
 function addNodeToTreeData(tree: any, node: SkillNode): void {

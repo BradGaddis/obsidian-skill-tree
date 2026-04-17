@@ -1,5 +1,5 @@
 import { SkillNode } from "../nodes/skill_node";
-import { Coordinate } from "../types/types";
+import { Coordinate, Handle } from "../types/types";
 
 import { CenterOnNode, levelPaneElement, Update } from "../rendering/renderer";
 import { GetSelectedNodeId, SetSelectedNodeID, GetNodes, CreateEdge, RemoveEdge } from "../data/tree_manager";
@@ -55,7 +55,7 @@ let _lastTapTime = 0;
 let _lastTapPos: { x: number, y: number } | null = null;
 let _pendingDoubleTap = false;
 let _touchDownNodeId: string | number | null = null;
-let _touchDownHandle: { node: any, side: string, hx: number, hy: number } | null = null;
+let _touchDownHandle: Handle | null = null;
 let _wasLongPress = false;
 
 function clearLongPressTimer(): void {
